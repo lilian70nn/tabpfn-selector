@@ -10,3 +10,11 @@ def move_batch_to_device(batch, device):
         else:
             kwargs[f.name] = v
     return type(batch)(**kwargs)
+
+def infer_loader_use_selector(loader):
+    batch = next(iter(loader))
+    assert hasattr(batch, "use_selector"), (
+        "Batch must contain use_selector. "
+        "Set batch.use_selector inside collate_tasks."
+    )
+    return bool(batch.use_selector)

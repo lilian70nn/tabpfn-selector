@@ -219,3 +219,5 @@ class MixedLinearTask(GenerateTask):
 
     def forward(self, X: torch.Tensor):
         return None
+    
+
