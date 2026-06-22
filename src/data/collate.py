@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import torch
-from .generation_helper import build_cell_mask
+from .helper import build_cell_mask
 
 @dataclass
 class TaskBatch:

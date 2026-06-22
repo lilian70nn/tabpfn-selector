@@ -3,7 +3,7 @@ from torch import nn
 from .encoder import TabularInputEncoder
 from .backbone import  TabularBackbone
 import torch
-from data.generation_helper import bucketize_y
+from data.helper import bucketize_y
 
 class TabularPFNModel(nn.Module):
     def __init__(

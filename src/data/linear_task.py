@@ -1,5 +1,5 @@
 import torch
-from .generation_helper import make_gen, stratified_classification_split, discretize_latent_random_bins
+from .helper import make_gen, stratified_classification_split, discretize_latent_random_bins
 from .synthetic_task import GenerateTask
 
 
