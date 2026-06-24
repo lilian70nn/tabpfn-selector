@@ -361,10 +361,7 @@ class LayerConnection:
         return child_values
 
 
-# ============================================================
 # Full layered SCM task
-# ============================================================
-
 class RandomLayeredSCM:
     """
     Random sparse layered SCM.
@@ -635,8 +632,6 @@ class MixedSCMTask(GenerateTask):
         dag_seed=None,
         aleatoric_seed=None,
         x_seed=None,
-
-        # SCM-specific
         num_roots=3,
         num_layers=4,
         max_nodes_per_layer=8,
@@ -969,44 +964,4 @@ class MixedSCMTask(GenerateTask):
 
     def forward(self, X: torch.Tensor):
         return None
-# ============================================================
-# Example usage
-# ============================================================
 
-if __name__ == "__main__":
-    device = torch.device("cpu")
-
-    g_dag, _ = make_gen(device, 123)
-    g_x, _ = make_gen(device, 456)
-    g_aleatoric, _ = make_gen(device, 789)
-
-    prior = MixedSCMTask(
-        num_classes=None,
-        n_min=128,
-        n_max=500,
-        d_min=2,
-        d_max=12,
-        test_frac=0.15,
-        p_missing=0.05,
-        device=device,
-        dag_seed=123,
-        aleatoric_seed=789,
-        x_seed=456,
-        num_roots=3,
-        num_layers=4,
-        max_nodes_per_layer=5,
-        edge_prob=0.35,
-        p_cat=0.3,
-        max_cardinality=4,
-        min_parents_per_node=1,
-        num_bins=5,
-    )
-
-
-    print("X_train shape:", prior.X_train.shape)
-    print("y_train shape:", prior.y_train.shape)
-    print("X_test shape:", prior.X_test.shape)
-    print("y_test shape:", prior.y_test.shape)
-    print("Feature type (0=cont, 1=cat):", prior.info["feature_type"])
-    print("Cardinality of categorical features (0 for continuous):", prior.info["cardinality"])
-    print("Is active feature (based on intervention strength):", prior.info["is_active"])
