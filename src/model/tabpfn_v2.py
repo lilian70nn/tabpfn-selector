@@ -1,9 +1,9 @@
 import torch.nn.functional as F
 from torch import nn
-from .encoder import TabularInputEncoder
-from .backbone import  TabularBackbone
+from src.model.encoder import TabularInputEncoder
+from src.model.backbone import  TabularBackbone
 import torch
-from data.helper import bucketize_y
+from src.model.encoder import bucketize_y
 
 class TabularPFNModel(nn.Module):
     def __init__(
