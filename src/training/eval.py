@@ -1,6 +1,6 @@
 import torch
-from .helper import move_batch_to_device, infer_loader_use_selector
-from .metrics import classification_metrics, importance_metrics
+from src.training.helper import move_batch_to_device, infer_loader_use_selector
+from src.training.metrics import classification_metrics, importance_metrics
 
 @torch.no_grad()
 def evaluate_synthetic(
