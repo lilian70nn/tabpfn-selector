@@ -1,5 +1,5 @@
-from .helper import move_batch_to_device, infer_loader_use_selector
-from .eval import evaluate_synthetic
+from src.training.helper import move_batch_to_device, infer_loader_use_selector
+from src.training.eval import evaluate_synthetic
 import torch
 
 
@@ -16,6 +16,7 @@ def train_synthetic(
     val_every=500,
     val_batches=50,
     save_path=None,
+    best_ckpt_path=None,
 ):
     model.to(device)
     model.train()
@@ -26,6 +27,13 @@ def train_synthetic(
         save_path.parent.mkdir(parents=True, exist_ok=True)
         with open(save_path, "w") as f:
             f.write("")
+
+    best_pred_loss = float("inf")
+
+    if best_ckpt_path is not None:
+        from pathlib import Path
+        best_ckpt_path = Path(best_ckpt_path)
+        best_ckpt_path.parent.mkdir(parents=True, exist_ok=True)
 
     def log_line(s):
         print(s, flush=True)
@@ -124,6 +132,27 @@ def train_synthetic(
                 max_batches=val_batches,
                 importance_weight=importance_weight,
             )
+
+            if val_metrics["pred_loss"] < best_pred_loss:
+                best_pred_loss = val_metrics["pred_loss"]
+
+                if best_ckpt_path is not None:
+                    torch.save(
+                        {
+                            "model_state_dict": model.state_dict(),
+                            "optimizer_state_dict": optimizer.state_dict(),
+                            "step": step,
+                            "best_pred_loss": best_pred_loss,
+                            "val_metrics": val_metrics,
+                        },
+                        best_ckpt_path,
+                    )
+
+                log_line(
+                    f"[best] step {step:06d} | "
+                    f"val_pred_loss {best_pred_loss:.6f} | "
+                    f"saved {best_ckpt_path}"
+                )
 
             if loader_use_selector:
                 log_line(
