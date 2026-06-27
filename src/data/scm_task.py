@@ -45,41 +45,123 @@ class BaseEdge:
 
 
 class ContToContEdge(BaseEdge):
+    EDGE_NAMES = {
+        0: "linear",
+        1: "tanh",
+        2: "sin",
+        3: "quadratic",
+        4: "relu",
+        5: "sigmoid",
+        6: "small_mlp",
+        7: "fourier",
+        8: "depth2_tree",
+    }
+
     def __init__(self, generator: torch.Generator, device: torch.device):
-        self.edge_type = _randint(0, 6, (), generator=generator, device=device).item()
+        self.edge_type = _randint(0, 9, (), generator=generator, device=device).item()
+        self.edge_name = self.EDGE_NAMES[self.edge_type]
 
         self.a = _randn((), generator=generator, device=device)
         self.b = _randn((), generator=generator, device=device)
         self.c = _randn((), generator=generator, device=device)
 
+        # edge_type == 6: small MLP, 1 -> 8 -> 1
+        H = 8
+        self.W1 = _randn(H, 1, generator=generator, device=device)
+        self.b1 = _randn(H, generator=generator, device=device)
+        self.W2 = _randn(1, H, generator=generator, device=device) / (H ** 0.5)
+        self.b2 = _randn(1, generator=generator, device=device)
+
+        # edge_type == 7: Fourier random features
+        R = 8
+        self.freq = 3.0 * _randn(R, generator=generator, device=device)
+        self.phase = 6.28318530718 * _rand(R, generator=generator, device=device)
+        self.fourier_w = _randn(R, generator=generator, device=device) / (R ** 0.5)
+
+        # edge_type == 8: depth-2 1D decision tree
+        self.tree_t0 = _randn((), generator=generator, device=device)
+        self.tree_t1 = _randn((), generator=generator, device=device)
+        self.tree_t2 = _randn((), generator=generator, device=device)
+        self.tree_leaf = _randn(4, generator=generator, device=device)
+
+    def name(self):
+        return self.edge_name
+
+    def _std(self, y: torch.Tensor) -> torch.Tensor:
+        std = y.std(unbiased=False)
+        if float(std.item()) < 1e-6:
+            return y - y.mean()
+        return (y - y.mean()) / std
+
     def __call__(self, parent_value: torch.Tensor) -> torch.Tensor:
         x = parent_value.float()
-        x = (x - x.mean()) / x.std(unbiased=False).clamp_min(1e-6)
+        x = self._std(x)
 
         if self.edge_type == 0:
-            return self.a * x + self.b
-        if self.edge_type == 1:
-            return torch.tanh(self.a * x + self.b)
-        if self.edge_type == 2:
-            return torch.sin(self.a * x + self.b)
-        if self.edge_type == 3:
-            return self.a * (x ** 2) + self.b * x + self.c
-        if self.edge_type == 4:
-            return torch.relu(self.a * x + self.b)
-        return torch.sigmoid(self.a * x + self.b) - 0.5
+            y = self.a * x + self.b
+
+        elif self.edge_type == 1:
+            y = torch.tanh(self.a * x + self.b)
+
+        elif self.edge_type == 2:
+            y = torch.sin(self.a * x + self.b)
+
+        elif self.edge_type == 3:
+            y = self.a * (x ** 2) + self.b * x + self.c
+
+        elif self.edge_type == 4:
+            y = torch.relu(self.a * x + self.b)
+
+        elif self.edge_type == 5:
+            y = torch.sigmoid(self.a * x + self.b) - 0.5
+
+        elif self.edge_type == 6:
+            h = torch.tanh(x[:, None] @ self.W1.T + self.b1)
+            y = (h @ self.W2.T).squeeze(-1) + self.b2.squeeze(0)
+
+        elif self.edge_type == 7:
+            z = torch.sin(x[:, None] * self.freq[None, :] + self.phase[None, :])
+            y = z @ self.fourier_w
+
+        elif self.edge_type == 8:
+            left_root = x <= self.tree_t0
+
+            left_leaf = torch.where(
+                x <= self.tree_t1,
+                self.tree_leaf[0],
+                self.tree_leaf[1],
+            )
+
+            right_leaf = torch.where(
+                x <= self.tree_t2,
+                self.tree_leaf[2],
+                self.tree_leaf[3],
+            )
+
+            y = torch.where(left_root, left_leaf, right_leaf)
+
+        else:
+            raise RuntimeError(f"Unknown edge_type={self.edge_type}")
+
+        return self._std(y)
+
 
 
 class ContToCatEdge(BaseEdge):
     """
     continuous -> categorical logits
 
-    First bucketize continuous input into bins.
-    Then each bin gives logits over child categories.
-
-    Output shape:
-        parent_value: [batch]
-        output:       [batch, child_K]
+    edge_type:
+        0 bucket_logits   
+        1 prototype_logits
+        2 small_mlp_logits
     """
+
+    EDGE_NAMES = {
+        0: "bucket_logits",
+        1: "prototype_logits",
+        2: "small_mlp_logits",
+    }
 
     def __init__(
         self,
@@ -90,7 +172,10 @@ class ContToCatEdge(BaseEdge):
     ):
         self.child_K = child_cardinality
         self.num_bins = num_bins
+        self.edge_type = _randint(0, 3, (), generator=generator, device=device).item()
+        self.edge_name = self.EDGE_NAMES[self.edge_type]
 
+        # edge_type == 0: original bucket logits
         raw = 3.0 * _randn(num_bins - 1, generator=generator, device=device)
         self.thresholds = torch.sort(raw).values
 
@@ -101,23 +186,63 @@ class ContToCatEdge(BaseEdge):
             device=device,
         )
 
+        # edge_type == 1: prototype logits
+        self.prototypes = 2.0 * _randn(
+            child_cardinality,
+            generator=generator,
+            device=device,
+        )
+        self.prototype_scale = torch.rand((), generator=generator, device=device) + 0.5
+
+        # edge_type == 2: small MLP logits, 1 -> 8 -> child_K
+        H = 8
+        self.W1 = _randn(H, 1, generator=generator, device=device)
+        self.b1 = _randn(H, generator=generator, device=device)
+        self.W2 = _randn(child_cardinality, H, generator=generator, device=device) / (H ** 0.5)
+        self.b2 = _randn(child_cardinality, generator=generator, device=device)
+
+    def name(self):
+        return self.edge_name
+
     def __call__(self, parent_value: torch.Tensor) -> torch.Tensor:
         x = parent_value.float()
         x = (x - x.mean()) / x.std(unbiased=False).clamp_min(1e-6)
-        b = torch.bucketize(x, self.thresholds)
-        return self.bin_logits[b]
 
+        if self.edge_type == 0:
+            # original: discretize continuous x into bins, then lookup logits
+            b = torch.bucketize(x, self.thresholds)
+            logits = self.bin_logits[b]
 
+        elif self.edge_type == 1:
+            # category k is likely if x is close to prototype_k
+            dist = (x[:, None] - self.prototypes[None, :]) ** 2
+            logits = -self.prototype_scale * dist
+
+        elif self.edge_type == 2:
+            # small neural network maps scalar x to child_K logits
+            h = torch.tanh(x[:, None] @ self.W1.T + self.b1)
+            logits = h @ self.W2.T + self.b2
+
+        else:
+            raise RuntimeError(f"Unknown edge_type={self.edge_type}")
+
+        return logits
+    
+
+    
 class CatToContEdge(BaseEdge):
     """
     categorical -> continuous
 
-    Each parent category maps to one scalar value.
-
-    Output shape:
-        parent_value: [batch], integer category ids
-        output:       [batch]
+    edge_type:
+        0 lookup          category -> scalar table
+        1 embedding_mlp   category embedding -> small MLP -> scalar
     """
+
+    EDGE_NAMES = {
+        0: "lookup",
+        1: "embedding_mlp",
+    }
 
     def __init__(
         self,
@@ -126,23 +251,65 @@ class CatToContEdge(BaseEdge):
         device: torch.device,
     ):
         self.parent_K = parent_cardinality
+        self.edge_type = _randint(0, 2, (), generator=generator, device=device).item()
+        self.edge_name = self.EDGE_NAMES[self.edge_type]
+
+        # edge_type == 0: original lookup
         self.values = _randn(parent_cardinality, generator=generator, device=device)
+
+        # edge_type == 1: embedding MLP
+        E = 4
+        H = 8
+        self.emb = _randn(parent_cardinality, E, generator=generator, device=device)
+        self.W1 = _randn(H, E, generator=generator, device=device) / (E ** 0.5)
+        self.b1 = _randn(H, generator=generator, device=device)
+        self.W2 = _randn(1, H, generator=generator, device=device) / (H ** 0.5)
+        self.b2 = _randn(1, generator=generator, device=device)
+
+    def name(self):
+        return self.edge_name
+    
+    def _std(self, y: torch.Tensor) -> torch.Tensor:
+        std = y.std(unbiased=False)
+        if float(std.item()) < 1e-6:
+            return y - y.mean()
+        return (y - y.mean()) / std
 
     def __call__(self, parent_value: torch.Tensor) -> torch.Tensor:
         c = parent_value.long()
-        return self.values[c]
+
+        if self.edge_type == 0:
+            y = self.values[c]
+
+        elif self.edge_type == 1:
+            e = self.emb[c]  # [batch, E]
+            h = torch.tanh(e @ self.W1.T + self.b1)
+            y = (h @ self.W2.T).squeeze(-1) + self.b2.squeeze(0)
+
+        else:
+            raise RuntimeError(f"Unknown edge_type={self.edge_type}")
+
+        return self._std(y)
+
 
 
 class CatToCatEdge(BaseEdge):
     """
     categorical -> categorical logits
 
-    Each parent category gives logits over child categories.
+    edge_type:
+        0 transition_table
+        1 embedding_mlp_logits
 
     Output shape:
         parent_value: [batch], integer category ids
         output:       [batch, child_K]
     """
+
+    EDGE_NAMES = {
+        0: "transition_table",
+        1: "embedding_mlp_logits",
+    }
 
     def __init__(
         self,
@@ -153,7 +320,9 @@ class CatToCatEdge(BaseEdge):
     ):
         self.parent_K = parent_cardinality
         self.child_K = child_cardinality
-
+        self.edge_type = _randint(0, 2, (), generator=generator, device=device).item()
+        self.edge_name = self.EDGE_NAMES[self.edge_type]
+        # edge_type == 0: original transition table
         self.logits_table = _randn(
             parent_cardinality,
             child_cardinality,
@@ -161,9 +330,35 @@ class CatToCatEdge(BaseEdge):
             device=device,
         )
 
+        # edge_type == 1: category embedding -> small MLP -> child logits
+        E = 4
+        H = 8
+        self.emb = _randn(parent_cardinality, E, generator=generator, device=device)
+        self.W1 = _randn(H, E, generator=generator, device=device) / (E ** 0.5)
+        self.b1 = _randn(H, generator=generator, device=device)
+        self.W2 = _randn(child_cardinality, H, generator=generator, device=device) / (H ** 0.5)
+        self.b2 = _randn(child_cardinality, generator=generator, device=device)
+
+
+    def name(self):
+        return self.edge_name
+    
+
     def __call__(self, parent_value: torch.Tensor) -> torch.Tensor:
         c = parent_value.long()
-        return self.logits_table[c]
+
+        if self.edge_type == 0:
+            logits = self.logits_table[c]
+
+        elif self.edge_type == 1:
+            e = self.emb[c]  # [batch, E]
+            h = torch.tanh(e @ self.W1.T + self.b1)
+            logits = h @ self.W2.T + self.b2
+
+        else:
+            raise RuntimeError(f"Unknown edge_type={self.edge_type}")
+
+        return logits
 
 
 def sample_edge(
@@ -610,8 +805,13 @@ class RandomLayeredSCM:
             print(f"Connection layer {l} -> layer {l + 1}:")
             print(conn.adj.long())
             print(f"num_edges = {int(conn.adj.sum().item())}")
+            for i in range(conn.in_width):
+                for j in range(conn.out_width):
+                    edge = conn.edges[i][j]
+                    if edge is not None:
+                        edge_name = edge.name() if hasattr(edge, "name") else edge.__class__.__name__
+                        print(f"  edge {i}->{j}: {edge.__class__.__name__}, {edge_name}")
             print()
-
 
 
 class MixedSCMTask(GenerateTask):
