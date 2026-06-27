@@ -7,7 +7,7 @@ from src.data.collate import TaskBatch
 from src.data.collate import build_cell_mask
 
 
-TEST_FRAC = 0.2
+TEST_FRAC = 0.1
 RANDOM_STATE = 0
 
 def _encode_cat_from_train(s_train, s_test):
@@ -47,7 +47,7 @@ def _encode_cont_train_test(s_train, s_test):
     )
 
 
-def collate_openml_task(items,use_selector=True):
+def collate_openml_task(items,use_selector=True,classification=True):
     """
     DataLoader input:
         list(OPENML_DATASETS.items())
@@ -84,17 +84,24 @@ def collate_openml_task(items,use_selector=True):
 
     keep = ~y_raw.isna()
     X_df = X_df.loc[keep].reset_index(drop=True)
-    y_raw = y_raw.loc[keep].reset_index(drop=True)   
+    y_raw = y_raw.loc[keep].reset_index(drop=True)
 
-    if isinstance(y_raw.dtype, pd.CategoricalDtype):
+    perm = torch.randperm(len(X_df), generator=torch.Generator().manual_seed(RANDOM_STATE))
+    idx = perm[:2000].numpy()
+
+    X_df = X_df.iloc[idx].reset_index(drop=True)
+    y_raw = y_raw.iloc[idx].reset_index(drop=True)   
+
+    if classification or isinstance(y_raw.dtype, pd.CategoricalDtype) or y_raw.dtype == "object" or y_raw.dtype.name == "category":
+        y_cat = y_raw.astype("category")
         n_classes = torch.tensor(
-            [len(y_raw.cat.categories)],
+            [len(y_cat.cat.categories)],
             dtype=torch.long,
             device=device,
 
         )
         y_ids = torch.tensor(
-            y_raw.cat.codes.to_numpy(),
+            y_cat.cat.codes.to_numpy(),
             dtype=torch.long,
             device=device,
         )
