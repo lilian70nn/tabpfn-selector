@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import torch
 from .helper import build_cell_mask
+from typing import Optional
 
 @dataclass
 class TaskBatch:
@@ -32,6 +33,10 @@ class TaskBatch:
 
     n_classes: torch.Tensor | None
     use_selector: bool = True
+    feature_perm: Optional[torch.Tensor] = None
+    reference_importance_mi: Optional[torch.Tensor] = None
+    reference_importance_rf: Optional[torch.Tensor] = None
+
 
 
 def collate_tasks(tasks, use_selector=True):
@@ -233,3 +238,5 @@ def collate_tasks(tasks, use_selector=True):
         use_selector=use_selector,
 
     )
+
+
