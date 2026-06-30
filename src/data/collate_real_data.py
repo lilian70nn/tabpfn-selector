@@ -11,6 +11,10 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.inspection import permutation_importance
 from sklearn.feature_selection import mutual_info_classif
 
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+
 
 TEST_FRAC = 0.1
 RANDOM_STATE = 0
@@ -203,6 +207,7 @@ def collate_openml_task(items,use_selector=True,
 
     reference_importance_mi = torch.zeros(d, dtype=torch.float32, device=device)
     reference_importance_rf = torch.zeros(d, dtype=torch.float32, device=device)
+    reference_importance_logreg_perm = torch.zeros(d, dtype=torch.float32, device=device)
 
     if compute_reference_importance:
         try:
@@ -298,11 +303,71 @@ def collate_openml_task(items,use_selector=True,
             print(f"[RF permutation reference failed] {name}: {repr(e)}")
             reference_importance_rf = torch.zeros(d, dtype=torch.float32, device=device)
 
+        if compute_reference_importance and classification:
+            try:
+                X_ref = X_train.detach().cpu().numpy().copy()
+                y_ref = y_train.detach().cpu().numpy().reshape(-1)
+
+                # impute missing values using train column mean
+                col_mean = np.nanmean(X_ref, axis=0)
+                col_mean = np.where(np.isfinite(col_mean), col_mean, 0.0)
+
+                inds = np.where(~np.isfinite(X_ref))
+                X_ref[inds] = np.take(col_mean, inds[1])
+
+                X_ref_test = X_test.detach().cpu().numpy().copy()
+                y_ref_test = y_test.detach().cpu().numpy().reshape(-1)
+
+                inds = np.where(~np.isfinite(X_ref_test))
+                X_ref_test[inds] = np.take(col_mean, inds[1])
+
+                ref_model = make_pipeline(
+                    StandardScaler(),
+                    LogisticRegression(
+                        max_iter=2000,
+                        class_weight="balanced",
+                        random_state=int(reference_seed),
+                        solver="lbfgs",
+                    ),
+                )
+
+                ref_model.fit(X_ref, y_ref)
+
+                scoring = "roc_auc" if int(n_classes.item()) == 2 else "balanced_accuracy"
+
+                perm_result = permutation_importance(
+                    ref_model,
+                    X_ref_test,
+                    y_ref_test,
+                    scoring=scoring,
+                    n_repeats=30,
+                    random_state=int(reference_seed),
+                    n_jobs=-1,
+                )
+
+                ref_imp_np = perm_result.importances_mean.astype("float32")
+                ref_imp_np = np.maximum(ref_imp_np, 0.0)
+                ref_imp_np = ref_imp_np / (ref_imp_np.sum() + 1e-12)
+
+                reference_importance_logreg_perm = torch.tensor(
+                    ref_imp_np,
+                    dtype=torch.float32,
+                    device=device,
+                )
+
+            except Exception as e:
+                print(f"[LogReg permutation reference failed] {name}: {repr(e)}")
+                reference_importance_logreg_perm = torch.zeros(d, dtype=torch.float32, device=device)
+
     reference_importance_mi_original = torch.empty_like(reference_importance_mi)
     reference_importance_mi_original[feature_perm] = reference_importance_mi
 
     reference_importance_rf_original = torch.empty_like(reference_importance_rf)
     reference_importance_rf_original[feature_perm] = reference_importance_rf
+
+    reference_importance_logreg_perm_original = torch.empty_like(reference_importance_logreg_perm)
+    reference_importance_logreg_perm_original[feature_perm] = reference_importance_logreg_perm
+    
 
     X_train = X_train[None, :, :]
     X_test = X_test[None, :, :]
@@ -313,6 +378,7 @@ def collate_openml_task(items,use_selector=True,
     feature_perm = feature_perm[None, :]
     reference_importance_mi_original = reference_importance_mi_original[None, :]
     reference_importance_rf_original = reference_importance_rf_original[None, :]
+    reference_importance_logreg_perm_original = reference_importance_logreg_perm_original[None, :]
 
 
 
@@ -354,5 +420,6 @@ def collate_openml_task(items,use_selector=True,
         feature_perm=feature_perm,
         reference_importance_mi=reference_importance_mi_original,
         reference_importance_rf=reference_importance_rf_original,
+        reference_importance_logreg_perm=reference_importance_logreg_perm_original,
     )
 
