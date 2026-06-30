@@ -151,10 +151,26 @@ class TabularInputEncoder(nn.Module):
             - batch.x_mean[:, None, :]
         ) / batch.x_std[:, None, :]
 
+        X_all_norm = X_all_norm.clamp(-4.0, 4.0)
+
         type_all = type_tokens[:, None, :, :].expand(B, N, d_max, self.k)
         cont_cell = (feature_mask & is_cont[:, None, :] & ~X_nan)
         cat_cell = (feature_mask & is_cat[:, None, :] & ~X_nan)
         missing_cell = (feature_mask & X_nan & not_selector_row)
+
+        imputed_tokens = torch.zeros(B, N, d_max, self.k, device=device, dtype=tokens.dtype)
+
+        cont_missing_cell = missing_cell & is_cont[:, None, :]
+
+        if bool(cont_missing_cell.any()):
+            zeros = torch.zeros(
+                cont_missing_cell.sum().item(),
+                1,
+                device=device,
+                dtype=tokens.dtype,
+            )
+            imputed_tokens[cont_missing_cell] = self.cont_encoder(zeros)
+
 
         # continuous cells
         if bool(cont_cell.any()):
@@ -174,7 +190,8 @@ class TabularInputEncoder(nn.Module):
         # missing cells
         if bool(missing_cell.any()):
             feature_tokens[missing_cell] = (
-                self.missing_token[None, :]
+                imputed_tokens[missing_cell]
+                + self.missing_token[None, :]
                 + type_all[missing_cell]
             )
 
