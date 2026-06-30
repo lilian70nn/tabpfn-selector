@@ -6,6 +6,11 @@ from sklearn.model_selection import train_test_split
 from src.data.collate import TaskBatch
 from src.data.collate import build_cell_mask
 
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.inspection import permutation_importance
+from sklearn.feature_selection import mutual_info_classif
+
 
 TEST_FRAC = 0.1
 RANDOM_STATE = 0
@@ -47,7 +52,12 @@ def _encode_cont_train_test(s_train, s_test):
     )
 
 
-def collate_openml_task(items,use_selector=True,classification=True):
+def collate_openml_task(items,use_selector=True,
+                        classification=True,
+                        shuffle_features=True,
+                        feature_seed=0,
+                        compute_reference_importance=True,
+                        reference_seed=0,):
     """
     DataLoader input:
         list(OPENML_DATASETS.items())
@@ -178,12 +188,132 @@ def collate_openml_task(items,use_selector=True,classification=True):
     n_train, d = X_train.shape
     n_test = X_test.shape[0]
 
+    if shuffle_features:
+        feat_gen = torch.Generator().manual_seed(int(feature_seed))
+        feature_perm = torch.randperm(d, generator=feat_gen).to(device)
+    else:
+        feature_perm = torch.arange(d, device=device)
+
+    X_train = X_train[:, feature_perm]
+    X_test = X_test[:, feature_perm]
+    feature_type = feature_type[feature_perm]
+    cardinality = cardinality[feature_perm]
+    x_mean = x_mean[feature_perm]
+    x_std = x_std[feature_perm]
+
+    reference_importance_mi = torch.zeros(d, dtype=torch.float32, device=device)
+    reference_importance_rf = torch.zeros(d, dtype=torch.float32, device=device)
+
+    if compute_reference_importance:
+        try:
+            X_ref = X_train.detach().cpu().numpy().copy()
+            y_ref = y_train.detach().cpu().numpy()
+
+            for j in range(d):
+                col = X_ref[:, j]
+                ok = np.isfinite(col)
+
+                if not ok.any():
+                    X_ref[:, j] = 0.0
+                    continue
+
+                if int(feature_type[j].item()) == 1:
+                    vals = col[ok].astype(np.int64)
+                    mode = np.bincount(vals).argmax()
+                    col[~ok] = float(mode)
+                else:
+                    col[~ok] = float(col[ok].mean())
+
+                X_ref[:, j] = col
+
+            discrete_features = feature_type.detach().cpu().numpy().astype(bool)
+
+            ref_imp_np = mutual_info_classif(
+                X_ref,
+                y_ref,
+                discrete_features=discrete_features,
+                random_state=int(reference_seed),
+            ).astype("float32")
+
+            ref_imp_np = np.maximum(ref_imp_np, 0.0)
+            ref_imp_np = ref_imp_np / (ref_imp_np.sum() + 1e-12)
+
+            reference_importance_mi = torch.tensor(
+                ref_imp_np,
+                dtype=torch.float32,
+                device=device,
+            )
+
+        except Exception as e:
+            print(f"[MI reference failed] {name}: {repr(e)}")
+            reference_importance_mi = torch.zeros(d, dtype=torch.float32, device=device)
+
+    if compute_reference_importance:
+        try:
+            X_ref = X_train.detach().cpu().numpy().copy()
+            y_ref = y_train.detach().cpu().numpy()
+
+            col_mean = np.nanmean(X_ref, axis=0)
+            col_mean = np.where(np.isfinite(col_mean), col_mean, 0.0)
+
+            inds = np.where(~np.isfinite(X_ref))
+            X_ref[inds] = np.take(col_mean, inds[1])
+
+            ref_model = RandomForestClassifier(
+                n_estimators=200,
+                random_state=int(reference_seed),
+                n_jobs=-1,
+                class_weight="balanced_subsample",
+            )
+
+            ref_model.fit(X_ref, y_ref)
+
+            X_ref_test = X_test.detach().cpu().numpy().copy()
+            y_ref_test = y_test.detach().cpu().numpy()
+
+            inds = np.where(~np.isfinite(X_ref_test))
+            X_ref_test[inds] = np.take(col_mean, inds[1])
+
+            perm_result = permutation_importance(
+                ref_model,
+                X_ref_test,
+                y_ref_test,
+                scoring="balanced_accuracy",
+                n_repeats=20,
+                random_state=int(reference_seed),
+                n_jobs=-1,
+            )
+
+            ref_imp_np = perm_result.importances_mean.astype("float32")
+            ref_imp_np = np.maximum(ref_imp_np, 0.0)
+            ref_imp_np = ref_imp_np / (ref_imp_np.sum() + 1e-12)
+
+            reference_importance_rf = torch.tensor(
+                ref_imp_np,
+                dtype=torch.float32,
+                device=device,
+            )
+
+        except Exception as e:
+            print(f"[RF permutation reference failed] {name}: {repr(e)}")
+            reference_importance_rf = torch.zeros(d, dtype=torch.float32, device=device)
+
+    reference_importance_mi_original = torch.empty_like(reference_importance_mi)
+    reference_importance_mi_original[feature_perm] = reference_importance_mi
+
+    reference_importance_rf_original = torch.empty_like(reference_importance_rf)
+    reference_importance_rf_original[feature_perm] = reference_importance_rf
+
     X_train = X_train[None, :, :]
     X_test = X_test[None, :, :]
     y_train = y_train[None, :]
     y_test = y_test[None, :]
     feature_type = feature_type[None, :]
     cardinality = cardinality[None, :]
+    feature_perm = feature_perm[None, :]
+    reference_importance_mi_original = reference_importance_mi_original[None, :]
+    reference_importance_rf_original = reference_importance_rf_original[None, :]
+
 
 
     cell_mask = build_cell_mask(
@@ -221,5 +351,8 @@ def collate_openml_task(items,use_selector=True,classification=True):
         y_std=y_std,
         n_classes=n_classes,
         use_selector=use_selector,
+        feature_perm=feature_perm,
+        reference_importance_mi=reference_importance_mi_original,
+        reference_importance_rf=reference_importance_rf_original,
     )
 
