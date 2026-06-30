@@ -36,6 +36,7 @@ class TaskBatch:
     feature_perm: Optional[torch.Tensor] = None
     reference_importance_mi: Optional[torch.Tensor] = None
     reference_importance_rf: Optional[torch.Tensor] = None
+    reference_importance_logreg_perm: Optional[torch.Tensor] = None
 
 
 
