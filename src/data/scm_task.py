@@ -889,6 +889,131 @@ class MixedSCMTask(GenerateTask):
 
         return flat_values, flat_specs, flat_index
     
+    # def _sample_feature_and_target_sources(
+    #     self,
+    #     flat_specs,
+    #     flat_index,
+    #     d,
+    #     allow_target_as_feature=False,
+    # ):
+    #     all_ids = list(range(len(flat_specs)))
+    #     cont_ids = [i for i, spec in enumerate(flat_specs) if spec.kind == "cont"]
+
+    #     if len(cont_ids) == 0:
+    #         raise RuntimeError("No continuous node available for target.")
+
+    #     max_layer = max(l for l, _ in flat_index)
+
+    #     target_pool = [
+    #         i for i, spec in enumerate(flat_specs)
+    #         if spec.kind == "cont" and flat_index[i][0] == max_layer
+    #     ]
+
+    #     if len(target_pool) == 0:
+    #         target_pool = [
+    #             i for i, spec in enumerate(flat_specs)
+    #             if spec.kind == "cont"
+    #         ]
+
+    #     if len(target_pool) == 0:
+    #         raise RuntimeError("No continuous node available for target.")
+
+    #     target_pos = _randint(
+    #         0,
+    #         len(target_pool),
+    #         (),
+    #         generator=self.g_dag,
+    #         device=self.device,
+    #     ).item()
+    #     target_id = target_pool[int(target_pos)]
+
+    #     candidates = all_ids
+    #     if not allow_target_as_feature:
+    #         candidates = [i for i in candidates if i != target_id]
+
+    #     if len(candidates) < self.d_min:
+    #         raise ValueError(
+    #             f"Not enough feature candidates: got {len(candidates)}, "
+    #             f"but d_min={self.d_min}."
+    #         )
+
+    #     d = min(d, len(candidates))
+
+    #     perm = torch.randperm(
+    #         len(candidates),
+    #         generator=self.g_dag,
+    #         device=self.device,
+    #     )
+    #     feature_ids = [candidates[int(i)] for i in perm[:d].tolist()]
+
+    #     return feature_ids, target_id
+
+    # def _sample_feature_and_target_sources(
+    #     self,
+    #     flat_specs,
+    #     flat_index,
+    #     d,
+    #     allow_target_as_feature=False,
+    # ):
+    #     all_ids = list(range(len(flat_specs)))
+
+    #     max_layer = max(l for l, _ in flat_index)
+
+    #     # Prefer continuous target in the last layer
+    #     target_pool = [
+    #         i for i, spec in enumerate(flat_specs)
+    #         if spec.kind == "cont" and flat_index[i][0] == max_layer
+    #     ]
+
+    #     # Fallback: continuous target not in root layer,
+    #     # because root target would have no earlier feature candidates.
+    #     if len(target_pool) == 0:
+    #         target_pool = [
+    #             i for i, spec in enumerate(flat_specs)
+    #             if spec.kind == "cont" and flat_index[i][0] > 0
+    #         ]
+
+    #     if len(target_pool) == 0:
+    #         raise RuntimeError("No valid continuous non-root node available for target.")
+
+    #     # Sample target first
+    #     target_pos = _randint(
+    #         0,
+    #         len(target_pool),
+    #         (),
+    #         generator=self.g_dag,
+    #         device=self.device,
+    #     ).item()
+    #     target_id = target_pool[int(target_pos)]
+    #     target_layer, _ = flat_index[target_id]
+
+    #     # Features must come from layers before target_layer
+    #     candidates = [
+    #         i for i in all_ids
+    #         if flat_index[i][0] < target_layer
+    #     ]
+
+    #     if not allow_target_as_feature:
+    #         candidates = [i for i in candidates if i != target_id]
+
+    #     if len(candidates) < self.d_min:
+    #         raise ValueError(
+    #             f"Not enough pre-target feature candidates: got {len(candidates)}, "
+    #             f"but d_min={self.d_min}. target_layer={target_layer}."
+    #         )
+
+    #     d = min(d, len(candidates))
+
+    #     perm = torch.randperm(
+    #         len(candidates),
+    #         generator=self.g_dag,
+    #         device=self.device,
+    #     )
+
+    #     feature_ids = [candidates[int(i)] for i in perm[:d].tolist()]
+
+    #     return feature_ids, target_id
+
     def _sample_feature_and_target_sources(
         self,
         flat_specs,
@@ -897,44 +1022,44 @@ class MixedSCMTask(GenerateTask):
         allow_target_as_feature=False,
     ):
         all_ids = list(range(len(flat_specs)))
-        cont_ids = [i for i, spec in enumerate(flat_specs) if spec.kind == "cont"]
-
-        if len(cont_ids) == 0:
-            raise RuntimeError("No continuous node available for target.")
-
         max_layer = max(l for l, _ in flat_index)
 
-        target_pool = [
-            i for i, spec in enumerate(flat_specs)
-            if spec.kind == "cont" and flat_index[i][0] == max_layer
-        ]
+        target_id = None
 
-        if len(target_pool) == 0:
-            target_pool = [
+        for layer in range(max_layer, 0, -1):
+            layer_cont_ids = [
                 i for i, spec in enumerate(flat_specs)
-                if spec.kind == "cont"
+                if spec.kind == "cont" and flat_index[i][0] == layer
             ]
 
-        if len(target_pool) == 0:
-            raise RuntimeError("No continuous node available for target.")
+            if len(layer_cont_ids) == 0:
+                continue
 
-        target_pos = _randint(
-            0,
-            len(target_pool),
-            (),
-            generator=self.g_dag,
-            device=self.device,
-        ).item()
-        target_id = target_pool[int(target_pos)]
+            pos = _randint(
+                0,
+                len(layer_cont_ids),
+                (),
+                generator=self.g_dag,
+                device=self.device,
+            ).item()
 
-        candidates = all_ids
-        if not allow_target_as_feature:
-            candidates = [i for i in candidates if i != target_id]
+            target_id = layer_cont_ids[int(pos)]
+            break
+
+        if target_id is None:
+            raise RuntimeError("No valid continuous target found.")
+
+        target_layer, _ = flat_index[target_id]
+
+        candidates = [
+            i for i in all_ids
+            if flat_index[i][0] < target_layer
+        ]
 
         if len(candidates) < self.d_min:
-            raise ValueError(
-                f"Not enough feature candidates: got {len(candidates)}, "
-                f"but d_min={self.d_min}."
+            raise RuntimeError(
+                f"Not enough pre-target feature candidates: got {len(candidates)}, "
+                f"but d_min={self.d_min}. target_layer={target_layer}."
             )
 
         d = min(d, len(candidates))
@@ -944,6 +1069,7 @@ class MixedSCMTask(GenerateTask):
             generator=self.g_dag,
             device=self.device,
         )
+
         feature_ids = [candidates[int(i)] for i in perm[:d].tolist()]
 
         return feature_ids, target_id
