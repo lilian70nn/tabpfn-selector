@@ -88,7 +88,7 @@ class MixedLinearTask(GenerateTask):
 
         n, d, device = self.n, self.d, self.device
 
-        # 1. Decide feature types
+        # Decide feature types
         is_cat = torch.rand(d, device=device, generator=self.g_dag) < self.p_categorical
         feature_type = is_cat.long()
         cardinality = torch.zeros(d, device=device, dtype=torch.long)
@@ -96,7 +96,7 @@ class MixedLinearTask(GenerateTask):
             if bool(is_cat[j]):
                 cardinality[j] = torch.randint(2, self.max_cardinality + 1, (1,), device=device, generator=self.g_dag,).item()
 
-        # 2. Generate X_clean
+        # Generate X_clean
         X_clean = torch.empty(n, d, device=device, dtype=torch.float32)
         for j in range(d):
             if bool(is_cat[j]):
@@ -120,7 +120,7 @@ class MixedLinearTask(GenerateTask):
             active[idx] = True
         feature_strength = torch.zeros(d, device=device, dtype=torch.float32)
 
-        # 4. Generate scalar latent_y for both regression and classification
+        # Generate scalar latent_y for both regression and classification
         latent_y = torch.zeros(n, device=device, dtype=torch.float32)
         for j in range(d):
             if not bool(active[j]):
@@ -138,12 +138,12 @@ class MixedLinearTask(GenerateTask):
             latent_y = latent_y + contrib_j
             feature_strength[j] = contrib_j.std(unbiased=False)
 
-        # 5. Add noise
+        # Add noise
         noise_scale = self.noise_level * latent_y.std(unbiased=False).clamp_min(1e-6)
         noise = noise_scale * torch.randn(n, device=device, generator=self.g_aleatoric,)
         latent_y = latent_y + noise
 
-        # 6. Convert latent_y to y
+        # Convert latent_y to y
         if self.num_classes is None:
             # Regression: y is continuous
             y = latent_y
@@ -160,7 +160,7 @@ class MixedLinearTask(GenerateTask):
             )
             self.n_classes = C
 
-        # 7. Add missing values to observed X
+        # Add missing values to observed X
         X_obs = X_clean.clone()
         if self.p_missing > 0:
             missing_mask = (
@@ -171,7 +171,7 @@ class MixedLinearTask(GenerateTask):
         else:
             missing_mask = torch.zeros_like(X_obs, dtype=torch.bool)
 
-        # 8. Split train/test
+        # Split train/test
         if self.num_classes is not None:
             train_idx, test_idx = stratified_classification_split(
                 y=y.long(),
@@ -192,7 +192,7 @@ class MixedLinearTask(GenerateTask):
         X_test = X_obs[test_idx]
         y_test = y[test_idx]
 
-        # 9. Metadata
+        # Metadata
         self.n_features = d
         self.feature_type = feature_type
         self.cardinality = cardinality
