@@ -1,3 +1,9 @@
 
 src/data/scm_task_old.py
 src/data/test.py
+.DS_Store
+__pycache__/
+*.pyc
+checkpoints/
+src/data/collate_real_data_old.py
+src/data/collate_real_data_old2.py
