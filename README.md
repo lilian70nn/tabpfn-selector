@@ -7,4 +7,3 @@ Current features:
 - classification/regression task generation
 - optional selector row for feature importance supervision
 - PFN-style row/feature attention backbone
-- LRZ Slurm training scripts
