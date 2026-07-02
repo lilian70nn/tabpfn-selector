@@ -662,7 +662,7 @@ class RandomLayeredSCM:
 
         for _ in range(self.num_layers - 1):
             width = _randint(
-                1,
+                5,
                 self.max_nodes_per_layer + 1,
                 (),
                 generator=self.g_dag,
