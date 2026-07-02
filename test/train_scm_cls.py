@@ -111,7 +111,7 @@ train_synthetic(
     train_loader=train_loader,
     optimizer=optimizer,
     device=device,
-    steps=6000,
+    steps=10000,
     importance_weight=20,
     grad_clip=1.0,
     log_every=50,
