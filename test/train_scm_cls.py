@@ -15,6 +15,7 @@ torch.backends.cudnn.allow_tf32 = True
 from functools import partial
 
 
+
 train_dataset = SyntheticTaskDataset(
     length=100000,
     task_factory=MixedSCMTask,
@@ -28,14 +29,14 @@ train_dataset = SyntheticTaskDataset(
         d_min=8,
         d_max=16,
         test_frac=0.15,
-        p_cat=0.2,
+        p_cat=0.3,
         max_cardinality=10,
         p_missing=0.05,
         node_noise_scale=0.05,
         num_roots=5,
         num_layers=4,
         max_nodes_per_layer=12,
-        edge_prob=0.45,
+        edge_prob=0.3,
         min_parents_per_node=1,
         num_bins=5,
         device=torch.device("cpu"),
@@ -55,14 +56,14 @@ val_dataset = SyntheticTaskDataset(
         d_min=8,
         d_max=16,
         test_frac=0.15,
-        p_cat=0.2,
+        p_cat=0.3,
         max_cardinality=10,
         p_missing=0.05,
         node_noise_scale=0.05,
         num_roots=5,
         num_layers=4,
         max_nodes_per_layer=12,
-        edge_prob=0.45,
+        edge_prob=0.3,
         min_parents_per_node=1,
         num_bins=5,
         device=torch.device("cpu"),
@@ -118,7 +119,9 @@ train_synthetic(
     val_loader=val_loader,
     val_every=500,
     val_batches=50,
-    save_path="logs/scm_cls.txt",
-    best_ckpt_path = "logs/scm_best_ckpt.pt"
+    save_path="/dss/dsshome1/07/ra58bim2/pfn_exp/outputs/scm_cls.txt",
+    best_ckpt_path = "/dss/dsshome1/07/ra58bim2/pfn_exp/outputs/scm_best_ckpt.pt"
 )
+ 
+
  
