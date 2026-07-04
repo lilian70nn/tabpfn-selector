@@ -4,7 +4,7 @@ import random
 class SyntheticTaskDataset(Dataset):
     def __init__(
         self,
-        length,
+        num_tasks,
         task_factory,
         task_kwargs=None,
         task_kind="classification",   # "classification" or "regression"
@@ -12,7 +12,7 @@ class SyntheticTaskDataset(Dataset):
         max_classes=10,
         base_seed=0,
     ):
-        self.length = int(length)
+        self.num_tasks = int(num_tasks)
         self.task_factory = task_factory
         self.task_kwargs = dict(task_kwargs or {})
         self.task_kind = task_kind
@@ -28,7 +28,7 @@ class SyntheticTaskDataset(Dataset):
             assert self.max_classes >= self.min_classes
 
     def __len__(self):
-        return self.length
+        return self.num_tasks
 
     def __getitem__(self, idx):
         rng = random.Random(self.base_seed + int(idx))
