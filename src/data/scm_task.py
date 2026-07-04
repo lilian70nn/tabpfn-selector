@@ -987,6 +987,47 @@ class MixedSCMTask(GenerateTask):
         return X, latent_y, feature_type, cardinality
     
 
+    def _get_ancestor_ids(self, scm, flat_index, target_id):
+        """
+        Return global node ids that have a directed path to target_id.
+        In this layered DAG, ancestors are found by tracing backward from target.
+        """
+
+        target_id = int(target_id)
+        target_layer, target_node = flat_index[target_id]
+
+        pair_to_gid = {
+            pair: gid
+            for gid, pair in enumerate(flat_index)
+        }
+
+        ancestors = set()
+        frontier = {(target_layer, target_node)}
+
+        for layer in range(target_layer - 1, -1, -1):
+            conn = scm.connections[layer]
+            next_frontier = set()
+
+            for child_layer, child_node in frontier:
+                if child_layer != layer + 1:
+                    continue
+
+                for parent_node in range(conn.in_width):
+                    edge = conn.edges[parent_node][child_node]
+
+                    if edge is None:
+                        continue
+
+                    parent_pair = (layer, parent_node)
+                    parent_id = pair_to_gid[parent_pair]
+
+                    ancestors.add(parent_id)
+                    next_frontier.add(parent_pair)
+
+            frontier = next_frontier
+
+        return ancestors
+
     def _compute_intervention_importance(
         self,
         scm,
@@ -1000,13 +1041,19 @@ class MixedSCMTask(GenerateTask):
         target_layer, target_node = flat_index[target_id]
         latent_y_original = flat_values[target_id].float()
 
+        ancestor_ids = self._get_ancestor_ids(
+            scm=scm,
+            flat_index=flat_index,
+            target_id=target_id,
+        )
+
         strengths = []
 
         for feature_id in feature_ids:
             source_layer, source_node = flat_index[feature_id]
 
             # Layered DAG: later/same-layer source cannot affect earlier/same-layer target.
-            if source_layer >= target_layer:
+            if feature_id not in ancestor_ids:
                 strengths.append(torch.tensor(0.0, device=self.device))
                 continue
 
