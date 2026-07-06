@@ -17,7 +17,7 @@ from functools import partial
 
 
 train_dataset = SyntheticTaskDataset(
-    length=100000,
+    num_tasks=100000,
     task_factory=MixedSCMTask,
     task_kind="classification",
     min_classes=2,
@@ -44,7 +44,7 @@ train_dataset = SyntheticTaskDataset(
 )
 
 val_dataset = SyntheticTaskDataset(
-    length=10000,
+    num_tasks=10000,
     task_factory=MixedSCMTask,
     task_kind="classification",
     min_classes=2,
