@@ -1,4 +1,4 @@
-from src.data.linear_task import MixedLinearTask
+from data.linear_generator import MixedLinearTask
 from src.data.datasets import SyntheticTaskDataset
 import torch
 from torch.utils.data import DataLoader
@@ -10,7 +10,7 @@ from src.training.train import train_synthetic
 device = torch.device("cuda")
 
 train_dataset = SyntheticTaskDataset(
-    length=100000,
+    num_tasks=100000,
     task_factory=MixedLinearTask,
     task_kind="classification",
     min_classes=2,
@@ -32,7 +32,7 @@ train_dataset = SyntheticTaskDataset(
 )
 
 val_dataset = SyntheticTaskDataset(
-    length=10000,
+    num_tasks=10000,
     task_factory=MixedLinearTask,
     task_kind="classification",
     min_classes=2,
