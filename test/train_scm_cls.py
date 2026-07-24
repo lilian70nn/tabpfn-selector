@@ -92,9 +92,9 @@ val_loader = DataLoader(
 
 model = TabularPFNModel(
     k=120,
-    m=256,
-    n_heads=6,
-    depth=16,
+    m=384,
+    n_heads=8,
+    depth=24,
     max_cardinality=10,
     task_kind="classification",
     max_classes=4,
