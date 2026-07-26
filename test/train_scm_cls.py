@@ -73,7 +73,7 @@ val_dataset = SyntheticTaskDataset(
 
 train_loader = DataLoader(
     train_dataset,
-    batch_size=8,
+    batch_size=16,
     shuffle=True,
     num_workers=2,
     pin_memory=True,
@@ -82,7 +82,7 @@ train_loader = DataLoader(
 
 val_loader = DataLoader(
     val_dataset,
-    batch_size=8,
+    batch_size=16,
     shuffle=False,
     num_workers=2,
     pin_memory=True,
@@ -91,10 +91,10 @@ val_loader = DataLoader(
 
 
 model = TabularPFNModel(
-    k=120,
+    k=96,
     m=384,
     n_heads=8,
-    depth=24,
+    depth=16,
     max_cardinality=10,
     task_kind="classification",
     max_classes=4,
