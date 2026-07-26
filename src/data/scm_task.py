@@ -58,7 +58,8 @@ class ContToContEdge(BaseEdge):
     }
 
     def __init__(self, generator: torch.Generator, device: torch.device):
-        self.edge_type = _randint(0, 9, (), generator=generator, device=device).item()
+        # self.edge_type = _randint(0, 9, (), generator=generator, device=device).item()
+        self.edge_type = 0
         self.edge_name = self.EDGE_NAMES[self.edge_type]
 
         self.a = _randn((), generator=generator, device=device)
@@ -172,7 +173,8 @@ class ContToCatEdge(BaseEdge):
     ):
         self.child_K = child_cardinality
         self.num_bins = num_bins
-        self.edge_type = _randint(0, 3, (), generator=generator, device=device).item()
+        #self.edge_type = _randint(0, 3, (), generator=generator, device=device).item()
+        self.edge_type = 0
         self.edge_name = self.EDGE_NAMES[self.edge_type]
 
         # edge_type == 0: original bucket logits
@@ -251,7 +253,8 @@ class CatToContEdge(BaseEdge):
         device: torch.device,
     ):
         self.parent_K = parent_cardinality
-        self.edge_type = _randint(0, 2, (), generator=generator, device=device).item()
+        # self.edge_type = _randint(0, 2, (), generator=generator, device=device).item()
+        self.edge_type = 0
         self.edge_name = self.EDGE_NAMES[self.edge_type]
 
         # edge_type == 0: original lookup
@@ -320,7 +323,8 @@ class CatToCatEdge(BaseEdge):
     ):
         self.parent_K = parent_cardinality
         self.child_K = child_cardinality
-        self.edge_type = _randint(0, 2, (), generator=generator, device=device).item()
+        # self.edge_type = _randint(0, 2, (), generator=generator, device=device).item()
+        self.edge_type = 0
         self.edge_name = self.EDGE_NAMES[self.edge_type]
         # edge_type == 0: original transition table
         self.logits_table = _randn(
