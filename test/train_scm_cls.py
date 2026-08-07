@@ -2,6 +2,7 @@ import torch
 
 from src.data.datasets import SyntheticTaskDataset
 from src.data.scm_task import MixedSCMTask
+from src.data.scm_task_v9 import WeightedMixedScalarSCMTask
 from src.data.collate import collate_tasks
 from src.model.tabpfn_v2 import TabularPFNModel
 from src.training.train import train_synthetic
@@ -15,10 +16,9 @@ torch.backends.cudnn.allow_tf32 = True
 from functools import partial
 
 
-
 train_dataset = SyntheticTaskDataset(
     num_tasks=100000,
-    task_factory=MixedSCMTask,
+    task_factory=WeightedMixedScalarSCMTask,
     task_kind="classification",
     min_classes=2,
     max_classes=4,
@@ -29,23 +29,18 @@ train_dataset = SyntheticTaskDataset(
         d_min=8,
         d_max=16,
         test_frac=0.15,
-        p_cat=0.3,
-        max_cardinality=10,
         p_missing=0.05,
-        node_noise_scale=0.05,
-        num_roots=5,
-        num_layers=4,
-        max_nodes_per_layer=12,
-        edge_prob=0.3,
-        min_parents_per_node=1,
-        num_bins=5,
+        num_roots=4,
+        num_layers=5,
+        hidden_width_min=8,
+        hidden_width_max=12,
         device=torch.device("cpu"),
     ),
 )
 
 val_dataset = SyntheticTaskDataset(
     num_tasks=10000,
-    task_factory=MixedSCMTask,
+    task_factory=WeightedMixedScalarSCMTask,
     task_kind="classification",
     min_classes=2,
     max_classes=4,
@@ -56,16 +51,11 @@ val_dataset = SyntheticTaskDataset(
         d_min=8,
         d_max=16,
         test_frac=0.15,
-        p_cat=0.3,
-        max_cardinality=10,
         p_missing=0.05,
-        node_noise_scale=0.05,
-        num_roots=5,
-        num_layers=4,
-        max_nodes_per_layer=12,
-        edge_prob=0.3,
-        min_parents_per_node=1,
-        num_bins=5,
+        num_roots=4,
+        num_layers=5,
+        hidden_width_min=8,
+        hidden_width_max=12,
         device=torch.device("cpu"),
     ),
 )
@@ -113,14 +103,14 @@ train_synthetic(
     optimizer=optimizer,
     device=device,
     steps=30000,
-    importance_weight=20,
+    importance_weight=None,
     grad_clip=1.0,
     log_every=50,
     val_loader=val_loader,
     val_every=500,
     val_batches=50,
-    save_path="/dss/dsshome1/07/ra58bim2/pfn_exp/outputs/scm_cls.txt",
-    best_ckpt_path = "/dss/dsshome1/07/ra58bim2/pfn_exp/outputs/scm_best_ckpt.pt"
+    save_path="/dss/dsshome1/07/ra58bim2/pfn_exp/outputs/scm_cls_v9.txt",
+    best_ckpt_path = "/dss/dsshome1/07/ra58bim2/pfn_exp/outputs/scm_cls_v9_best_ckpt.pt"
 )
  
 
