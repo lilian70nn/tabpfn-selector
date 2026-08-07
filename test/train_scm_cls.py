@@ -67,7 +67,7 @@ train_loader = DataLoader(
     shuffle=True,
     num_workers=2,
     pin_memory=True,
-    collate_fn=partial(collate_tasks, use_selector=True),
+    collate_fn=partial(collate_tasks, use_selector=False),
 )
 
 val_loader = DataLoader(
@@ -76,7 +76,7 @@ val_loader = DataLoader(
     shuffle=False,
     num_workers=2,
     pin_memory=True,
-    collate_fn=partial(collate_tasks, use_selector=True),
+    collate_fn=partial(collate_tasks, use_selector=False),
 )
 
 
