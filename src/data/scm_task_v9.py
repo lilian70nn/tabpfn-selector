@@ -1,18 +1,10 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
-from typing import Optional
 
 import torch
 import torch.nn.functional as F
 
 from src.data.helper import make_gen, stratified_classification_split
 from src.data.synthetic_task import GenerateTask
-
-
-# ============================================================================
-# Helpers
-# ============================================================================
 
 
 def _randn(*shape, generator, device):
@@ -41,61 +33,27 @@ def _randint(low, high, shape, generator, device):
     )
 
 
-def _standardize(
-    x: torch.Tensor,
-    dim: int = 0,
-    eps: float = 1e-6,
-):
-    return (
-        x - x.mean(dim=dim, keepdim=True)
-    ) / x.std(
-        dim=dim,
-        unbiased=False,
-        keepdim=True,
-    ).clamp_min(eps)
+def _standardize(x, dim=0, eps = 1e-6):
+    mean = x.mean(dim=dim, keepdim=True).detach()
+    std = x.std(dim=dim, unbiased=False, keepdim=True,).clamp_min(eps).detach()
+    return (x - mean) / std
 
 
-def _normalize_probs(
-    values,
-    device,
-    expected_len=None,
-    name="probabilities",
-):
-    probs = torch.tensor(
-        values,
-        device=device,
-        dtype=torch.float32,
-    )
-
+def _normalize_probs(values, device, expected_len=None, name="probabilities"):
+    probs = torch.tensor(values, device=device, dtype=torch.float32)
     if expected_len is not None and probs.numel() != expected_len:
-        raise ValueError(
-            f"{name} must contain {expected_len} values."
-        )
+        raise ValueError(f"{name} must contain {expected_len} values.")
 
-    if (
-        probs.numel() == 0
-        or bool((probs < 0).any())
-        or probs.sum() <= 0
-    ):
+    if (probs.numel() == 0 or bool((probs < 0).any()) or probs.sum() <= 0):
         raise ValueError(f"Invalid {name}.")
-
     return probs / probs.sum()
-
-
-# ============================================================================
-# Scalar latent edge: [N, 1] -> [N, 1]
-# ============================================================================
 
 
 class ScalarLatentEdge:
     """
     Every node is scalar-valued.
-
-    Input shape:
-        [N, 1]
-
-    Output shape:
-        [N, 1]
+    Input shape: [N, 1]
+    Output shape: [N, 1]
     """
 
     LINEAR = 0
@@ -103,134 +61,52 @@ class ScalarLatentEdge:
     SOFT_TREE = 2
 
     ACTIVATIONS = (
-        "identity",
-        "tanh",
-        "relu",
-        "sigmoid",
-        "sin",
-        "square",
-        "softplus",
+        "identity", "tanh", "relu", "sigmoid",
+        "sin", "square", "softplus",
     )
 
     def __init__(
-        self,
-        generator: torch.Generator,
-        device: torch.device,
-        linear_activation_prob: float = 0.60,
-        small_mlp_prob: float = 0.25,
-        soft_tree_prob: float = 0.15,
-        small_mlp_hidden_dim: Optional[int] = None,
-        soft_tree_depth: int = 2,
-        soft_tree_temperature: float = 0.5,
+        self, generator, device,
+        linear_activation_prob = 0.60,
+        small_mlp_prob = 0.25,
+        soft_tree_prob = 0.15,
+        small_mlp_hidden_dim = None,
+        soft_tree_depth = 2,
+        soft_tree_temperature = 0.5,
     ):
         self.device = device
         self.soft_tree_depth = int(soft_tree_depth)
-        self.soft_tree_temperature = float(
-            soft_tree_temperature
-        )
-
+        self.soft_tree_temperature = float(soft_tree_temperature)
         probs = _normalize_probs(
-            (
-                linear_activation_prob,
-                small_mlp_prob,
-                soft_tree_prob,
-            ),
+            (linear_activation_prob, small_mlp_prob, soft_tree_prob),
             device,
             expected_len=3,
             name="edge-family probabilities",
         )
-
-        self.edge_type = int(
-            torch.multinomial(
-                probs,
-                1,
-                generator=generator,
-            ).item()
-        )
-
-        # Scalar linear mechanism:
-        # y = activation(w * x + b)
-        self.linear_w = _randn(
-            (),
-            generator=generator,
-            device=device,
-        )
-        self.linear_b = _randn(
-            (),
-            generator=generator,
-            device=device,
-        )
-
+        self.edge_type = int(torch.multinomial(probs, 1, generator=generator).item())
+        
+        # Scalar -> scalar linear + activation.
+        self.linear_w = _randn((), generator=generator, device=device)
+        self.linear_b = _randn((), generator=generator, device=device)
         self.activation_name = self.ACTIVATIONS[
-            int(
-                _randint(
-                    0,
-                    len(self.ACTIVATIONS),
-                    (),
-                    generator,
-                    device,
-                ).item()
-            )
+            int(_randint(0, len(self.ACTIVATIONS), (), generator, device).item())
         ]
 
         # Scalar -> hidden -> scalar MLP.
-        hidden = (
-            int(small_mlp_hidden_dim)
-            if small_mlp_hidden_dim is not None
-            else 8
-        )
+        hidden = (int(small_mlp_hidden_dim) if small_mlp_hidden_dim is not None else 8)
+        self.mlp_W1 = _randn(hidden, 1, generator=generator, device=device)
+        self.mlp_b1 = _randn(hidden, generator=generator, device=device)
+        self.mlp_W2 = hidden**-0.5 * _randn(1, hidden, generator=generator, device=device)
+        self.mlp_b2 = _randn(1, generator=generator, device=device)
 
-        self.mlp_W1 = _randn(
-            hidden,
-            1,
-            generator=generator,
-            device=device,
-        )
-        self.mlp_b1 = _randn(
-            hidden,
-            generator=generator,
-            device=device,
-        )
-
-        self.mlp_W2 = hidden**-0.5 * _randn(
-            1,
-            hidden,
-            generator=generator,
-            device=device,
-        )
-        self.mlp_b2 = _randn(
-            1,
-            generator=generator,
-            device=device,
-        )
-
-        # Soft tree on one scalar input.
+        # Soft tree on scalar input.
         n_internal = 2**self.soft_tree_depth - 1
         n_leaves = 2**self.soft_tree_depth
+        self.tree_gate_W = _randn(n_internal, 1, generator=generator, device=device)
+        self.tree_gate_b = _randn(n_internal, generator=generator, device=device)
+        self.tree_leaf_values = _randn(n_leaves, 1, generator=generator, device=device)
 
-        self.tree_gate_W = _randn(
-            n_internal,
-            1,
-            generator=generator,
-            device=device,
-        )
-        self.tree_gate_b = _randn(
-            n_internal,
-            generator=generator,
-            device=device,
-        )
-
-        self.tree_leaf_values = _randn(
-            n_leaves,
-            1,
-            generator=generator,
-            device=device,
-        )
-
-    def _activation(
-        self,
-        x: torch.Tensor,
-    ) -> torch.Tensor:
+    def _activation(self, x):
         if self.activation_name == "identity":
             return x
 
@@ -256,84 +132,35 @@ class ScalarLatentEdge:
             f"Unknown activation: {self.activation_name}"
         )
 
-    def _soft_tree(
-        self,
-        x: torch.Tensor,
-    ) -> torch.Tensor:
-        logits = (
-            x @ self.tree_gate_W.T
-            + self.tree_gate_b
-        ) / self.soft_tree_temperature
-
+    def _soft_tree(self, x):
+        logits = (x @ self.tree_gate_W.T + self.tree_gate_b) / self.soft_tree_temperature
         right = torch.sigmoid(logits)
         left = 1.0 - right
-
-        paths = torch.ones(
-            x.shape[0],
-            1,
-            device=x.device,
-            dtype=x.dtype,
-        )
-
+        paths = torch.ones(x.shape[0], 1, device=x.device, dtype=x.dtype)
         offset = 0
 
         for depth in range(self.soft_tree_depth):
             width = 2**depth
-
-            left_prob = left[
-                :,
-                offset : offset + width,
-            ]
-            right_prob = right[
-                :,
-                offset : offset + width,
-            ]
-
-            paths = torch.stack(
-                (
-                    paths * left_prob,
-                    paths * right_prob,
-                ),
-                dim=-1,
-            ).reshape(
-                x.shape[0],
-                -1,
-            )
-
+            left_prob = left[:, offset : offset + width]
+            right_prob = right[:, offset : offset + width]
+            paths = torch.stack((paths * left_prob,paths * right_prob,), dim=-1).reshape(x.shape[0], -1,)
             offset += width
-
         return paths @ self.tree_leaf_values
 
-    def __call__(
-        self,
-        parent_latent: torch.Tensor,
-    ) -> torch.Tensor:
-        if (
-            parent_latent.ndim != 2
-            or parent_latent.shape[1] != 1
-        ):
+    def __call__(self, parent_latent):
+        if (parent_latent.ndim != 2 or parent_latent.shape[1] != 1):
             raise ValueError(
                 "ScalarLatentEdge expects shape [N, 1], "
                 f"received {tuple(parent_latent.shape)}."
             )
 
         x = parent_latent.float()
-
         if self.edge_type == self.LINEAR:
             value = self.linear_w * x + self.linear_b
             return self._activation(value)
-
         if self.edge_type == self.MLP:
-            hidden = torch.tanh(
-                x @ self.mlp_W1.T
-                + self.mlp_b1
-            )
-
-            return (
-                hidden @ self.mlp_W2.T
-                + self.mlp_b2
-            )
-
+            hidden = torch.tanh(x @ self.mlp_W1.T + self.mlp_b1)
+            return hidden @ self.mlp_W2.T + self.mlp_b2
         return self._soft_tree(x)
 
 
@@ -354,17 +181,17 @@ class WeightedScalarLayerConnection:
 
     def __init__(
         self,
-        in_width: int,
-        out_width: int,
-        connection_prob: float,
-        min_parents_per_node: int,
-        edge_weight_concentration: float,
-        generator: torch.Generator,
-        device: torch.device,
-        edgewise_prob: float = 0.50,
-        post_aggregate_prob: float = 0.25,
-        joint_mlp_prob: float = 0.25,
-        joint_mlp_hidden_dim: int = 8,
+        in_width,
+        out_width,
+        connection_prob,
+        min_parents_per_node,
+        edge_weight_concentration,
+        generator,
+        device,
+        edgewise_prob = 0.50,
+        post_aggregate_prob = 0.25,
+        joint_mlp_prob = 0.25,
+        joint_mlp_hidden_dim = 8,
         **edge_kwargs,
     ):
         self.in_width = int(in_width)
@@ -372,334 +199,135 @@ class WeightedScalarLayerConnection:
         self.device = device
 
         method_probs = _normalize_probs(
-            (
-                edgewise_prob,
-                post_aggregate_prob,
-                joint_mlp_prob,
-            ),
+            (edgewise_prob, post_aggregate_prob,joint_mlp_prob),
             device=device,
             expected_len=3,
             name="child-method probabilities",
         )
 
-        self.child_methods = torch.empty(
-            self.out_width,
-            device=device,
-            dtype=torch.long,
-        )
-
-        self.adj = (
-            _rand(
-                self.in_width,
-                self.out_width,
-                generator=generator,
-                device=device,
-            )
-            < connection_prob
-        )
-
-        minimum = min(
-            max(1, int(min_parents_per_node)),
-            self.in_width,
-        )
+        self.child_methods = torch.empty(self.out_width, device=device, dtype=torch.long)
+        self.adj = _rand(self.in_width, self.out_width, generator=generator, device=device) < connection_prob
+        minimum = min(max(1, int(min_parents_per_node)), self.in_width)
 
         for child in range(self.out_width):
-            current_count = int(
-                self.adj[:, child].sum().item()
-            )
-
+            current_count = int(self.adj[:, child].sum().item())
             missing = minimum - current_count
-
             if missing <= 0:
                 continue
+            candidates = torch.where(~self.adj[:, child])[0]
+            order = torch.randperm(candidates.numel(), generator=generator, device=device)
+            selected = candidates[order[:missing]]
+            self.adj[selected,child] = True
 
-            candidates = torch.where(
-                ~self.adj[:, child]
-            )[0]
-
-            order = torch.randperm(
-                candidates.numel(),
-                generator=generator,
-                device=device,
-            )
-
-            selected = candidates[
-                order[:missing]
-            ]
-
-            self.adj[
-                selected,
-                child,
-            ] = True
-
-        self.weights = torch.zeros(
-            self.in_width,
-            self.out_width,
-            device=device,
-            dtype=torch.float32,
-        )
-
+        self.weights = torch.zeros(self.in_width, self.out_width, device=device, dtype=torch.float32)
         self.edges = [
-            [
-                None
-                for _ in range(self.out_width)
-            ]
+            [None for _ in range(self.out_width)]
             for _ in range(self.in_width)
         ]
-
-        self.child_scalar_edges = [
-            None for _ in range(self.out_width)
-        ]
-
-        self.child_joint_mlps = [
-            None for _ in range(self.out_width)
-        ]
-
+        self.child_scalar_edges = [None for _ in range(self.out_width)]
+        self.child_joint_mlps = [None for _ in range(self.out_width)]
 
         for child in range(self.out_width):
-            parents = torch.where(
-                self.adj[:, child]
-            )[0]
-
+            parents = torch.where(self.adj[:, child])[0]
             concentration = torch.full(
                 (parents.numel(),),
                 float(edge_weight_concentration),
                 device=device,
                 dtype=torch.float32,
             )
-
-            raw_weights = torch._standard_gamma(
-                concentration,
-                generator=generator,
-            ).clamp_min(1e-8)
-
-            normalized_weights = (
-                raw_weights / raw_weights.sum()
-            )
-
-            self.weights[
-                parents,
-                child,
-            ] = normalized_weights
-
-            method = int(
-                torch.multinomial(
-                    method_probs,
-                    1,
-                    generator=generator,
-                ).item()
-            )
-
+            raw_weights = torch._standard_gamma(concentration,generator=generator).clamp_min(1e-8)
+            normalized_weights = (raw_weights / raw_weights.sum())
+            self.weights[parents, child] = normalized_weights
+            method = int(torch.multinomial(method_probs, 1, generator=generator).item())
             self.child_methods[child] = method
 
             if method == 0:
-                # 方法 0：
-                # 每条 parent -> child edge 都有自己的函数
                 for parent in parents.tolist():
-                    self.edges[parent][child] = (
-                        ScalarLatentEdge(
-                            generator=generator,
-                            device=device,
-                            **edge_kwargs,
-                        )
-                    )
-
+                    self.edges[parent][child] = ScalarLatentEdge(generator=generator, device=device, **edge_kwargs)
             elif method == 1:
-                # 方法 1：
-                # 先聚合，再通过一个 scalar function
-                self.child_scalar_edges[child] = (
-                    ScalarLatentEdge(
-                        generator=generator,
-                        device=device,
-                        **edge_kwargs,
-                    )
-                )
-
+                self.child_scalar_edges[child] = ScalarLatentEdge(generator=generator, device=device, **edge_kwargs)
             else:
-                # 方法 2：
-                # 所有父节点一起输入 joint MLP
-                num_parents = int(
-                    parents.numel()
-                )
-
-                hidden = int(
-                    joint_mlp_hidden_dim
-                )
-
+                num_parents = int(parents.numel())
+                hidden = int(joint_mlp_hidden_dim)
                 self.child_joint_mlps[child] = {
-                    "W1": num_parents**-0.5 * _randn(
-                        hidden,
-                        num_parents,
-                        generator=generator,
-                        device=device,
-                    ),
-                    "b1": _randn(
-                        hidden,
-                        generator=generator,
-                        device=device,
-                    ),
-                    "W2": hidden**-0.5 * _randn(
-                        1,
-                        hidden,
-                        generator=generator,
-                        device=device,
-                    ),
-                    "b2": _randn(
-                        1,
-                        generator=generator,
-                        device=device,
-                    ),
+                    "W1": num_parents**-0.5 * _randn(hidden, num_parents, generator=generator, device=device),
+                    "b1": _randn(hidden, generator=generator, device=device),
+                    "W2": hidden**-0.5 * _randn(1, hidden, generator=generator, device=device),
+                    "b2": _randn(1, generator=generator, device=device),
                 }
 
+    def _random_mlp_activation(self, x, generator, device):
+        probs = torch.tensor([0.35, 0.25, 0.25, 0.15], device=device, dtype=torch.float32)
+        activation_id = int(torch.multinomial(probs, 1, generator=generator).item())
 
-    def __call__(
-        self,
-        parent_latents: list[torch.Tensor],
-        generator: torch.Generator,
-        latent_noise_scale: float = 0.0,
-    ) -> list[torch.Tensor]:
+        if activation_id == 0:
+            return torch.tanh(x)
+        if activation_id == 1:
+            return torch.relu(x)
+        if activation_id == 2:
+            return F.softplus(x)
+        return torch.sin(x)
+
+
+    def __call__(self, parent_latents, generator, latent_noise_scale = 0.0):
         children = []
 
         for child in range(self.out_width):
-            method = int(
-                self.child_methods[child].item()
-            )
-
-            parents = torch.where(
-                self.adj[:, child]
-            )[0]
+            method = int(self.child_methods[child].item())
+            parents = torch.where(self.adj[:, child])[0]
 
             if method == 0:
                 value = None
-
                 for parent in parents.tolist():
                     edge = self.edges[parent][child]
-
                     if edge is None:
                         raise RuntimeError(
                             f"Missing edge function for "
                             f"parent={parent}, child={child}."
                         )
-
-                    contribution = (
-                        self.weights[parent, child]
-                        * edge(
-                            parent_latents[parent]
-                        )
-                    )
-
-                    value = (
-                        contribution
-                        if value is None
-                        else value + contribution
-                    )
+                    contribution = (self.weights[parent, child] * edge(parent_latents[parent]))
+                    value = (contribution if value is None else value + contribution)
 
             elif method == 1:
-                # ------------------------------------------------------------
-                # 方法 1:
-                # aggregate = sum_i w_i * parent_i
-                # child = f(aggregate)
-                # ------------------------------------------------------------
                 aggregate = None
-
                 for parent in parents.tolist():
-                    contribution = (
-                        self.weights[parent, child]
-                        * parent_latents[parent]
-                    )
-
-                    aggregate = (
-                        contribution
-                        if aggregate is None
-                        else aggregate + contribution
-                    )
-
-                child_function = (
-                    self.child_scalar_edges[child]
-                )
-
+                    contribution = (self.weights[parent, child] * parent_latents[parent])
+                    aggregate = ( contribution if aggregate is None else aggregate + contribution)
+                child_function = self.child_scalar_edges[child]
                 if child_function is None:
                     raise RuntimeError(
                         f"Missing child scalar function "
                         f"for child={child}."
                     )
-
-                value = child_function(
-                    aggregate
-                )
+                value = child_function(aggregate)
 
             else:
-                # ------------------------------------------------------------
-                # 方法 2:
-                # input = concat(w_i * parent_i)
-                # child = MLP(input)
-                # ------------------------------------------------------------
-                parameters = (
-                    self.child_joint_mlps[child]
-                )
-
+                parameters = self.child_joint_mlps[child]
                 if parameters is None:
                     raise RuntimeError(
                         f"Missing joint MLP parameters "
                         f"for child={child}."
                     )
-
-
-                weighted_inputs = [
-                    self.weights[parent, child]
-                    * parent_latents[parent]
-                    for parent
-                    in parents.tolist()
-                ]
-
-                parent_matrix = torch.cat(
-                    weighted_inputs,
-                    dim=1,
+                weighted_inputs = [self.weights[parent, child] * parent_latents[parent] for parent in parents.tolist()]
+                parent_matrix = torch.cat(weighted_inputs, dim=1)
+                hidden = self._random_mlp_activation(
+                    parent_matrix @ parameters["W1"].T + parameters["b1"],
+                    generator=generator,
+                    device=self.device
                 )
-
-                hidden = torch.tanh(
-                    parent_matrix
-                    @ parameters["W1"].T
-                    + parameters["b1"]
-                )
-
-                value = (
-                    hidden
-                    @ parameters["W2"].T
-                    + parameters["b2"]
-                )
+                value = (hidden @ parameters["W2"].T + parameters["b2"])
 
             if value is None:
                 raise RuntimeError(
                     f"Child {child} produced no value."
                 )
-
-            value = _standardize(
-                value,
-                dim=0,
-            )
-
+            
+            value = _standardize(value,  dim=0)
             if latent_noise_scale > 0:
-                noise = torch.randn(
-                    value.shape,
-                    generator=generator,
-                    device=self.device,
-                    dtype=value.dtype,
-                )
-
-                value = (
-                    value
-                    + float(latent_noise_scale)
-                    * noise
-                )
-
-                value = _standardize(
-                    value,
-                    dim=0,
-                )
-
+                noise = torch.randn(value.shape, generator=generator, device=self.device, dtype=value.dtype)
+                value = (value + float(latent_noise_scale) * noise)
+                value = _standardize(value, dim=0)
             children.append(value)
-
         return children
 
 
@@ -712,18 +340,10 @@ class WeightedScalarLayerConnection:
 class WeightedLayeredScalarSCM:
     """
     Every SCM node stores one continuous scalar per sample.
-
-    Each node tensor has shape:
-        [N, 1]
+    Each node tensor has shape:[N, 1]
     """
 
-    ROOT_PRIORS = (
-        "gaussian",
-        "uniform",
-        "heavy_tailed",
-        "skewed",
-        "mixture",
-    )
+    ROOT_PRIORS = ("gaussian", "uniform", "heavy_tailed", "skewed", "mixture")
 
     def __init__(
         self,
@@ -739,20 +359,8 @@ class WeightedLayeredScalarSCM:
         min_parents_per_node=2,
         edge_weight_concentration=0.60,
         latent_noise_scale=0.03,
-        root_prior_probs=(
-            0.45,
-            0.20,
-            0.15,
-            0.05,
-            0.15,
-        ),
-        root_mixture_component_probs=(
-            0.40,
-            0.30,
-            0.18,
-            0.08,
-            0.04,
-        ),
+        root_prior_probs=(0.45, 0.20, 0.15, 0.05, 0.15),
+        root_mixture_component_probs=(0.40, 0.30, 0.18, 0.08, 0.04),
         root_mixture_separation_min=1.5,
         root_mixture_separation_max=3.0,
         root_mixture_scale_min=0.40,
@@ -760,420 +368,177 @@ class WeightedLayeredScalarSCM:
         device=None,
         **edge_kwargs,
     ):
-        self.device = (
-            device
-            if device is not None
-            else torch.device("cpu")
-        )
-
+        self.device = device if device is not None else torch.device("cpu")
         self.g_dag = g_dag
         self.g_x = g_x
         self.g_aleatoric = g_aleatoric
-
         self.num_roots = int(num_roots)
         self.num_layers = int(num_layers)
-
-        self.hidden_width_min = int(
-            hidden_width_min
-        )
-        self.hidden_width_max = int(
-            hidden_width_max
-        )
-
+        self.hidden_width_min = int(hidden_width_min)
+        self.hidden_width_max = int(hidden_width_max)
         self.final_width = int(final_width)
+        self.connection_probs = tuple(float(p) for p in connection_probs)
+        self.latent_noise_scale = float(latent_noise_scale)
 
-        self.connection_probs = tuple(
-            float(p)
-            for p in connection_probs
-        )
-
-        self.latent_noise_scale = float(
-            latent_noise_scale
-        )
-
-        if (
-            len(self.connection_probs)
-            != self.num_layers - 1
-        ):
+        if len(self.connection_probs) != self.num_layers - 1:
             raise ValueError(
                 "connection_probs must contain "
                 "num_layers - 1 values."
             )
 
-        self.root_prior_probs = _normalize_probs(
-            root_prior_probs,
-            self.device,
-            expected_len=5,
-            name="root_prior_probs",
-        )
-
-        self.root_mixture_component_probs = (
-            _normalize_probs(
-                root_mixture_component_probs,
-                self.device,
-                expected_len=5,
-                name="root_mixture_component_probs",
-            )
-        )
-
-        self.root_mixture_separation_min = float(
-            root_mixture_separation_min
-        )
-        self.root_mixture_separation_max = float(
-            root_mixture_separation_max
-        )
-
-        self.root_mixture_scale_min = float(
-            root_mixture_scale_min
-        )
-        self.root_mixture_scale_max = float(
-            root_mixture_scale_max
-        )
-
-        self.widths = [
-            self.num_roots
-        ]
-
-        for _ in range(
-            self.num_layers - 2
-        ):
-            width = int(
-                _randint(
-                    self.hidden_width_min,
-                    self.hidden_width_max + 1,
-                    (),
-                    self.g_dag,
-                    self.device,
-                ).item()
-            )
-
+        self.root_prior_probs = _normalize_probs(root_prior_probs, self.device, expected_len=5, name="root_prior_probs")
+        self.root_mixture_component_probs = _normalize_probs(root_mixture_component_probs,
+                                                             self.device,
+                                                             expected_len=5,
+                                                             name="root_mixture_component_probs"
+                                                             )
+        self.root_mixture_separation_min = float(root_mixture_separation_min)
+        self.root_mixture_separation_max = float(root_mixture_separation_max)
+        self.root_mixture_scale_min = float(root_mixture_scale_min)
+        self.root_mixture_scale_max = float(root_mixture_scale_max)
+        self.widths = [self.num_roots]
+        for _ in range(self.num_layers - 2):
+            width = int(_randint(self.hidden_width_min, self.hidden_width_max + 1, (), self.g_dag, self.device).item())
             self.widths.append(width)
 
-        self.widths.append(
-            self.final_width
-        )
-
+        self.widths.append(self.final_width)
         self.connections = []
-
-        for layer in range(
-            self.num_layers - 1
-        ):
-            connection = (
-                WeightedScalarLayerConnection(
-                    in_width=self.widths[layer],
-                    out_width=self.widths[layer + 1],
-                    connection_prob=(
-                        self.connection_probs[layer]
-                    ),
-                    min_parents_per_node=(
-                        min_parents_per_node
-                    ),
-                    edge_weight_concentration=(
-                        edge_weight_concentration
-                    ),
-                    generator=self.g_dag,
-                    device=self.device,
-                    **edge_kwargs,
-                )
+        for layer in range(self.num_layers - 1):
+            connection = WeightedScalarLayerConnection(
+                in_width=self.widths[layer],
+                out_width=self.widths[layer + 1],
+                connection_prob=self.connection_probs[layer],
+                min_parents_per_node=min_parents_per_node,
+                edge_weight_concentration=edge_weight_concentration,
+                generator=self.g_dag,
+                device=self.device,
+                **edge_kwargs
             )
-
-            self.connections.append(
-                connection
-            )
+            self.connections.append(connection)
 
         self.root_prior_types = []
         self.root_prior_type_ids = []
         self.root_mixture_components = []
 
-    def _sample_mixture_root(
-        self,
-        n: int,
-    ) -> tuple[torch.Tensor, int]:
+    def _sample_mixture_root(self, n):
         component_idx = int(
-            torch.multinomial(
-                self.root_mixture_component_probs,
-                1,
-                generator=self.g_dag,
-            ).item()
+            torch.multinomial(self.root_mixture_component_probs, 1, generator=self.g_dag).item()
         )
-
-        # Probabilities correspond to K = 2, 3, 4, 5, 6.
         k = component_idx + 2
-
         component_weights = torch.softmax(
-            0.5
-            * _randn(
-                k,
-                generator=self.g_dag,
-                device=self.device,
-            ),
+            0.5 * _randn(k, generator=self.g_dag, device=self.device),
             dim=0,
         )
-
-        ids = torch.multinomial(
-            component_weights,
-            n,
-            replacement=True,
-            generator=self.g_x,
-        )
+        ids = torch.multinomial(component_weights, n, replacement=True, generator=self.g_x)
 
         separation = (
             self.root_mixture_separation_min
-            + (
-                self.root_mixture_separation_max
-                - self.root_mixture_separation_min
-            )
-            * _rand(
-                (),
-                generator=self.g_dag,
-                device=self.device,
-            )
+            + (self.root_mixture_separation_max - self.root_mixture_separation_min)
+            * _rand((), generator=self.g_dag, device=self.device,)
         )
 
-        # In one dimension, place K centers along a line.
-        centers = torch.linspace(
-            -1.0,
-            1.0,
-            steps=k,
-            device=self.device,
-        )
-
-        centers = (
-            separation * centers
-        )
-
-        # Small structural jitter prevents perfectly symmetric mixtures.
-        centers = centers + 0.10 * _randn(
-            k,
-            generator=self.g_dag,
-            device=self.device,
-        )
+        centers = torch.linspace( -1.0, 1.0, steps=k, device=self.device)
+        centers = separation * centers
+        centers = centers + 0.10 * _randn(k, generator=self.g_dag, device=self.device)
 
         scales = (
             self.root_mixture_scale_min
-            + (
-                self.root_mixture_scale_max
-                - self.root_mixture_scale_min
-            )
-            * _rand(
-                k,
-                generator=self.g_dag,
-                device=self.device,
-            )
+            + (self.root_mixture_scale_max - self.root_mixture_scale_min)
+            * _rand(k, generator=self.g_dag, device=self.device)
         )
-
-        noise = _randn(
-            n,
-            generator=self.g_x,
-            device=self.device,
-        )
-
-        values = (
-            centers[ids]
-            + scales[ids] * noise
-        )
-
+        noise = _randn(n, generator=self.g_x, device=self.device,)
+        values = centers[ids] + scales[ids] * noise
         return values[:, None], k
 
-    def sample_root_latents(
-        self,
-        n: int,
-    ) -> list[torch.Tensor]:
+    def sample_root_latents(self, n):
         roots = []
-
         self.root_prior_types = []
         self.root_prior_type_ids = []
         self.root_mixture_components = []
 
         for _ in range(self.num_roots):
-            prior_id = int(
-                torch.multinomial(
-                    self.root_prior_probs,
-                    1,
-                    generator=self.g_dag,
-                ).item()
-            )
-
-            name = self.ROOT_PRIORS[
-                prior_id
-            ]
-
+            prior_id = int(torch.multinomial(self.root_prior_probs, 1, generator=self.g_dag).item())
+            name = self.ROOT_PRIORS[prior_id]
             mixture_k = 0
 
             if name == "gaussian":
-                z = _randn(
-                    n,
-                    1,
-                    generator=self.g_x,
-                    device=self.device,
-                )
+                z = _randn(n, 1, generator=self.g_x, device=self.device)
 
             elif name == "uniform":
                 bound = 3.0**0.5
-
-                z = (
-                    2.0
-                    * bound
-                    * _rand(
-                        n,
-                        1,
-                        generator=self.g_x,
-                        device=self.device,
-                    )
-                    - bound
-                )
-
+                z = 2.0 * bound * _rand(n, 1, generator=self.g_x, device=self.device) - bound
+                
             elif name == "heavy_tailed":
                 df = 4.0
-
-                numerator = _randn(
-                    n,
-                    1,
-                    generator=self.g_x,
-                    device=self.device,
-                )
-
-                concentration = torch.full(
-                    (n, 1),
-                    df / 2.0,
-                    device=self.device,
-                    dtype=numerator.dtype,
-                )
-
-                chi2 = 2.0 * torch._standard_gamma(
-                    concentration,
-                    generator=self.g_x,
-                )
-
-                z = numerator / torch.sqrt(
-                    chi2 / df
-                ).clamp_min(1e-4)
+                numerator = _randn(n, 1, generator=self.g_x, device=self.device)
+                concentration = torch.full((n, 1), df / 2.0, device=self.device, dtype=numerator.dtype)
+                chi2 = 2.0 * torch._standard_gamma(concentration, generator=self.g_x)
+                z = numerator / torch.sqrt(chi2 / df).clamp_min(1e-4)
 
             elif name == "skewed":
-                normal = _randn(
-                    n,
-                    1,
-                    generator=self.g_x,
-                    device=self.device,
-                )
-
-                strength = (
-                    0.4
-                    + 0.6
-                    * _rand(
-                        (),
-                        generator=self.g_dag,
-                        device=self.device,
-                    )
-                )
-
-                z = torch.exp(
-                    normal * strength
-                )
+                normal = _randn(n, 1, generator=self.g_x, device=self.device)
+                strength = 0.4 + 0.6 * _rand((), generator=self.g_dag, device=self.device)       
+                z = torch.exp(normal * strength)
 
             else:
-                z, mixture_k = (
-                    self._sample_mixture_root(n)
-                )
+                z, mixture_k = (self._sample_mixture_root(n))
 
-            z = _standardize(
-                z.float(),
-                dim=0,
-            )
-
+            z = _standardize(z.float(),dim=0,)
+            z.requires_grad_(True)
             roots.append(z)
-
-            self.root_prior_types.append(
-                name
-            )
-            self.root_prior_type_ids.append(
-                prior_id
-            )
-            self.root_mixture_components.append(
-                mixture_k
-            )
-
+            self.root_prior_types.append(name)
+            self.root_prior_type_ids.append(prior_id)
+            self.root_mixture_components.append(mixture_k)
         return roots
 
-    def forward(
-        self,
-        n_samples: int,
-        latent_noise_scale=None,
-    ) -> list[list[torch.Tensor]]:
-        current = self.sample_root_latents(
-            n_samples
-        )
-
-        all_latents = [
-            current
-        ]
-
+    def forward(self, n_samples, latent_noise_scale=None):
+        current = self.sample_root_latents(n_samples)
+        all_latents = [current]
         noise_scale = (
             self.latent_noise_scale
             if latent_noise_scale is None
             else float(latent_noise_scale)
         )
-
         for connection in self.connections:
-            current = connection(
-                current,
-                generator=self.g_aleatoric,
-                latent_noise_scale=noise_scale,
-            )
-
-            all_latents.append(
-                current
-            )
-
+            current = connection(current, generator=self.g_aleatoric,latent_noise_scale=noise_scale)
+            all_latents.append(current)
         return all_latents
-
-    def compute_node_influence(
-        self,
-        target_node_idx: int = 0,
-    ) -> list[torch.Tensor]:
+    
+    def compute_sampling_influence(self, target_node_idx = 0):
         """
         Structural influence based only on normalized edge weights.
-
-        influence(parent)
-            = sum_child weight(parent, child)
-              * influence(child)
-
+        influence(parent) = sum_child weight(parent, child) * influence(child)
         This sums products of weights over every path to the target.
         """
 
-        if not (
-            0
-            <= target_node_idx
-            < self.widths[-1]
-        ):
-            raise ValueError(
-                "Invalid target_node_idx."
-            )
-
+        if not (0 <= target_node_idx < self.widths[-1]):
+            raise ValueError("Invalid target_node_idx.")
+        
         influence = [
-            torch.zeros(
-                width,
-                device=self.device,
-                dtype=torch.float32,
-            )
+            torch.zeros(width, device=self.device, dtype=torch.float32)
             for width in self.widths
         ]
-
-        influence[-1][
-            target_node_idx
-        ] = 1.0
-
-        for layer in range(
-            self.num_layers - 2,
-            -1,
-            -1,
-        ):
-            influence[layer] = (
-                self.connections[layer].weights
-                @ influence[layer + 1]
-            )
-
+        influence[-1][target_node_idx] = 1.0
+        for layer in range(self.num_layers - 2, -1, -1):
+            influence[layer] = self.connections[layer].weights @ influence[layer + 1]
         return influence
+        
+
+    def compute_node_influence(self, all_latents, layer_idx, node_idx, target_node_idx = 0):
+        node = all_latents[layer_idx][node_idx]
+        target = all_latents[-1][target_node_idx]
+
+        grad = torch.autograd.grad(
+            outputs=target,
+            inputs=node,
+            grad_outputs=torch.ones_like(target),
+            retain_graph=True,
+            allow_unused=True,
+        )[0]
+
+        if grad is None:
+            return torch.tensor(0.0, device=self.device, dtype=torch.float32)
+        return grad.abs().mean().float()
 
 
 # ============================================================================
@@ -1196,84 +561,42 @@ class FeatureObservation:
 class ScalarObservationHead:
     """
     The underlying SCM node is always continuous and scalar.
-
     Observation type determines how that scalar becomes a table column:
-
-    - CONTINUOUS:
-        use the scalar directly;
-
-    - PROTOTYPE:
-        choose K scalar prototypes and assign the nearest category;
-
-    - BINNING:
-        split the scalar using K - 1 thresholds.
+    - CONTINUOUS: use the scalar directly;
+    - PROTOTYPE: choose K scalar prototypes and assign the nearest category;
+    - BINNING: split the scalar using K - 1 thresholds.
     """
 
     CONTINUOUS = 0
     PROTOTYPE = 1
     BINNING = 2
 
-    NAMES = (
-        "continuous_scalar",
-        "prototype_discretization",
-        "threshold_binning",
-    )
+    NAMES = ("continuous_scalar", "prototype_discretization", "threshold_binning")
 
     def __init__(
         self,
         generator,
         device,
-        observation_type_probs=(
-            0.60,
-            0.20,
-            0.20,
-        ),
-        categorical_cardinalities=(
-            2,
-            3,
-            4,
-            5,
-            6,
-        ),
-        categorical_cardinality_probs=(
-            0.40,
-            0.30,
-            0.18,
-            0.08,
-            0.04,
-        ),
+        observation_type_probs=(0.60, 0.20, 0.20),
+        categorical_cardinalities=(2, 3, 4, 5, 6),
+        categorical_cardinality_probs=(0.40, 0.30, 0.18, 0.08, 0.04),
         min_samples_per_category=8,
         min_component_weight=0.05,
         observation_noise_scale=0.05,
-        # Retained for compatibility with old configurations.
         prototype_max_attempts=8,
         prototype_min_separation=1.0,
         binning_jitter=0.20,
     ):
         self.device = device
-
-        self.min_samples_per_category = int(
-            min_samples_per_category
-        )
-        self.min_component_weight = float(
-            min_component_weight
-        )
-
-        self.observation_noise_scale = float(
-            observation_noise_scale
-        )
+        self.min_samples_per_category = int(min_samples_per_category)
+        self.min_component_weight = float(min_component_weight)
+        self.observation_noise_scale = float(observation_noise_scale)
 
         # These are no longer needed by the simple scalar implementation,
         # but are retained so existing TASK_KWARGS do not break.
-        self.prototype_max_attempts = int(
-            prototype_max_attempts
-        )
-        self.prototype_min_separation = float(
-            prototype_min_separation
-        )
-        self.binning_jitter = float(
-            binning_jitter
-        )
+        self.prototype_max_attempts = int(prototype_max_attempts)
+        self.prototype_min_separation = float(prototype_min_separation)
+        self.binning_jitter = float(binning_jitter)
 
         self.observation_type_probs = (
             _normalize_probs(
@@ -1283,94 +606,34 @@ class ScalarObservationHead:
                 name="observation_type_probs",
             )
         )
-
-        self.cardinalities = tuple(
-            int(k)
-            for k in categorical_cardinalities
-        )
-
+        self.cardinalities = tuple(int(k) for k in categorical_cardinalities)
         self.cardinality_probs = (
             _normalize_probs(
                 categorical_cardinality_probs,
                 device,
-                expected_len=len(
-                    self.cardinalities
-                ),
-                name=(
-                    "categorical_cardinality_probs"
-                ),
+                expected_len=len(self.cardinalities),
+                name="categorical_cardinality_probs"
             )
         )
+        self.sampled_type = int(torch.multinomial(self.observation_type_probs, 1, generator=generator).item())
 
-        self.sampled_type = int(
-            torch.multinomial(
-                self.observation_type_probs,
-                1,
-                generator=generator,
-            ).item()
-        )
-
-    def _sample_cardinality(
-        self,
-        n: int,
-        generator: torch.Generator,
-    ) -> int:
+    def _sample_cardinality(self, n, generator):
         feasible = [
-            i
-            for i, k in enumerate(
-                self.cardinalities
-            )
-            if (
-                k
-                * self.min_samples_per_category
-                <= n
-            )
-            and (
-                k
-                * self.min_component_weight
-                <= 1.0
-            )
+            i for i, k in enumerate(self.cardinalities)
+            if (k * self.min_samples_per_category <= n) and (k * self.min_component_weight <= 1.0)
         ]
 
         if not feasible:
             return 0
 
-        feasible_tensor = torch.tensor(
-            feasible,
-            device=self.device,
-            dtype=torch.long,
-        )
-
-        probabilities = (
-            self.cardinality_probs[
-                feasible_tensor
-            ]
-        )
-
-        probabilities = (
-            probabilities
-            / probabilities.sum()
-        )
-
-        position = int(
-            torch.multinomial(
-                probabilities,
-                1,
-                generator=generator,
-            ).item()
-        )
-
-        return self.cardinalities[
-            feasible[position]
-        ]
+        feasible_tensor = torch.tensor(feasible, device=self.device, dtype=torch.long)
+        probabilities = self.cardinality_probs[feasible_tensor]
+        probabilities = probabilities / probabilities.sum()
+        position = int(torch.multinomial(probabilities, 1, generator=generator).item())
+        return self.cardinalities[feasible[position]]
 
 
-    def _continuous(
-        self,
-        z: torch.Tensor,
-        generator: torch.Generator,
-        name: str = "continuous_scalar",
-    ) -> FeatureObservation:
+    def _continuous(self, z, generator, name = "continuous_scalar"):
         score = z[:, 0].clone()
 
         if self.observation_noise_scale > 0:
@@ -1380,316 +643,113 @@ class ScalarObservationHead:
                 device=z.device,
                 dtype=z.dtype,
             )
+            score = score + self.observation_noise_scale * noise
 
-            score = (
-                score
-                + self.observation_noise_scale
-                * noise
-            )
-
-        score = _standardize(
-            score,
-            dim=0,
-        )
-
+        score = _standardize(score, dim=0)
         return FeatureObservation(
             values=score,
             is_categorical=False,
             cardinality=0,
-            observation_type_id=(
-                self.CONTINUOUS
-            ),
+            observation_type_id=self.CONTINUOUS,
             observation_type_name=name,
             quality_score=0.0,
-            prototypes=torch.empty(
-                0,
-                1,
-                device=z.device,
-                dtype=z.dtype,
-            ),
-            thresholds=torch.empty(
-                0,
-                device=z.device,
-                dtype=z.dtype,
-            ),
+            prototypes=torch.empty(0, 1, device=z.device, dtype=z.dtype),
+            thresholds=torch.empty(0, device=z.device, dtype=z.dtype),
         )
 
-    def _select_prototypes(
-        self,
-        scalar: torch.Tensor,
-        k: int,
-        generator: torch.Generator,
-    ) -> torch.Tensor:
+    def _select_prototypes(self, scalar, k, generator):
         indices = torch.randperm(
             scalar.shape[0],
             generator=generator,
             device=scalar.device,
         )[:k]
+        return scalar[indices]
 
-        return scalar[
-            indices
-        ]
-
-    def _prototype(
-        self,
-        z: torch.Tensor,
-        generator: torch.Generator,
-    ) -> FeatureObservation:
+    def _prototype(self, z, generator):
         scalar = z[:, 0].clone()
-
-        k = self._sample_cardinality(
-            scalar.shape[0],
-            generator,
-        )
+        k = self._sample_cardinality(scalar.shape[0], generator)
 
         if k == 0:
-            return self._continuous(
-                z,
-                generator,
-                name=(
-                    "continuous_fallback_"
-                    "from_prototype"
-                ),
-            )
+            return self._continuous(z, generator, name="continuous_fallback_from_prototype")
 
-        prototypes = self._select_prototypes(
-            scalar,
-            k,
-            generator,
-        )
-
-        distances = torch.abs(
-            scalar[:, None]
-            - prototypes[None, :]
-        )
-
-        labels = distances.argmin(
-            dim=1
-        ).long()
-
-        counts = torch.bincount(
-            labels,
-            minlength=k,
-        )
-
-        smallest_fraction = float(
-            (
-                counts.float()
-                / counts.sum().clamp_min(1)
-            ).min().item()
-        )
+        prototypes = self._select_prototypes(scalar, k, generator)
+        distances = torch.abs(scalar[:, None] - prototypes[None, :])
+        labels = distances.argmin(dim=1).long()
+        counts = torch.bincount(labels, minlength=k)
+        smallest_fraction = float((counts.float() / counts.sum().clamp_min(1)).min().item())
 
         return FeatureObservation(
             values=labels,
             is_categorical=True,
             cardinality=k,
-            observation_type_id=(
-                self.PROTOTYPE
-            ),
-            observation_type_name=(
-                "prototype_discretization"
-            ),
+            observation_type_id=self.PROTOTYPE,
+            observation_type_name="prototype_discretization",
             quality_score=smallest_fraction,
             prototypes=prototypes[:, None],
-            thresholds=torch.empty(
-                0,
-                device=z.device,
-                dtype=z.dtype,
-            ),
+            thresholds=torch.empty(0, device=z.device, dtype=z.dtype),
         )
 
-    def _binning(
-        self,
-        z: torch.Tensor,
-        generator: torch.Generator,
-    ) -> FeatureObservation:
-        scalar = _standardize(
-            z[:, 0].clone(),
-            dim=0,
-        )
-
-        k = self._sample_cardinality(
-            scalar.shape[0],
-            generator,
-        )
+    def _binning(self, z, generator):
+        scalar = _standardize(z[:, 0].clone(), dim=0)
+        k = self._sample_cardinality(scalar.shape[0], generator)
 
         if k == 0:
-            return self._continuous(
-                z,
-                generator,
-                name=(
-                    "continuous_fallback_"
-                    "from_binning"
-                ),
-            )
+            return self._continuous(z, generator, name="continuous_fallback_from_binning")
 
         n = scalar.numel()
-
         minimum = max(
             self.min_samples_per_category,
-            int(
-                torch.ceil(
-                    torch.tensor(
-                        self.min_component_weight
-                        * n,
-                        device=z.device,
-                    )
-                ).item()
-            ),
+            int(torch.ceil(torch.tensor(self.min_component_weight * n, device=z.device)).item()),
         )
-
-        remaining = (
-            n - k * minimum
-        )
-
+        remaining = n - k * minimum
         if remaining < 0:
-            return self._continuous(
-                z,
-                generator,
-                name=(
-                    "continuous_fallback_"
-                    "from_binning"
-                ),
-            )
+            return self._continuous(z, generator, name="continuous_fallback_from_binning")
 
-        raw = _rand(
-            k,
-            generator=generator,
-            device=z.device,
-        )
-
-        extras_float = (
-            raw
-            / raw.sum().clamp_min(1e-12)
-            * remaining
-        )
-
-        extras = torch.floor(
-            extras_float
-        ).long()
-
-        leftover = (
-            remaining
-            - int(extras.sum().item())
-        )
-
+        raw = _rand(k, generator=generator, device=z.device)
+        extras_float = raw / raw.sum().clamp_min(1e-12) * remaining
+        extras = torch.floor(extras_float).long()
+        leftover = remaining - int(extras.sum().item())
         if leftover > 0:
-            residual_order = torch.argsort(
-                extras_float
-                - extras.float(),
-                descending=True,
-            )
-
-            extras[
-                residual_order[:leftover]
-            ] += 1
-
-        counts = (
-            extras + minimum
-        ).tolist()
-
-        sorted_values = torch.sort(
-            scalar
-        ).values
-
+            residual_order = torch.argsort(extras_float - extras.float(), descending=True)
+            extras[residual_order[:leftover]] += 1
+        counts = (extras + minimum).tolist()
+        sorted_values = torch.sort(scalar).values
         thresholds = []
         cumulative = 0
 
         for count in counts[:-1]:
             cumulative += int(count)
+            left_value = sorted_values[cumulative - 1]
+            right_value = sorted_values[cumulative]
+            threshold = 0.5 * (left_value + right_value)
+            thresholds.append(threshold)
 
-            left_value = sorted_values[
-                cumulative - 1
-            ]
-            right_value = sorted_values[
-                cumulative
-            ]
-
-            threshold = (
-                0.5
-                * (
-                    left_value
-                    + right_value
-                )
-            )
-
-            thresholds.append(
-                threshold
-            )
-
-        thresholds = torch.stack(
-            thresholds
-        )
-
-        labels = torch.bucketize(
-            scalar,
-            thresholds,
-        ).long()
-
-        observed_counts = torch.bincount(
-            labels,
-            minlength=k,
-        )
-
-        smallest_fraction = float(
-            (
-                observed_counts.float()
-                / observed_counts.sum().clamp_min(1)
-            ).min().item()
-        )
+        thresholds = torch.stack(thresholds)
+        labels = torch.bucketize(scalar,thresholds).long()
+        observed_counts = torch.bincount(labels,minlength=k)
+        smallest_fraction = float((observed_counts.float()  / observed_counts.sum().clamp_min(1)).min().item())
 
         return FeatureObservation(
             values=labels,
             is_categorical=True,
             cardinality=k,
-            observation_type_id=(
-                self.BINNING
-            ),
-            observation_type_name=(
-                "threshold_binning"
-            ),
+            observation_type_id=self.BINNING,
+            observation_type_name="threshold_binning",
             quality_score=smallest_fraction,
-            prototypes=torch.empty(
-                0,
-                1,
-                device=z.device,
-                dtype=z.dtype,
-            ),
+            prototypes=torch.empty(0, 1, device=z.device, dtype=z.dtype),
             thresholds=thresholds,
         )
 
-    def observe(
-        self,
-        latent: torch.Tensor,
-        generator: torch.Generator,
-    ) -> FeatureObservation:
-        z = _standardize(
-            latent.float(),
-            dim=0,
-        )
+    def observe(self, latent, generator):
+        z = _standardize(latent.float(),dim=0)
 
-        if (
-            self.sampled_type
-            == self.CONTINUOUS
-        ):
-            return self._continuous(
-                z,
-                generator,
-            )
+        if self.sampled_type == self.CONTINUOUS:
+            return self._continuous(z, generator)
 
-        if (
-            self.sampled_type
-            == self.PROTOTYPE
-        ):
-            return self._prototype(
-                z,
-                generator,
-            )
+        if self.sampled_type == self.PROTOTYPE:
+            return self._prototype(z, generator)
 
-        return self._binning(
-            z,
-            generator,
-        )
+        return self._binning(z, generator)
 
 
 # ============================================================================
@@ -2612,56 +1672,29 @@ class WeightedMixedScalarSCMTask(
             **self.scm_kwargs,
         )
 
-        all_latents = self.scm.forward(
-            self.n,
-            latent_noise_scale=(
-                self.latent_noise_scale
-            ),
-        )
+        all_latents = self.scm.forward(self.n, latent_noise_scale=self.latent_noise_scale)
+        flat_latents, flat_index = self._flatten(all_latents)
 
-        (
-            flat_latents,
-            flat_index,
-        ) = self._flatten(
-            all_latents
-        )
+        layer_influence = self.scm.compute_sampling_influence(target_node_idx=0)
+        flat_influence = torch.cat(layer_influence)
 
-        layer_influence = (
-            self.scm.compute_node_influence(
-                target_node_idx=0
+        feature_ids, dominant_group = self._sample_feature_ids(flat_index, flat_influence,)
+        self.d = len(feature_ids)
+
+        feature_strength_list = []
+        for global_id in feature_ids:
+            layer_idx, node_idx = flat_index[global_id]
+            strength = self.scm.compute_node_influence(
+                all_latents=all_latents,
+                layer_idx=layer_idx,
+                node_idx=node_idx,
+                target_node_idx=0,
             )
-        )
+            feature_strength_list.append(strength)
+        feature_strength = torch.stack(feature_strength_list)
 
-        flat_influence = torch.cat(
-            layer_influence
-        )
-
-        (
-            feature_ids,
-            dominant_group,
-        ) = self._sample_feature_ids(
-            flat_index,
-            flat_influence,
-        )
-
-        self.d = len(
-            feature_ids
-        )
-
-        (
-            X_clean,
-            feature_type,
-            cardinality,
-            type_ids,
-            type_names,
-            quality,
-            prototypes,
-            thresholds,
-            heads,
-        ) = self._observe_features(
-            flat_latents,
-            feature_ids,
-        )
+        (X_clean,feature_type,cardinality,type_ids,
+         type_names,quality,prototypes,thresholds,heads) = self._observe_features(flat_latents, feature_ids)
 
         # First node in final layer.
         target_global_id = sum(
@@ -2704,10 +1737,6 @@ class WeightedMixedScalarSCMTask(
             device=self.device,
             dtype=torch.long,
         )
-
-        feature_strength = flat_influence[
-            feature_ids_tensor
-        ]
 
         importance_ratio = (
             feature_strength
