@@ -745,10 +745,8 @@ class ScalarObservationHead:
 
         if self.sampled_type == self.CONTINUOUS:
             return self._continuous(z, generator)
-
         if self.sampled_type == self.PROTOTYPE:
             return self._prototype(z, generator)
-
         return self._binning(z, generator)
 
 
@@ -760,7 +758,6 @@ class ScalarObservationHead:
 class ScalarTargetObservationHead:
     """
     Target is read directly from the scalar target node.
-
     No projection is used.
     """
 
@@ -770,238 +767,53 @@ class ScalarTargetObservationHead:
         observation_noise_scale=0.03,
     ):
         self.device = device
+        self.observation_noise_scale = float(observation_noise_scale)
 
-        self.observation_noise_scale = float(
-            observation_noise_scale
-        )
-
-    def score(
-        self,
-        latent: torch.Tensor,
-        generator: torch.Generator,
-    ) -> torch.Tensor:
-        if (
-            latent.ndim != 2
-            or latent.shape[1] != 1
-        ):
+    def score(self, latent, generator):
+        if latent.ndim != 2 or latent.shape[1] != 1:
             raise ValueError(
-                "Scalar target expects latent shape [N, 1], "
-                f"received {tuple(latent.shape)}."
+                f"Scalar target expects latent shape [N, 1], received {tuple(latent.shape)}."
             )
-
-        value = latent[
-            :,
-            0,
-        ].float()
-
+        value = latent[:, 0].float()
         if self.observation_noise_scale > 0:
-            noise = torch.randn(
-                value.shape,
-                generator=generator,
-                device=self.device,
-                dtype=value.dtype,
-            )
-
-            value = (
-                value
-                + self.observation_noise_scale
-                * noise
-            )
-
-        return _standardize(
-            value,
-            dim=0,
-        )
+            noise = torch.randn(value.shape, generator=generator, device=self.device, dtype=value.dtype)
+            value = (value + self.observation_noise_scale * noise)
+        return _standardize(value, dim=0)
     
 
     @staticmethod
-    def balanced_classes(
-        score: torch.Tensor,
-        num_classes: int,
-        generator: torch.Generator,
-    ) -> torch.Tensor:
+    def balanced_classes(score, num_classes, generator):
         """
         Convert continuous target score into classes using
         mildly randomized quantile thresholds.
-
         Unlike exact balanced splitting, class proportions
         are allowed to vary while avoiding extremely tiny classes.
         """
 
         num_classes = int(num_classes)
-
         if num_classes < 2:
-            raise ValueError(
-                "num_classes must be at least 2."
-            )
+            raise ValueError("num_classes must be at least 2.")
 
         if num_classes > 4:
-            raise ValueError(
-                "This implementation currently supports "
-                "2 to 4 classes."
-            )
-
-        # ------------------------------------------------------------
-        # Sample quantile locations.
-        #
-        # These ranges deliberately overlap only mildly, so thresholds
-        # remain ordered and no class becomes absurdly tiny.
-        # ------------------------------------------------------------
+            raise ValueError("This implementation currently supports 2 to 4 classes.")
 
         if num_classes == 2:
-            q = (
-                0.40
-                + 0.20
-                * torch.rand(
-                    (),
-                    generator=generator,
-                    device=score.device,
-                )
-            )
-
-            quantiles = torch.stack(
-                [q]
-            )
+            q = 0.40 + 0.20 * torch.rand((), generator=generator,  device=score.device)
+            quantiles = torch.stack([q])
 
         elif num_classes == 3:
-            q1 = (
-                0.25
-                + 0.15
-                * torch.rand(
-                    (),
-                    generator=generator,
-                    device=score.device,
-                )
-            )
-
-            q2 = (
-                0.60
-                + 0.15
-                * torch.rand(
-                    (),
-                    generator=generator,
-                    device=score.device,
-                )
-            )
-
-            quantiles = torch.stack(
-                (
-                    q1,
-                    q2,
-                )
-            )
+            q1 = 0.25 + 0.15 * torch.rand((), generator=generator, device=score.device)
+            q2 = 0.60 + 0.15 * torch.rand((), generator=generator, device=score.device)
+            quantiles = torch.stack((q1,q2))
 
         else:
-            q1 = (
-                0.15
-                + 0.15
-                * torch.rand(
-                    (),
-                    generator=generator,
-                    device=score.device,
-                )
-            )
-
-            q2 = (
-                0.40
-                + 0.20
-                * torch.rand(
-                    (),
-                    generator=generator,
-                    device=score.device,
-                )
-            )
-
-            q3 = (
-                0.70
-                + 0.15
-                * torch.rand(
-                    (),
-                    generator=generator,
-                    device=score.device,
-                )
-            )
-
-            quantiles = torch.stack(
-                (
-                    q1,
-                    q2,
-                    q3,
-                )
-            )
-
-        # ------------------------------------------------------------
-        # Convert quantile positions into actual score thresholds.
-        # ------------------------------------------------------------
-
-        thresholds = torch.quantile(
-            score,
-            quantiles,
-        )
-
-        # ------------------------------------------------------------
-        # bucketize:
-        #
-        # score < t1          -> class 0
-        # t1 <= score < t2    -> class 1
-        # t2 <= score < t3    -> class 2
-        # score >= t3         -> class 3
-        # ------------------------------------------------------------
-
-        labels = torch.bucketize(
-            score,
-            thresholds,
-        )
-
+            q1 = 0.15 + 0.15 * torch.rand((), generator=generator, device=score.device)
+            q2 = 0.40 + 0.20 * torch.rand((), generator=generator, device=score.device)
+            q3 = 0.70 + 0.15 * torch.rand((), generator=generator, device=score.device)
+            quantiles = torch.stack((q1, q2, q3,))
+        thresholds = torch.quantile(score, quantiles)
+        labels = torch.bucketize(score, thresholds)
         return labels.long()
-
-    # @staticmethod
-    # def balanced_classes(
-    #     score: torch.Tensor,
-    #     num_classes: int,
-    # ) -> torch.Tensor:
-    #     num_classes = int(
-    #         num_classes
-    #     )
-
-    #     if num_classes < 2:
-    #         raise ValueError(
-    #             "num_classes must be at least 2."
-    #         )
-
-    #     order = torch.argsort(
-    #         score
-    #     )
-
-    #     labels = torch.empty_like(
-    #         order
-    #     )
-
-    #     n = score.numel()
-    #     start = 0
-
-    #     for class_id in range(
-    #         num_classes
-    #     ):
-    #         size = (
-    #             n // num_classes
-    #             + (
-    #                 1
-    #                 if class_id
-    #                 < n % num_classes
-    #                 else 0
-    #             )
-    #         )
-
-    #         labels[
-    #             order[
-    #                 start : start + size
-    #             ]
-    #         ] = class_id
-
-    #         start += size
-
-    #     return labels.long()
 
 
 # ============================================================================
@@ -1014,15 +826,9 @@ class WeightedMixedScalarSCMTask(
 ):
     """
     Mixed tabular SCM with one-dimensional continuous latent nodes.
-
-    Underlying SCM:
-        every node is continuous and scalar.
-
-    Observed feature:
-        continuous scalar, prototype category, or binned category.
-
-    Target:
-        direct scalar readout from final target node.
+    Underlying SCM: every node is continuous and scalar.
+    Observed feature: continuous scalar, prototype category, or binned category.
+    Target: direct scalar readout from final target node.
     """
 
     CONTINUOUS = 0
@@ -1046,56 +852,23 @@ class WeightedMixedScalarSCMTask(
         hidden_width_min=8,
         hidden_width_max=12,
         final_width=1,
-        connection_probs=(
-            0.30,
-            0.45,
-            0.65,
-            0.85,
-        ),
+        connection_probs=(0.30, 0.45, 0.65, 0.85),
         min_parents_per_node=2,
         edge_weight_concentration=0.60,
         latent_noise_scale=0.03,
         observation_noise_scale=0.03,
         dominant_mass_threshold=0.70,
         dominant_feature_fraction=0.70,
-        observation_type_probs=(
-            0.60,
-            0.20,
-            0.20,
-        ),
-        categorical_cardinalities=(
-            2,
-            3,
-            4,
-            5,
-            6,
-        ),
-        categorical_cardinality_probs=(
-            0.40,
-            0.30,
-            0.18,
-            0.08,
-            0.04,
-        ),
+        observation_type_probs=(0.60, 0.20, 0.20),
+        categorical_cardinalities=(2, 3, 4, 5, 6),
+        categorical_cardinality_probs=(0.40, 0.30, 0.18, 0.08, 0.04),
         min_samples_per_category=8,
         min_component_weight=0.05,
         prototype_max_attempts=8,
         prototype_min_separation=1.0,
         binning_jitter=0.20,
-        root_prior_probs=(
-            0.45,
-            0.20,
-            0.15,
-            0.05,
-            0.15,
-        ),
-        root_mixture_component_probs=(
-            0.40,
-            0.30,
-            0.18,
-            0.08,
-            0.04,
-        ),
+        root_prior_probs=(0.45, 0.20, 0.15, 0.05, 0.15),
+        root_mixture_component_probs=(0.40, 0.30, 0.18, 0.08, 0.04),
         root_mixture_separation_min=1.5,
         root_mixture_separation_max=3.0,
         root_mixture_scale_min=0.40,
@@ -1106,83 +879,36 @@ class WeightedMixedScalarSCMTask(
         small_mlp_hidden_dim=None,
         soft_tree_depth=2,
         soft_tree_temperature=0.5,
-        # Accepted only so older configuration dictionaries do not fail.
         latent_dim=1,
     ):
         if int(latent_dim) != 1:
-            raise ValueError(
-                "WeightedMixedScalarSCMTask requires latent_dim=1."
-            )
-
+            raise ValueError("WeightedMixedScalarSCMTask requires latent_dim=1.")
         self.device = (
             device
             if device is not None
-            else torch.device(
-                "cuda"
-                if torch.cuda.is_available()
-                else "cpu"
-            )
+            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
         )
 
-        self.num_classes = (
-            None
-            if num_classes is None
-            else int(num_classes)
-        )
-
-        if (
-            self.num_classes is not None
-            and self.num_classes < 2
-        ):
-            raise ValueError(
-                "num_classes must be None or at least 2."
-            )
+        self.num_classes = None if num_classes is None else int(num_classes)
+        if self.num_classes is not None and self.num_classes < 2:
+            raise ValueError("num_classes must be None or at least 2.")
 
         self.n_min = int(n_min)
         self.n_max = int(n_max)
         self.d_min = int(d_min)
         self.d_max = int(d_max)
-
-        self.test_frac = float(
-            test_frac
-        )
-        self.p_missing = float(
-            p_missing
-        )
-
+        self.test_frac = float(test_frac)
+        self.p_missing = float(p_missing)
         self.latent_dim = 1
+        self.latent_noise_scale = float(latent_noise_scale)
+        self.observation_noise_scale = float(observation_noise_scale)
+        self.dominant_mass_threshold = float(dominant_mass_threshold)
+        self.dominant_feature_fraction = float(dominant_feature_fraction)
 
-        self.latent_noise_scale = float(
-            latent_noise_scale
-        )
-        self.observation_noise_scale = float(
-            observation_noise_scale
-        )
-
-        self.dominant_mass_threshold = float(
-            dominant_mass_threshold
-        )
-        self.dominant_feature_fraction = float(
-            dominant_feature_fraction
-        )
-
-        if not (
-            0.0
-            <= self.dominant_mass_threshold
-            <= 1.0
-        ):
-            raise ValueError(
-                "dominant_mass_threshold must be in [0, 1]."
-            )
-
-        if not (
-            0.0
-            <= self.dominant_feature_fraction
-            <= 1.0
-        ):
-            raise ValueError(
-                "dominant_feature_fraction must be in [0, 1]."
-            )
+        if not (0.0 <= self.dominant_mass_threshold <= 1.0):
+            raise ValueError("dominant_mass_threshold must be in [0, 1].")
+        if not (0.0 <= self.dominant_feature_fraction <= 1.0):
+            raise ValueError("dominant_feature_fraction must be in [0, 1].")
 
         self.scm_kwargs = dict(
             num_roots=num_roots,
@@ -1191,478 +917,165 @@ class WeightedMixedScalarSCMTask(
             hidden_width_max=hidden_width_max,
             final_width=final_width,
             connection_probs=connection_probs,
-            min_parents_per_node=(
-                min_parents_per_node
-            ),
-            edge_weight_concentration=(
-                edge_weight_concentration
-            ),
-            latent_noise_scale=(
-                latent_noise_scale
-            ),
-            root_prior_probs=(
-                root_prior_probs
-            ),
-            root_mixture_component_probs=(
-                root_mixture_component_probs
-            ),
-            root_mixture_separation_min=(
-                root_mixture_separation_min
-            ),
-            root_mixture_separation_max=(
-                root_mixture_separation_max
-            ),
-            root_mixture_scale_min=(
-                root_mixture_scale_min
-            ),
-            root_mixture_scale_max=(
-                root_mixture_scale_max
-            ),
-            linear_activation_prob=(
-                linear_activation_prob
-            ),
-            small_mlp_prob=(
-                small_mlp_prob
-            ),
-            soft_tree_prob=(
-                soft_tree_prob
-            ),
-            small_mlp_hidden_dim=(
-                small_mlp_hidden_dim
-            ),
-            soft_tree_depth=(
-                soft_tree_depth
-            ),
-            soft_tree_temperature=(
-                soft_tree_temperature
-            ),
+            min_parents_per_node=min_parents_per_node,
+            edge_weight_concentration=edge_weight_concentration,
+            latent_noise_scale=latent_noise_scale,
+            root_prior_probs=root_prior_probs,
+            root_mixture_component_probs=root_mixture_component_probs,
+            root_mixture_separation_min=root_mixture_separation_min,
+            root_mixture_separation_max=root_mixture_separation_max,
+            root_mixture_scale_min=root_mixture_scale_min,
+            root_mixture_scale_max=root_mixture_scale_max,
+            linear_activation_prob=linear_activation_prob,
+            small_mlp_prob=small_mlp_prob,
+            soft_tree_prob=soft_tree_prob,
+            small_mlp_hidden_dim=small_mlp_hidden_dim,
+            soft_tree_depth=soft_tree_depth,
+            soft_tree_temperature=soft_tree_temperature,
             device=self.device,
         )
 
         self.observation_kwargs = dict(
-            observation_type_probs=(
-                observation_type_probs
-            ),
-            categorical_cardinalities=(
-                categorical_cardinalities
-            ),
-            categorical_cardinality_probs=(
-                categorical_cardinality_probs
-            ),
-            min_samples_per_category=(
-                min_samples_per_category
-            ),
-            min_component_weight=(
-                min_component_weight
-            ),
-            prototype_max_attempts=(
-                prototype_max_attempts
-            ),
-            prototype_min_separation=(
-                prototype_min_separation
-            ),
-            binning_jitter=(
-                binning_jitter
-            ),
-            observation_noise_scale=(
-                observation_noise_scale
-            ),
+            observation_type_probs=observation_type_probs,
+            categorical_cardinalities=categorical_cardinalities,
+            categorical_cardinality_probs=categorical_cardinality_probs,
+            min_samples_per_category=min_samples_per_category,
+            min_component_weight=min_component_weight,
+            prototype_max_attempts=prototype_max_attempts,
+            prototype_min_separation=prototype_min_separation,
+            binning_jitter=binning_jitter,
+            observation_noise_scale=observation_noise_scale,
         )
 
-        self.g_dag, self.dag_seed = make_gen(
-            self.device,
-            dag_seed,
-        )
-
-        (
-            self.g_aleatoric,
-            self.aleatoric_seed,
-        ) = make_gen(
-            self.device,
-            aleatoric_seed,
-        )
-
-        self.g_x, self.x_seed = make_gen(
-            self.device,
-            x_seed,
-        )
-
-        self.n = int(
-            _randint(
-                self.n_min,
-                self.n_max + 1,
-                (),
-                self.g_dag,
-                self.device,
-            ).item()
-        )
-
-        self.d = int(
-            _randint(
-                self.d_min,
-                self.d_max + 1,
-                (),
-                self.g_dag,
-                self.device,
-            ).item()
-        )
-
+        self.g_dag, self.dag_seed = make_gen(self.device,dag_seed)
+        self.g_aleatoric, self.aleatoric_seed = make_gen(self.device, aleatoric_seed)
+        self.g_x, self.x_seed = make_gen(self.device, x_seed)
+        self.n = int(_randint(self.n_min, self.n_max + 1, (), self.g_dag, self.device).item())
+        self.d = int(_randint(self.d_min, self.d_max + 1, (), self.g_dag, self.device,).item())
         super().__init__()
 
     @staticmethod
-    def _flatten(
-        all_latents,
-    ):
+    def _flatten(all_latents):
         values = []
         index = []
 
-        for layer_idx, layer in enumerate(
-            all_latents
-        ):
-            for node_idx, value in enumerate(
-                layer
-            ):
+        for layer_idx, layer in enumerate(all_latents):
+            for node_idx, value in enumerate(layer):
                 values.append(value)
-                index.append(
-                    (
-                        layer_idx,
-                        node_idx,
-                    )
-                )
-
+                index.append((layer_idx, node_idx))
         return values, index
 
-    def _dominant_group(
-        self,
-        candidate_ids: torch.Tensor,
-        flat_influence: torch.Tensor,
-    ) -> torch.Tensor:
-        influence = flat_influence[
-            candidate_ids
-        ]
-
-        positive_mask = (
-            influence > 0
-        )
-
-        ids = candidate_ids[
-            positive_mask
-        ]
-
-        influence = influence[
-            positive_mask
-        ]
-
+    def _dominant_group(self, candidate_ids, flat_influence):
+        influence = flat_influence[candidate_ids]
+        positive_mask = influence > 0
+        ids = candidate_ids[positive_mask]
+        influence = influence[positive_mask]
         if ids.numel() == 0:
-            return torch.empty(
-                0,
-                device=self.device,
-                dtype=torch.long,
-            )
+            return torch.empty(0, device=self.device, dtype=torch.long)
 
-        order = torch.argsort(
-            influence,
-            descending=True,
-        )
-
+        order = torch.argsort(influence, descending=True)
         ids = ids[order]
         influence = influence[order]
-
-        cutoff = (
-            self.dominant_mass_threshold
-            * influence.sum()
-        )
-
-        cumulative = torch.cumsum(
-            influence,
-            dim=0,
-        )
-
-        reached = torch.where(
-            cumulative >= cutoff
-        )[0]
+        cutoff = self.dominant_mass_threshold * influence.sum()
+        cumulative = torch.cumsum(influence, dim=0)
+        reached = torch.where( cumulative >= cutoff)[0]
 
         if reached.numel() > 0:
-            size = int(
-                reached[0].item()
-            ) + 1
+            size = int(reached[0].item()) + 1
         else:
-            size = int(
-                ids.numel()
-            )
-
+            size = int(ids.numel())
         return ids[:size]
 
-    def _sample_without_replacement(
-        self,
-        ids: torch.Tensor,
-        count: int,
-    ) -> torch.Tensor:
-        if (
-            count <= 0
-            or ids.numel() == 0
-        ):
-            return torch.empty(
-                0,
-                device=self.device,
-                dtype=torch.long,
-            )
+    def _sample_without_replacement(self, ids, count):
+        if count <= 0 or ids.numel() == 0:
+            return torch.empty(0,  device=self.device, dtype=torch.long)
 
-        count = min(
-            int(count),
-            int(ids.numel()),
-        )
+        count = min(int(count), int(ids.numel()))
+        positions = torch.randperm(ids.numel(), generator=self.g_dag, device=ids.device)[:count]
+        return ids[positions]
 
-        positions = torch.randperm(
-            ids.numel(),
-            generator=self.g_dag,
-            device=ids.device,
-        )[:count]
-
-        return ids[
-            positions
-        ]
-
-    def _sample_feature_ids(
-        self,
-        flat_index,
-        flat_influence,
-    ):
+    def _sample_feature_ids(self, flat_index, flat_influence):
         # All nodes except the final target layer are candidates.
         candidates = torch.tensor(
-            [
-                global_id
-                for global_id, (
-                    layer_idx,
-                    _,
-                ) in enumerate(flat_index)
-                if (
-                    layer_idx
-                    < len(self.scm.widths) - 1
-                )
-            ],
+            [global_id for global_id, (layer_idx, _) in enumerate(flat_index) if layer_idx < len(self.scm.widths) - 1],
             device=self.device,
             dtype=torch.long,
         )
 
-        d = min(
-            self.d,
-            int(candidates.numel()),
-        )
-
-        dominant = self._dominant_group(
-            candidates,
-            flat_influence,
-        )
-
-        dominant_set = set(
-            dominant.tolist()
-        )
-
+        d = min(self.d, int(candidates.numel()))
+        dominant = self._dominant_group(candidates, flat_influence)
+        dominant_set = set(dominant.tolist())
         other = torch.tensor(
-            [
-                node_id
-                for node_id in candidates.tolist()
-                if node_id
-                not in dominant_set
-            ],
+            [node_id for node_id in candidates.tolist() if node_id not in dominant_set],
             device=self.device,
             dtype=torch.long,
         )
-
         n_dominant = min(
-            round(
-                self.dominant_feature_fraction
-                * d
-            ),
+            round(self.dominant_feature_fraction * d),
             int(dominant.numel()),
         )
 
-        n_other = (
-            d - n_dominant
-        )
+        n_other = d - n_dominant
 
         if n_other > other.numel():
-            deficit = (
-                n_other
-                - int(other.numel())
-            )
-
+            deficit = n_other - int(other.numel())
             n_dominant += deficit
-            n_other = int(
-                other.numel()
-            )
-
-        selected_dominant = (
-            self._sample_without_replacement(
-                dominant,
-                n_dominant,
-            )
-        )
-
-        selected_other = (
-            self._sample_without_replacement(
-                other,
-                n_other,
-            )
-        )
-
-        selected = torch.cat(
-            (
-                selected_dominant,
-                selected_other,
-            )
-        )
+            n_other = int(other.numel())
+        selected_dominant = self._sample_without_replacement(dominant, n_dominant)
+        selected_other = self._sample_without_replacement(other, n_other)
+        selected = torch.cat((selected_dominant, selected_other))
 
         if selected.numel() < d:
-            selected_set = set(
-                selected.tolist()
-            )
-
+            selected_set = set(selected.tolist())
             remaining = torch.tensor(
-                [
-                    node_id
-                    for node_id
-                    in candidates.tolist()
-                    if node_id
-                    not in selected_set
-                ],
+                [node_id for node_id in candidates.tolist() 
+                 if node_id not in selected_set],
                 device=self.device,
                 dtype=torch.long,
             )
-
-            fill = (
-                self._sample_without_replacement(
-                    remaining,
-                    d - selected.numel(),
-                )
-            )
-
-            selected = torch.cat(
-                (
-                    selected,
-                    fill,
-                )
-            )
+            fill = self._sample_without_replacement(remaining, d - selected.numel())
+            selected = torch.cat((selected, fill))
 
         permutation = torch.randperm(
             selected.numel(),
             generator=self.g_dag,
             device=self.device,
         )
+        selected = selected[permutation]
+        return selected.tolist(), dominant
 
-        selected = selected[
-            permutation
-        ]
-
-        return (
-            selected.tolist(),
-            dominant,
-        )
-
-    def _observe_features(
-        self,
-        flat_latents,
-        feature_ids,
-    ):
+    def _observe_features(self, flat_latents, feature_ids):
         n = flat_latents[0].shape[0]
         d = len(feature_ids)
-
-        X = torch.empty(
-            n,
-            d,
-            device=self.device,
-            dtype=torch.float32,
-        )
-
-        feature_type = torch.empty(
-            d,
-            device=self.device,
-            dtype=torch.long,
-        )
-
-        cardinality = torch.zeros(
-            d,
-            device=self.device,
-            dtype=torch.long,
-        )
-
-        type_ids = torch.empty(
-            d,
-            device=self.device,
-            dtype=torch.long,
-        )
-
-        quality = torch.zeros(
-            d,
-            device=self.device,
-            dtype=torch.float32,
-        )
+        X = torch.empty(n, d, device=self.device, dtype=torch.float32)
+        feature_type = torch.empty(d, device=self.device, dtype=torch.long)
+        cardinality = torch.zeros(d, device=self.device, dtype=torch.long)
+        type_ids = torch.empty(d, device=self.device, dtype=torch.long)
+        quality = torch.zeros(d, device=self.device, dtype=torch.float32)
 
         type_names = []
         prototypes = []
         thresholds = []
         heads = []
-
-        for column, node_id in enumerate(
-            feature_ids
-        ):
+        for column, node_id in enumerate(feature_ids):
             head = ScalarObservationHead(
                 generator=self.g_dag,
                 device=self.device,
                 **self.observation_kwargs,
             )
-
-            observed = head.observe(
-                flat_latents[node_id],
-                self.g_aleatoric,
-            )
-
-            X[:, column] = (
-                observed.values.float()
-            )
-
-            feature_type[column] = (
-                self.CATEGORICAL
-                if observed.is_categorical
-                else self.CONTINUOUS
-            )
-
-            cardinality[column] = (
-                observed.cardinality
-            )
-
-            type_ids[column] = (
-                observed.observation_type_id
-            )
-
-            quality[column] = (
-                observed.quality_score
-            )
-
-            type_names.append(
-                observed.observation_type_name
-            )
-            prototypes.append(
-                observed.prototypes
-            )
-            thresholds.append(
-                observed.thresholds
-            )
-
+            observed = head.observe(flat_latents[node_id], self.g_aleatoric)
+            X[:, column] = observed.values.float()
+            feature_type[column] = self.CATEGORICAL if observed.is_categorical else self.CONTINUOUS
+            cardinality[column] = observed.cardinality
+            type_ids[column] = observed.observation_type_id
+            quality[column] = observed.quality_score
+            type_names.append(observed.observation_type_name)
+            prototypes.append(observed.prototypes)
+            thresholds.append(observed.thresholds)
             heads.append(head)
 
-        return (
-            X,
-            feature_type,
-            cardinality,
-            type_ids,
-            type_names,
-            quality,
-            prototypes,
-            thresholds,
-            heads,
-        )
+        return (X, feature_type, cardinality, type_ids, type_names, 
+                quality, prototypes, thresholds, heads)
 
     def _generate(self):
         self.scm = WeightedLayeredScalarSCM(
@@ -1674,10 +1087,8 @@ class WeightedMixedScalarSCMTask(
 
         all_latents = self.scm.forward(self.n, latent_noise_scale=self.latent_noise_scale)
         flat_latents, flat_index = self._flatten(all_latents)
-
         layer_influence = self.scm.compute_sampling_influence(target_node_idx=0)
         flat_influence = torch.cat(layer_influence)
-
         feature_ids, dominant_group = self._sample_feature_ids(flat_index, flat_influence,)
         self.d = len(feature_ids)
 
@@ -1692,238 +1103,88 @@ class WeightedMixedScalarSCMTask(
             )
             feature_strength_list.append(strength)
         feature_strength = torch.stack(feature_strength_list)
+        importance_ratio = feature_strength / feature_strength.sum().clamp_min(1e-12)
 
         (X_clean,feature_type,cardinality,type_ids,
          type_names,quality,prototypes,thresholds,heads) = self._observe_features(flat_latents, feature_ids)
-
-        # First node in final layer.
-        target_global_id = sum(
-            self.scm.widths[:-1]
+        
+        target_global_id = sum(self.scm.widths[:-1])
+        target_head = ScalarTargetObservationHead(
+            device=self.device,
+            observation_noise_scale=self.observation_noise_scale
         )
-
-        target_head = (
-            ScalarTargetObservationHead(
-                device=self.device,
-                observation_noise_scale=(
-                    self.observation_noise_scale
-                ),
-            )
-        )
-
-        target_score = target_head.score(
-            flat_latents[
-                target_global_id
-            ],
-            self.g_aleatoric,
-        )
-
+        target_score = target_head.score(flat_latents[target_global_id], self.g_aleatoric)
         if self.num_classes is None:
             y = target_score
             self.n_classes = None
-
         else:
-            y = target_head.balanced_classes(
-                target_score,
-                self.num_classes,
-                self.g_dag,
-            )
+            y = target_head.balanced_classes(target_score, self.num_classes, self.g_dag)
+            self.n_classes = self.num_classes
+        feature_ids_tensor = torch.tensor(feature_ids, device=self.device, dtype=torch.long)
 
-            self.n_classes = (
-                self.num_classes
-            )
+        dominant_set = set(dominant_group.tolist())
 
-        feature_ids_tensor = torch.tensor(
-            feature_ids,
-            device=self.device,
-            dtype=torch.long,
-        )
-
-        importance_ratio = (
-            feature_strength
-            / feature_strength.sum().clamp_min(
-                1e-12
-            )
-        )
-
-        dominant_set = set(
-            dominant_group.tolist()
-        )
-
-        selected_from_dominant = (
-            torch.tensor(
-                [
-                    float(
-                        node_id
-                        in dominant_set
-                    )
-                    for node_id
-                    in feature_ids
-                ],
+        selected_from_dominant = torch.tensor(
+                [float(node_id in dominant_set) for node_id in feature_ids],
                 device=self.device,
-                dtype=torch.float32,
-            )
+                dtype=torch.float32
         )
-
         X_observed = X_clean.clone()
-
-        missing_mask = (
-            _rand(
-                *X_observed.shape,
-                generator=self.g_x,
-                device=self.device,
-            )
-            < self.p_missing
-        )
-
-        X_observed[
-            missing_mask
-        ] = torch.nan
+        missing_mask = _rand(*X_observed.shape, generator=self.g_x, device=self.device) < self.p_missing
+        X_observed[missing_mask] = torch.nan
 
         if self.num_classes is not None:
-            train_idx, test_idx = (
-                stratified_classification_split(
-                    y=y.long(),
-                    test_frac=self.test_frac,
-                    generator=self.g_x,
-                    device=self.device,
-                )
-            )
-
-        else:
-            n_test = min(
-                max(
-                    1,
-                    round(
-                        self.n
-                        * self.test_frac
-                    ),
-                ),
-                self.n - 2,
-            )
-
-            order = torch.randperm(
-                self.n,
+            train_idx, test_idx = stratified_classification_split(
+                y=y.long(),
+                test_frac=self.test_frac,
                 generator=self.g_x,
-                device=self.device,
+                device=self.device,   
             )
-
-            train_idx = order[
-                :-n_test
-            ]
-            test_idx = order[
-                -n_test:
-            ]
+        else:
+            n_test = min(max(1, round(self.n * self.test_frac)), self.n - 2)
+            order = torch.randperm(self.n, generator=self.g_x, device=self.device)
+            train_idx = order[:-n_test]
+            test_idx = order[-n_test:]
 
         info = {
             "feature_type": feature_type,
             "cardinality": cardinality,
-            "feature_observation_type_ids": (
-                type_ids
-            ),
-            "feature_observation_type_names": (
-                type_names
-            ),
-            "feature_observation_quality": (
-                quality
-            ),
+            "feature_observation_type_ids": type_ids,
+            "feature_observation_type_names": type_names,
+            "feature_observation_quality": quality,
             "feature_prototypes": prototypes,
             "feature_thresholds": thresholds,
             "feature_ids": feature_ids_tensor,
-            "target_id": torch.tensor(
-                target_global_id,
-                device=self.device,
-                dtype=torch.long,
-            ),
+            "target_id": torch.tensor(target_global_id, device=self.device, dtype=torch.long),
             "feature_strength": feature_strength,
             "importance_ratio": importance_ratio,
-            "is_active": (
-                feature_strength > 0
-            ).float(),
-            "sampled_active": (
-                selected_from_dominant
-            ),
-            "selected_from_dominant_group": (
-                selected_from_dominant
-            ),
-            "dominant_group_ids": (
-                dominant_group
-            ),
-            "all_node_influence": (
-                flat_influence
-            ),
-            "layer_node_influence": (
-                layer_influence
-            ),
-            "layer_widths": torch.tensor(
-                self.scm.widths,
-                device=self.device,
-                dtype=torch.long,
-            ),
-            "connection_probs": torch.tensor(
-                self.scm.connection_probs,
-                device=self.device,
-                dtype=torch.float32,
-            ),
-            "adjacency_matrices": [
-                connection.adj
-                for connection
-                in self.scm.connections
-            ],
-            "edge_weight_matrices": [
-                connection.weights
-                for connection
-                in self.scm.connections
-            ],
-            "root_prior_types": list(
-                self.scm.root_prior_types
-            ),
-            "root_prior_type_ids": (
-                torch.tensor(
-                    self.scm.root_prior_type_ids,
-                    device=self.device,
-                    dtype=torch.long,
-                )
-            ),
-            "root_mixture_components": (
-                torch.tensor(
-                    self.scm.root_mixture_components,
-                    device=self.device,
-                    dtype=torch.long,
-                )
-            ),
-            "latent_dim": torch.tensor(
-                1,
-                device=self.device,
-                dtype=torch.long,
-            ),
-            "missing_mask_train": (
-                missing_mask[train_idx]
-            ),
-            "missing_mask_test": (
-                missing_mask[test_idx]
-            ),
+            "is_active": (feature_strength > 0).float(),
+            "sampled_active": selected_from_dominant,
+            "selected_from_dominant_group": selected_from_dominant,
+            "dominant_group_ids": dominant_group,
+            "all_node_influence": flat_influence,
+            "layer_node_influence": layer_influence,
+            "layer_widths": torch.tensor(self.scm.widths, device=self.device, dtype=torch.long),
+            "connection_probs": torch.tensor(self.scm.connection_probs, device=self.device, dtype=torch.float32),
+            "adjacency_matrices": [connection.adj for connection in self.scm.connections],
+            "edge_weight_matrices": [connection.weights for connection in self.scm.connections],
+            "root_prior_types": list(self.scm.root_prior_types),
+            "root_prior_type_ids": torch.tensor(self.scm.root_prior_type_ids, device=self.device, dtype=torch.long),
+            "root_mixture_components": torch.tensor(self.scm.root_mixture_components, device=self.device, dtype=torch.long),
+            "latent_dim": torch.tensor(1, device=self.device, dtype=torch.long),
+            "missing_mask_train": missing_mask[train_idx],
+            "missing_mask_test": missing_mask[test_idx],
         }
 
-        self.feature_type = (
-            feature_type
-        )
-        self.cardinality = (
-            cardinality
-        )
-        self.feature_observation_heads = (
-            heads
-        )
-        self.target_observation_head = (
-            target_head
-        )
+        self.feature_type = feature_type
+        self.cardinality = cardinality
+        self.feature_observation_heads = heads
+        self.target_observation_head = target_head
         self.n_features = self.d
 
         return (
-            X_observed[train_idx],
-            y[train_idx],
-            X_observed[test_idx],
-            y[test_idx],
-            info,
+            X_observed[train_idx], y[train_idx],
+            X_observed[test_idx], y[test_idx], info
         )
 
     def visualize(self):
