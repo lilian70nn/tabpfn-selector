@@ -149,11 +149,7 @@ class ScalarLatentEdge:
 
     def __call__(self, parent_latent):
         if (parent_latent.ndim != 2 or parent_latent.shape[1] != 1):
-            raise ValueError(
-                "ScalarLatentEdge expects shape [N, 1], "
-                f"received {tuple(parent_latent.shape)}."
-            )
-
+            raise ValueError(f"ScalarLatentEdge expects shape [N, 1], received {tuple(parent_latent.shape)}.")
         x = parent_latent.float()
         if self.edge_type == self.LINEAR:
             value = self.linear_w * x + self.linear_b
@@ -381,10 +377,7 @@ class WeightedLayeredScalarSCM:
         self.latent_noise_scale = float(latent_noise_scale)
 
         if len(self.connection_probs) != self.num_layers - 1:
-            raise ValueError(
-                "connection_probs must contain "
-                "num_layers - 1 values."
-            )
+            raise ValueError("connection_probs must contain num_layers - 1 values.")
 
         self.root_prior_probs = _normalize_probs(root_prior_probs, self.device, expected_len=5, name="root_prior_probs")
         self.root_mixture_component_probs = _normalize_probs(root_mixture_component_probs,
@@ -771,9 +764,7 @@ class ScalarTargetObservationHead:
 
     def score(self, latent, generator):
         if latent.ndim != 2 or latent.shape[1] != 1:
-            raise ValueError(
-                f"Scalar target expects latent shape [N, 1], received {tuple(latent.shape)}."
-            )
+            raise ValueError(f"Scalar target expects latent shape [N, 1], received {tuple(latent.shape)}.")
         value = latent[:, 0].float()
         if self.observation_noise_scale > 0:
             noise = torch.randn(value.shape, generator=generator, device=self.device, dtype=value.dtype)
@@ -821,9 +812,7 @@ class ScalarTargetObservationHead:
 # ============================================================================
 
 
-class WeightedMixedScalarSCMTask(
-    GenerateTask
-):
+class WeightedMixedScalarSCMTask(GenerateTask):
     """
     Mixed tabular SCM with one-dimensional continuous latent nodes.
     Underlying SCM: every node is continuous and scalar.
