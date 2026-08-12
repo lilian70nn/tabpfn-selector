@@ -68,8 +68,8 @@ def train_synthetic(
 
 
 
-        torch.cuda.synchronize()
-        t0 = time.perf_counter()
+        # torch.cuda.synchronize()
+        # t0 = time.perf_counter()
 
         try:
             batch = next(train_iter)
@@ -77,22 +77,22 @@ def train_synthetic(
             train_iter = iter(train_loader)
             batch = next(train_iter)
 
-        torch.cuda.synchronize()
-        t1 = time.perf_counter()
+        # torch.cuda.synchronize()
+        # t1 = time.perf_counter()
 
         assert bool(batch.use_selector) == loader_use_selector
 
         batch = move_batch_to_device(batch, device)
 
-        torch.cuda.synchronize()
-        t2 = time.perf_counter()
+        # torch.cuda.synchronize()
+        # t2 = time.perf_counter()
 
         optimizer.zero_grad(set_to_none=True)
 
         out = model(batch)
 
-        torch.cuda.synchronize()
-        t3 = time.perf_counter()
+        # torch.cuda.synchronize()
+        # t3 = time.perf_counter()
 
         loss_dict = model.total_loss(
             batch,
@@ -102,8 +102,8 @@ def train_synthetic(
 
         loss = loss_dict["loss"]
 
-        torch.cuda.synchronize()
-        t4 = time.perf_counter()
+        # torch.cuda.synchronize()
+        # t4 = time.perf_counter()
 
 
         if not torch.isfinite(loss):
@@ -111,8 +111,8 @@ def train_synthetic(
 
         loss.backward()
 
-        torch.cuda.synchronize()
-        t5 = time.perf_counter()
+        # torch.cuda.synchronize()
+        # t5 = time.perf_counter()
 
 
         if grad_clip is not None:
@@ -120,30 +120,30 @@ def train_synthetic(
 
         optimizer.step()
 
-        torch.cuda.synchronize()
-        t6 = time.perf_counter()
+        # torch.cuda.synchronize()
+        # t6 = time.perf_counter()
 
-        if step <= 20:
+        # if step <= 20:
 
-            print(
+        #     print(
 
-                f"step={step:03d} | "
+        #         f"step={step:03d} | "
 
-                f"data={t1-t0:.4f}s | "
+        #         f"data={t1-t0:.4f}s | "
 
-                f"to_gpu={t2-t1:.4f}s | "
+        #         f"to_gpu={t2-t1:.4f}s | "
 
-                f"forward={t3-t2:.4f}s | "
+        #         f"forward={t3-t2:.4f}s | "
 
-                f"loss={t4-t3:.4f}s | "
+        #         f"loss={t4-t3:.4f}s | "
 
-                f"backward={t5-t4:.4f}s | "
+        #         f"backward={t5-t4:.4f}s | "
 
-                f"optim={t6-t5:.4f}s | "
+        #         f"optim={t6-t5:.4f}s | "
 
-                f"TOTAL={t6-t0:.4f}s"
+        #         f"TOTAL={t6-t0:.4f}s"
 
-            )
+        #     )
         running_loss += float(loss_dict["loss"].detach())
         running_pred += float(loss_dict["pred_loss"].detach())
         running_n += 1
