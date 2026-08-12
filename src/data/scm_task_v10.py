@@ -43,7 +43,7 @@ def _standardize(x, dim=0, eps = 1e-6):
 
 
 def _normalize_probs(values, device, expected_len=None, name="probabilities"):
-    probs = torch.tensor(values, device=device, dtype=torch.float32)
+    probs = torch.as_tensor(values, device=device, dtype=torch.float32)
     if expected_len is not None and probs.numel() != expected_len:
         raise ValueError(f"{name} must contain {expected_len} values.")
 
@@ -1105,31 +1105,12 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         self.target_observation_head = target_head
         self.n_features = self.d
 
-        #self.scm = None
         result = (
             X_observed[train_idx], y[train_idx],
             X_observed[test_idx], y[test_idx], info
         )
 
-        def check_requires_grad(obj, prefix=""):
-            if torch.is_tensor(obj):
-                if obj.requires_grad:
-                    print(prefix, obj.shape, obj.is_leaf)
-            elif isinstance(obj, dict):
-                for k, v in obj.items():
-                    check_requires_grad(v, f"{prefix}.{k}")
-            elif isinstance(obj, (list, tuple)):
-                for i, v in enumerate(obj):
-                    check_requires_grad(v, f"{prefix}[{i}]")
-            elif hasattr(obj, "__dict__"):
-                for k, v in obj.__dict__.items():
-                    check_requires_grad(v, f"{prefix}.{k}")
-
         result = detach_tree(result)
-
-        check_requires_grad(self, "self")
-
-
 
         return result
 
