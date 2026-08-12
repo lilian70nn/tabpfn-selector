@@ -7,6 +7,7 @@ import torch.nn.functional as F
 
 from src.data.helper import make_gen, stratified_classification_split
 from src.data.synthetic_task import GenerateTask
+from src.data.helper import detach_tree
 
 
 def _randn(*shape, generator, device):
@@ -1103,11 +1104,31 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         self.feature_observation_heads = heads
         self.target_observation_head = target_head
         self.n_features = self.d
-
-        return (
+        result = (
             X_observed[train_idx], y[train_idx],
             X_observed[test_idx], y[test_idx], info
         )
+
+        def check_requires_grad(obj, prefix=""):
+            if torch.is_tensor(obj):
+                if obj.requires_grad:
+                    print(prefix, obj.shape, obj.is_leaf)
+            elif isinstance(obj, dict):
+                for k, v in obj.items():
+                    check_requires_grad(v, f"{prefix}.{k}")
+            elif isinstance(obj, (list, tuple)):
+                for i, v in enumerate(obj):
+                    check_requires_grad(v, f"{prefix}[{i}]")
+            elif hasattr(obj, "__dict__"):
+                for k, v in obj.__dict__.items():
+                    check_requires_grad(v, f"{prefix}.{k}")
+        result = detach_tree(result)
+
+        check_requires_grad(result, "result")
+
+
+
+        return result
 
     def visualize(self):
         return None
