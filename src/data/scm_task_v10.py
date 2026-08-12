@@ -1124,7 +1124,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
                     check_requires_grad(v, f"{prefix}.{k}")
         result = detach_tree(result)
 
-        check_requires_grad(result, "result")
+        check_requires_grad(result, "self")
 
 
 
