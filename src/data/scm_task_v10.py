@@ -1105,7 +1105,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         self.target_observation_head = target_head
         self.n_features = self.d
 
-        self.scm = None
+        #self.scm = None
         result = (
             X_observed[train_idx], y[train_idx],
             X_observed[test_idx], y[test_idx], info
