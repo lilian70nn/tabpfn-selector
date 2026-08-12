@@ -1,6 +1,7 @@
 from src.training.helper import move_batch_to_device, infer_loader_use_selector
 from src.training.eval import evaluate_synthetic
 import torch
+import time
 
 
 def train_synthetic(
@@ -64,19 +65,35 @@ def train_synthetic(
     running_imp_n = 0
 
     for step in range(1, steps + 1):
+
+
+
+        torch.cuda.synchronize()
+        t0 = time.perf_counter()
+
         try:
             batch = next(train_iter)
         except StopIteration:
             train_iter = iter(train_loader)
             batch = next(train_iter)
 
+        torch.cuda.synchronize()
+        t1 = time.perf_counter()
+
         assert bool(batch.use_selector) == loader_use_selector
 
         batch = move_batch_to_device(batch, device)
 
+        torch.cuda.synchronize()
+        t2 = time.perf_counter()
+
         optimizer.zero_grad(set_to_none=True)
 
         out = model(batch)
+
+        torch.cuda.synchronize()
+        t3 = time.perf_counter()
+
         loss_dict = model.total_loss(
             batch,
             out,
@@ -85,16 +102,48 @@ def train_synthetic(
 
         loss = loss_dict["loss"]
 
+        torch.cuda.synchronize()
+        t4 = time.perf_counter()
+
+
         if not torch.isfinite(loss):
             raise RuntimeError(f"Non-finite loss at step {step}: {loss.item()}")
 
         loss.backward()
+
+        torch.cuda.synchronize()
+        t5 = time.perf_counter()
+
 
         if grad_clip is not None:
             torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
 
         optimizer.step()
 
+        torch.cuda.synchronize()
+        t6 = time.perf_counter()
+
+        if step <= 20:
+
+            print(
+
+                f"step={step:03d} | "
+
+                f"data={t1-t0:.4f}s | "
+
+                f"to_gpu={t2-t1:.4f}s | "
+
+                f"forward={t3-t2:.4f}s | "
+
+                f"loss={t4-t3:.4f}s | "
+
+                f"backward={t5-t4:.4f}s | "
+
+                f"optim={t6-t5:.4f}s | "
+
+                f"TOTAL={t6-t0:.4f}s"
+
+            )
         running_loss += float(loss_dict["loss"].detach())
         running_pred += float(loss_dict["pred_loss"].detach())
         running_n += 1
