@@ -76,7 +76,7 @@ train_loader = DataLoader(
     train_dataset,
     batch_size=12,
     shuffle=True,
-    num_workers=0,
+    num_workers=2,
     pin_memory=True,
     collate_fn=partial(collate_tasks, use_selector=True),
 )
@@ -85,7 +85,7 @@ val_loader = DataLoader(
     val_dataset,
     batch_size=12,
     shuffle=False,
-    num_workers=0,
+    num_workers=2,
     pin_memory=True,
     collate_fn=partial(collate_tasks, use_selector=True),
 )
@@ -113,7 +113,7 @@ train_synthetic(
     train_loader=train_loader,
     optimizer=optimizer,
     device=device,
-    steps=20,
+    steps=30000,
     importance_weight=30,
     grad_clip=1.0,
     log_every=50,
