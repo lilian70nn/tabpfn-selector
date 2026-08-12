@@ -85,7 +85,7 @@ val_loader = DataLoader(
     val_dataset,
     batch_size=12,
     shuffle=False,
-    num_workers=2,
+    num_workers=0,
     pin_memory=True,
     collate_fn=partial(collate_tasks, use_selector=True),
 )
