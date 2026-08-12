@@ -8,8 +8,6 @@ import torch.nn.functional as F
 from src.data.helper import make_gen, stratified_classification_split
 from src.data.synthetic_task import GenerateTask
 from src.data.helper import detach_tree
-import time
-
 
 
 def _randn(*shape, generator, device):
@@ -789,11 +787,6 @@ class WeightedMixedScalarSCMTask(GenerateTask):
 
     CONTINUOUS = 0
     CATEGORICAL = 1
-    def _sync(self):
-
-        if self.device.type == "cuda":
-
-            torch.cuda.synchronize()
 
     def __init__(
         self,
@@ -1023,9 +1016,6 @@ class WeightedMixedScalarSCMTask(GenerateTask):
 
 
     def _generate(self):
-
-        self._sync()
-        t0 = time.perf_counter()
         
         self.scm = WeightedLayeredScalarSCM(
             self.g_dag,
@@ -1034,14 +1024,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             **self.scm_kwargs,
         )
 
-        self._sync()
-        t1 = time.perf_counter()
-
         all_latents = self.scm.forward(self.n, latent_noise_scale=self.latent_noise_scale)
-
-        self._sync()
-        t2 = time.perf_counter()
-
 
         flat_latents, flat_index = self._flatten(all_latents)
         layer_influence = self.scm.compute_sampling_influence(target_node_idx=0)
@@ -1067,8 +1050,6 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         feature_ids = self._sample_feature_ids(flat_index, flat_influence, penalty=self.sampling_penalty)
         self.d = len(feature_ids)
 
-        self._sync()
-        t3 = time.perf_counter()
 
         # feature_strength_list = []
         # for global_id in feature_ids:
@@ -1087,27 +1068,13 @@ class WeightedMixedScalarSCMTask(GenerateTask):
                                                            target_node_idx=0
                                                            )
 
-        self._sync()
-        t4 = time.perf_counter()
-
         # feature_ids_tensor = torch.tensor(feature_ids, device=self.device, dtype=torch.long)
         # feature_strength = flat_influence[feature_ids_tensor]
         importance_ratio = feature_strength / feature_strength.sum().clamp_min(1e-12)
 
         (X_clean,feature_type,cardinality,type_ids,
          type_names,quality,prototypes,thresholds,heads) = self._observe_features(flat_latents, feature_ids)
-
-        self._sync()
-        t5 = time.perf_counter()
-
-        print(
-            f"init={t1-t0:.4f}s | "
-            f"forward={t2-t1:.4f}s | "
-            f"sampling={t3-t2:.4f}s | "
-            f"grad={t4-t3:.4f}s | "
-            f"observe={t5-t4:.4f}s"
-        )
-                
+        
         target_global_id = sum(self.scm.widths[:-1])
         target_head = ScalarTargetObservationHead(
             device=self.device,
