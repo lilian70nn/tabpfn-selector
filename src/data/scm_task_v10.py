@@ -460,21 +460,43 @@ class WeightedLayeredScalarSCM:
         return influence
         
 
-    def compute_node_influence(self, all_latents, layer_idx, node_idx, target_node_idx = 0):
-        node = all_latents[layer_idx][node_idx]
+    # def compute_node_influence(self, all_latents, layer_idx, node_idx, target_node_idx = 0):
+    #     node = all_latents[layer_idx][node_idx]
+    #     target = all_latents[-1][target_node_idx]
+
+    #     grad = torch.autograd.grad(
+    #         outputs=target,
+    #         inputs=node,
+    #         grad_outputs=torch.ones_like(target),
+    #         retain_graph=True,
+    #         allow_unused=True,
+    #     )[0]
+
+    #     if grad is None:
+    #         return torch.tensor(0.0, device=self.device, dtype=torch.float32)
+    #     return grad.abs().mean().float()
+
+    def compute_node_influence(self, all_latents, node_indices, target_node_idx=0):
+        """
+        Compute functional influence for multiple nodes in one autograd call.
+        node_indices: iterable of (layer_idx, node_idx)
+        returns: Tensor of shape [num_nodes]
+        """
+
         target = all_latents[-1][target_node_idx]
-
-        grad = torch.autograd.grad(
+        nodes = [all_latents[layer_idx][node_idx] for layer_idx, node_idx in node_indices]
+        grads = torch.autograd.grad(
             outputs=target,
-            inputs=node,
+            inputs=nodes,
             grad_outputs=torch.ones_like(target),
-            retain_graph=True,
+            retain_graph=False,
             allow_unused=True,
-        )[0]
-
-        if grad is None:
-            return torch.tensor(0.0, device=self.device, dtype=torch.float32)
-        return grad.abs().mean().float()
+        )
+        strengths = [
+            torch.zeros((), device=self.device, dtype=torch.float32)
+            if grad is None else grad.abs().mean().float() for grad in grads
+        ]
+        return torch.stack(strengths)
 
 
 # ============================================================================
@@ -1025,17 +1047,22 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         feature_ids = self._sample_feature_ids(flat_index, flat_influence, penalty=self.sampling_penalty)
         self.d = len(feature_ids)
 
-        feature_strength_list = []
-        for global_id in feature_ids:
-            layer_idx, node_idx = flat_index[global_id]
-            strength = self.scm.compute_node_influence(
-                all_latents=all_latents,
-                layer_idx=layer_idx,
-                node_idx=node_idx,
-                target_node_idx=0,
-            )
-            feature_strength_list.append(strength)
-        feature_strength = torch.stack(feature_strength_list)
+        # feature_strength_list = []
+        # for global_id in feature_ids:
+        #     layer_idx, node_idx = flat_index[global_id]
+        #     strength = self.scm.compute_node_influence(
+        #         all_latents=all_latents,
+        #         layer_idx=layer_idx,
+        #         node_idx=node_idx,
+        #         target_node_idx=0,
+        #     )
+        #     feature_strength_list.append(strength)
+        # feature_strength = torch.stack(feature_strength_list)
+        selected_node_indices = [flat_index[global_id] for global_id in feature_ids]
+        feature_strength = self.scm.compute_node_influence(all_latents=all_latents, 
+                                                           node_indices=selected_node_indices,
+                                                           target_node_idx=0
+                                                           )
 
         # feature_ids_tensor = torch.tensor(feature_ids, device=self.device, dtype=torch.long)
         # feature_strength = flat_influence[feature_ids_tensor]
