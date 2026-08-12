@@ -2,6 +2,8 @@ import torch
 from abc import ABC, abstractmethod
 
 class GenerateTask(ABC):
+    use_inference_mode = True
+
     def __init__(self) -> None:
         self._X_train = None
         self._y_train = None
@@ -11,7 +13,10 @@ class GenerateTask(ABC):
         self.n_features = -1
         self.n_classes = None
 
-        with torch.inference_mode():
+        if self.use_inference_mode:
+            with torch.inference_mode():
+                Xtr, ytr, Xte, yte, info = self._generate()
+        else:
             Xtr, ytr, Xte, yte, info = self._generate()
 
         self._X_train = Xtr
