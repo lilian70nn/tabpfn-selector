@@ -154,3 +154,14 @@ def build_cell_mask(
 
     return cell_mask
 
+
+def detach_tree(x):
+    if torch.is_tensor(x):
+        return x.detach()
+    if isinstance(x, list):
+        return [detach_tree(v) for v in x]
+    if isinstance(x, tuple):
+        return tuple(detach_tree(v) for v in x)
+    if isinstance(x, dict):
+        return {k: detach_tree(v) for k, v in x.items()}
+    return x
