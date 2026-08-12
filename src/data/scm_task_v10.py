@@ -1016,57 +1016,59 @@ class WeightedMixedScalarSCMTask(GenerateTask):
 
 
     def _generate(self):
+
+        with torch.enable_grad():
         
-        self.scm = WeightedLayeredScalarSCM(
-            self.g_dag,
-            self.g_x,
-            self.g_aleatoric,
-            **self.scm_kwargs,
-        )
+            self.scm = WeightedLayeredScalarSCM(
+                self.g_dag,
+                self.g_x,
+                self.g_aleatoric,
+                **self.scm_kwargs,
+            )
 
-        all_latents = self.scm.forward(self.n, latent_noise_scale=self.latent_noise_scale)
+            all_latents = self.scm.forward(self.n, latent_noise_scale=self.latent_noise_scale)
 
-        flat_latents, flat_index = self._flatten(all_latents)
-        layer_influence = self.scm.compute_sampling_influence(target_node_idx=0)
-        flat_influence = torch.cat(layer_influence)
-        flat_influence = flat_influence / flat_influence.sum().clamp_min(1e-12)
+            flat_latents, flat_index = self._flatten(all_latents)
+            layer_influence = self.scm.compute_sampling_influence(target_node_idx=0)
+            flat_influence = torch.cat(layer_influence)
+            flat_influence = flat_influence / flat_influence.sum().clamp_min(1e-12)
 
-        # flat_influence_list = []
-        # for global_id, (layer_idx, node_idx) in enumerate(flat_index):
-        #     if layer_idx == len(self.scm.widths) - 1:
-        #         strength = torch.tensor(0.0, device=self.device)
-        #     else:
-        #         strength = self.scm.compute_node_influence(
-        #             all_latents=all_latents,
-        #             layer_idx=layer_idx,
-        #             node_idx=node_idx,
-        #             target_node_idx=0,
-        #         )
-        #     flat_influence_list.append(strength)
+            # flat_influence_list = []
+            # for global_id, (layer_idx, node_idx) in enumerate(flat_index):
+            #     if layer_idx == len(self.scm.widths) - 1:
+            #         strength = torch.tensor(0.0, device=self.device)
+            #     else:
+            #         strength = self.scm.compute_node_influence(
+            #             all_latents=all_latents,
+            #             layer_idx=layer_idx,
+            #             node_idx=node_idx,
+            #             target_node_idx=0,
+            #         )
+            #     flat_influence_list.append(strength)
 
-        # flat_influence = torch.stack(flat_influence_list)
-        # flat_influence = flat_influence / flat_influence.sum().clamp_min(1e-12)
+            # flat_influence = torch.stack(flat_influence_list)
+            # flat_influence = flat_influence / flat_influence.sum().clamp_min(1e-12)
 
-        feature_ids = self._sample_feature_ids(flat_index, flat_influence, penalty=self.sampling_penalty)
-        self.d = len(feature_ids)
+            feature_ids = self._sample_feature_ids(flat_index, flat_influence, penalty=self.sampling_penalty)
+            self.d = len(feature_ids)
 
 
-        # feature_strength_list = []
-        # for global_id in feature_ids:
-        #     layer_idx, node_idx = flat_index[global_id]
-        #     strength = self.scm.compute_node_influence(
-        #         all_latents=all_latents,
-        #         layer_idx=layer_idx,
-        #         node_idx=node_idx,
-        #         target_node_idx=0,
-        #     )
-        #     feature_strength_list.append(strength)
-        # feature_strength = torch.stack(feature_strength_list)
-        selected_node_indices = [flat_index[global_id] for global_id in feature_ids]
-        feature_strength = self.scm.compute_node_influence(all_latents=all_latents, 
-                                                           node_indices=selected_node_indices,
-                                                           target_node_idx=0
-                                                           )
+            # feature_strength_list = []
+            # for global_id in feature_ids:
+            #     layer_idx, node_idx = flat_index[global_id]
+            #     strength = self.scm.compute_node_influence(
+            #         all_latents=all_latents,
+            #         layer_idx=layer_idx,
+            #         node_idx=node_idx,
+            #         target_node_idx=0,
+            #     )
+            #     feature_strength_list.append(strength)
+            # feature_strength = torch.stack(feature_strength_list)
+            selected_node_indices = [flat_index[global_id] for global_id in feature_ids]
+            feature_strength = self.scm.compute_node_influence(all_latents=all_latents, 
+                                                            node_indices=selected_node_indices,
+                                                            target_node_idx=0
+                                                            )
 
         # feature_ids_tensor = torch.tensor(feature_ids, device=self.device, dtype=torch.long)
         # feature_strength = flat_influence[feature_ids_tensor]
