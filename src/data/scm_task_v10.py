@@ -1104,6 +1104,8 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         self.feature_observation_heads = heads
         self.target_observation_head = target_head
         self.n_features = self.d
+
+        self.scm = None
         result = (
             X_observed[train_idx], y[train_idx],
             X_observed[test_idx], y[test_idx], info
@@ -1122,6 +1124,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             elif hasattr(obj, "__dict__"):
                 for k, v in obj.__dict__.items():
                     check_requires_grad(v, f"{prefix}.{k}")
+
         result = detach_tree(result)
 
         check_requires_grad(self, "self")
