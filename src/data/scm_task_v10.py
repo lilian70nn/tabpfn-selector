@@ -1,4 +1,5 @@
 # replace the dominant sampling method by ancestor/descendant penalty.
+# retention add in the gradient imp for discrete faetures 
 
 from dataclasses import dataclass
 
@@ -460,22 +461,6 @@ class WeightedLayeredScalarSCM:
         return influence
         
 
-    # def compute_node_influence(self, all_latents, layer_idx, node_idx, target_node_idx = 0):
-    #     node = all_latents[layer_idx][node_idx]
-    #     target = all_latents[-1][target_node_idx]
-
-    #     grad = torch.autograd.grad(
-    #         outputs=target,
-    #         inputs=node,
-    #         grad_outputs=torch.ones_like(target),
-    #         retain_graph=True,
-    #         allow_unused=True,
-    #     )[0]
-
-    #     if grad is None:
-    #         return torch.tensor(0.0, device=self.device, dtype=torch.float32)
-    #     return grad.abs().mean().float()
-
     def compute_node_influence(self, all_latents, node_indices, target_node_idx=0):
         """
         Compute functional influence for multiple nodes in one autograd call.
@@ -512,6 +497,7 @@ class FeatureObservation:
     observation_type_id: int
     observation_type_name: str
     quality_score: float
+    retention: float
     prototypes: torch.Tensor
     thresholds: torch.Tensor
 
@@ -589,6 +575,36 @@ class ScalarObservationHead:
         return self.cardinalities[feasible[position]]
 
 
+    def _categorical_retention(self, scalar, labels):
+        """
+        Fraction of latent variance retained by the categorical observation.
+        eta^2 = Var(E[z | category]) / Var(z)
+        1.0 means categories preserve essentially all latent variation.
+        0.0 means categories contain essentially no information about the latent.
+        """
+        scalar = scalar.float()
+        labels = labels.long()
+
+        total_var = scalar.var(unbiased=False)
+
+        if total_var <= 1e-12:
+            return 0.0
+
+        global_mean = scalar.mean()
+        between_var = torch.zeros((), device=scalar.device, dtype=scalar.dtype)
+        n = scalar.numel()
+
+        for category in torch.unique(labels):
+            mask = labels == category
+            if not mask.any():
+                continue
+            weight = mask.float().mean()
+            category_mean = scalar[mask].mean()
+            between_var = between_var + weight * (category_mean - global_mean).square()
+
+        retention = between_var / total_var.clamp_min(1e-12)
+        return float(retention.clamp(0.0, 1.0).detach().item())
+
     def _continuous(self, z, generator, name = "continuous_scalar"):
         score = z[:, 0].clone()
 
@@ -609,6 +625,7 @@ class ScalarObservationHead:
             observation_type_id=self.CONTINUOUS,
             observation_type_name=name,
             quality_score=0.0,
+            retention=1.0,
             prototypes=torch.empty(0, 1, device=z.device, dtype=z.dtype),
             thresholds=torch.empty(0, device=z.device, dtype=z.dtype),
         )
@@ -633,6 +650,7 @@ class ScalarObservationHead:
         labels = distances.argmin(dim=1).long()
         counts = torch.bincount(labels, minlength=k)
         smallest_fraction = float((counts.float() / counts.sum().clamp_min(1)).min().item())
+        retention = self._categorical_retention(scalar, labels)
 
         return FeatureObservation(
             values=labels,
@@ -641,6 +659,7 @@ class ScalarObservationHead:
             observation_type_id=self.PROTOTYPE,
             observation_type_name="prototype_discretization",
             quality_score=smallest_fraction,
+            retention=retention,
             prototypes=prototypes[:, None],
             thresholds=torch.empty(0, device=z.device, dtype=z.dtype),
         )
@@ -684,6 +703,7 @@ class ScalarObservationHead:
         labels = torch.bucketize(scalar,thresholds).long()
         observed_counts = torch.bincount(labels,minlength=k)
         smallest_fraction = float((observed_counts.float()  / observed_counts.sum().clamp_min(1)).min().item())
+        retention = self._categorical_retention(scalar, labels)
 
         return FeatureObservation(
             values=labels,
@@ -692,9 +712,12 @@ class ScalarObservationHead:
             observation_type_id=self.BINNING,
             observation_type_name="threshold_binning",
             quality_score=smallest_fraction,
+            retention=retention,
             prototypes=torch.empty(0, 1, device=z.device, dtype=z.dtype),
             thresholds=thresholds,
         )
+
+
 
     def observe(self, latent, generator):
         z = _standardize(latent.float(),dim=0)
@@ -850,6 +873,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         self.latent_noise_scale = float(latent_noise_scale)
         self.observation_noise_scale = float(observation_noise_scale)
         self.sampling_penalty = float(sampling_penalty)
+        self.importance_scale = 0.2
 
 
         self.scm_kwargs = dict(
@@ -989,6 +1013,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         cardinality = torch.zeros(d, device=self.device, dtype=torch.long)
         type_ids = torch.empty(d, device=self.device, dtype=torch.long)
         quality = torch.zeros(d, device=self.device, dtype=torch.float32)
+        retention = torch.ones(d, device=self.device, dtype=torch.float32)
 
         type_names = []
         prototypes = []
@@ -1006,13 +1031,14 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             cardinality[column] = observed.cardinality
             type_ids[column] = observed.observation_type_id
             quality[column] = observed.quality_score
+            retention[column] = observed.retention
             type_names.append(observed.observation_type_name)
             prototypes.append(observed.prototypes)
             thresholds.append(observed.thresholds)
             heads.append(head)
 
         return (X, feature_type, cardinality, type_ids, type_names, 
-                quality, prototypes, thresholds, heads)
+                quality, retention, prototypes, thresholds, heads)
 
 
     def _generate(self):
@@ -1033,50 +1059,21 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             flat_influence = torch.cat(layer_influence)
             flat_influence = flat_influence / flat_influence.sum().clamp_min(1e-12)
 
-            # flat_influence_list = []
-            # for global_id, (layer_idx, node_idx) in enumerate(flat_index):
-            #     if layer_idx == len(self.scm.widths) - 1:
-            #         strength = torch.tensor(0.0, device=self.device)
-            #     else:
-            #         strength = self.scm.compute_node_influence(
-            #             all_latents=all_latents,
-            #             layer_idx=layer_idx,
-            #             node_idx=node_idx,
-            #             target_node_idx=0,
-            #         )
-            #     flat_influence_list.append(strength)
-
-            # flat_influence = torch.stack(flat_influence_list)
-            # flat_influence = flat_influence / flat_influence.sum().clamp_min(1e-12)
 
             feature_ids = self._sample_feature_ids(flat_index, flat_influence, penalty=self.sampling_penalty)
             self.d = len(feature_ids)
 
-
-            # feature_strength_list = []
-            # for global_id in feature_ids:
-            #     layer_idx, node_idx = flat_index[global_id]
-            #     strength = self.scm.compute_node_influence(
-            #         all_latents=all_latents,
-            #         layer_idx=layer_idx,
-            #         node_idx=node_idx,
-            #         target_node_idx=0,
-            #     )
-            #     feature_strength_list.append(strength)
-            # feature_strength = torch.stack(feature_strength_list)
             selected_node_indices = [flat_index[global_id] for global_id in feature_ids]
             feature_strength = self.scm.compute_node_influence(all_latents=all_latents, 
                                                             node_indices=selected_node_indices,
                                                             target_node_idx=0
                                                             )
 
-        # feature_ids_tensor = torch.tensor(feature_ids, device=self.device, dtype=torch.long)
-        # feature_strength = flat_influence[feature_ids_tensor]
-        importance_ratio = feature_strength / feature_strength.sum().clamp_min(1e-12)
+        (X_clean,feature_type,cardinality,type_ids, type_names,quality,
+         feature_retention, prototypes, thresholds, heads) = self._observe_features(flat_latents, feature_ids)
+        feature_strength = feature_strength / (feature_strength + self.importance_scale)
+        feature_importance = feature_strength * feature_retention
 
-        (X_clean,feature_type,cardinality,type_ids,
-         type_names,quality,prototypes,thresholds,heads) = self._observe_features(flat_latents, feature_ids)
-        
         target_global_id = sum(self.scm.widths[:-1])
         target_head = ScalarTargetObservationHead(
             device=self.device,
@@ -1118,9 +1115,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             "feature_thresholds": thresholds,
             "feature_ids": feature_ids_tensor,
             "target_id": torch.tensor(target_global_id, device=self.device, dtype=torch.long),
-            "feature_strength": feature_strength,
-            "importance_ratio": importance_ratio,
-            "is_active": (feature_strength > 0).float(),
+            "feature_importance": feature_importance,
             "all_node_influence": flat_influence,
             "layer_node_influence": layer_influence,
             "layer_widths": torch.tensor(self.scm.widths, device=self.device, dtype=torch.long),
