@@ -1,3 +1,7 @@
+# weight method
+#failed
+
+
 from dataclasses import dataclass
 
 import torch
@@ -5,6 +9,7 @@ import torch.nn.functional as F
 
 from src.data.helper import make_gen, stratified_classification_split
 from src.data.synthetic_task import GenerateTask
+from src.data.helper import detach_tree
 
 
 def _randn(*shape, generator, device):
@@ -40,7 +45,7 @@ def _standardize(x, dim=0, eps = 1e-6):
 
 
 def _normalize_probs(values, device, expected_len=None, name="probabilities"):
-    probs = torch.tensor(values, device=device, dtype=torch.float32)
+    probs = torch.as_tensor(values, device=device, dtype=torch.float32)
     if expected_len is not None and probs.numel() != expected_len:
         raise ValueError(f"{name} must contain {expected_len} values.")
 
@@ -113,6 +118,7 @@ class ScalarLatentEdge:
             name="edge-family probabilities",
         )
         self.edge_type = int(torch.multinomial(probs, 1, generator=generator).item())
+        self.use_residual = bool(_rand((), generator=generator, device=device) < 0.5)
         
         # Scalar -> scalar linear + activation.
         self.linear_w = _randn((), generator=generator, device=device)
@@ -182,11 +188,16 @@ class ScalarLatentEdge:
         x = parent_latent.float()
         if self.edge_type == self.LINEAR:
             value = self.linear_w * x + self.linear_b
-            return self._activation(value)
+            nonlinear = self._activation(value)
         if self.edge_type == self.MLP:
             hidden = torch.tanh(x @ self.mlp_W1.T + self.mlp_b1)
-            return hidden @ self.mlp_W2.T + self.mlp_b2
-        return self._soft_tree(x)
+            nonlinear = hidden @ self.mlp_W2.T + self.mlp_b2
+        else:
+            nonlinear = self._soft_tree(x)
+
+        if self.use_residual:
+            return nonlinear + x 
+        return nonlinear
 
 
 # ============================================================================
@@ -251,15 +262,34 @@ class WeightedScalarLayerConnection:
             if parents.numel() == 0:
                 self.child_methods[child] = -1
                 continue
-            concentration = torch.full(
-                (parents.numel(),),
-                float(edge_weight_concentration),
-                device=device,
-                dtype=torch.float32,
-            )
-            raw_weights = torch._standard_gamma(concentration, generator=self.g_dag).clamp_min(1e-8)
-            normalized_weights = (raw_weights / raw_weights.sum())
-            self.weights[parents, child] = normalized_weights
+            num_parents = int(parents.numel())
+
+            weight_prior_probs = torch.tensor([0.45, 0.25, 0.20, 0.10], device=device, dtype=torch.float32)
+            prior_id = int(torch.multinomial(weight_prior_probs, 1, generator=self.g_dag).item())
+
+            if prior_id == 0:
+                raw_weights = _randn(num_parents, generator=self.g_dag, device=device)
+            elif prior_id == 1:
+                bound = 3.0 ** 0.5
+                raw_weights = 2.0 * bound * _rand(num_parents, generator=self.g_dag, device=device) - bound
+            elif prior_id == 2:
+                u = (_rand(num_parents, generator=self.g_dag, device=device) - 0.5).clamp(-0.499999, 0.499999)
+                raw_weights = (-torch.sign(u) * torch.log1p(-2.0 * torch.abs(u))) / (2.0 ** 0.5)
+            else:
+                concentration = torch.full(
+                    (num_parents,),
+                    float(edge_weight_concentration),
+                    device=device,
+                    dtype=torch.float32,
+                )
+                magnitude = torch._standard_gamma(concentration, generator=self.g_dag)
+                signs = torch.where(_rand(num_parents, generator=self.g_dag, device=device) < 0.5, -1.0, 1.0)
+                raw_weights = signs * magnitude
+
+            child_scale = torch.exp(0.25 * _randn((), generator=self.g_dag, device=device))
+            weights = child_scale * raw_weights / (num_parents ** 0.5)
+
+            self.weights[parents, child] = weights
             method = int(torch.multinomial(method_probs, 1, generator=self.g_dag).item())
             self.child_methods[child] = method
 
@@ -437,7 +467,7 @@ class WeightedLayeredScalarSCM:
             all_latents.append(current)
         return all_latents
     
-    def compute_sampling_influence(self, target_node_idx = 0, decay=0.5):
+    def compute_sampling_influence(self, target_node_idx = 0, decay=1.0):
         """
         Structural influence based only on normalized edge weights.
         influence(parent) = sum_child weight(parent, child) * influence(child)
@@ -453,25 +483,31 @@ class WeightedLayeredScalarSCM:
         ]
         influence[-1][target_node_idx] = 1.0
         for layer in range(self.num_layers - 2, -1, -1):
-            influence[layer] = decay * self.connections[layer].weights @ influence[layer + 1]
+            influence[layer] = decay * self.connections[layer].weights.abs() @ influence[layer + 1]
         return influence
         
 
-    def compute_node_influence(self, all_latents, layer_idx, node_idx, target_node_idx = 0):
-        node = all_latents[layer_idx][node_idx]
+    def compute_node_influence(self, all_latents, node_indices, target_node_idx=0):
+        """
+        Compute functional influence for multiple nodes in one autograd call.
+        node_indices: iterable of (layer_idx, node_idx)
+        returns: Tensor of shape [num_nodes]
+        """
+
         target = all_latents[-1][target_node_idx]
-
-        grad = torch.autograd.grad(
+        nodes = [all_latents[layer_idx][node_idx] for layer_idx, node_idx in node_indices]
+        grads = torch.autograd.grad(
             outputs=target,
-            inputs=node,
+            inputs=nodes,
             grad_outputs=torch.ones_like(target),
-            retain_graph=True,
+            retain_graph=False,
             allow_unused=True,
-        )[0]
-
-        if grad is None:
-            return torch.tensor(0.0, device=self.device, dtype=torch.float32)
-        return grad.abs().mean().float()
+        )
+        strengths = [
+            torch.zeros((), device=self.device, dtype=torch.float32)
+            if grad is None else grad.abs().mean().float() for grad in grads
+        ]
+        return torch.stack(strengths)
 
 
 # ============================================================================
@@ -487,6 +523,7 @@ class FeatureObservation:
     observation_type_id: int
     observation_type_name: str
     quality_score: float
+    retention: float
     prototypes: torch.Tensor
     thresholds: torch.Tensor
 
@@ -564,6 +601,36 @@ class ScalarObservationHead:
         return self.cardinalities[feasible[position]]
 
 
+    def _categorical_retention(self, scalar, labels):
+        """
+        Fraction of latent variance retained by the categorical observation.
+        eta^2 = Var(E[z | category]) / Var(z)
+        1.0 means categories preserve essentially all latent variation.
+        0.0 means categories contain essentially no information about the latent.
+        """
+        scalar = scalar.float()
+        labels = labels.long()
+
+        total_var = scalar.var(unbiased=False)
+
+        if total_var <= 1e-12:
+            return 0.0
+
+        global_mean = scalar.mean()
+        between_var = torch.zeros((), device=scalar.device, dtype=scalar.dtype)
+        n = scalar.numel()
+
+        for category in torch.unique(labels):
+            mask = labels == category
+            if not mask.any():
+                continue
+            weight = mask.float().mean()
+            category_mean = scalar[mask].mean()
+            between_var = between_var + weight * (category_mean - global_mean).square()
+
+        retention = between_var / total_var.clamp_min(1e-12)
+        return float(retention.clamp(0.0, 1.0).detach().item())
+
     def _continuous(self, z, generator, name = "continuous_scalar"):
         score = z[:, 0].clone()
 
@@ -584,6 +651,7 @@ class ScalarObservationHead:
             observation_type_id=self.CONTINUOUS,
             observation_type_name=name,
             quality_score=0.0,
+            retention=1.0,
             prototypes=torch.empty(0, 1, device=z.device, dtype=z.dtype),
             thresholds=torch.empty(0, device=z.device, dtype=z.dtype),
         )
@@ -608,6 +676,7 @@ class ScalarObservationHead:
         labels = distances.argmin(dim=1).long()
         counts = torch.bincount(labels, minlength=k)
         smallest_fraction = float((counts.float() / counts.sum().clamp_min(1)).min().item())
+        retention = self._categorical_retention(scalar, labels)
 
         return FeatureObservation(
             values=labels,
@@ -616,6 +685,7 @@ class ScalarObservationHead:
             observation_type_id=self.PROTOTYPE,
             observation_type_name="prototype_discretization",
             quality_score=smallest_fraction,
+            retention=retention,
             prototypes=prototypes[:, None],
             thresholds=torch.empty(0, device=z.device, dtype=z.dtype),
         )
@@ -659,6 +729,7 @@ class ScalarObservationHead:
         labels = torch.bucketize(scalar,thresholds).long()
         observed_counts = torch.bincount(labels,minlength=k)
         smallest_fraction = float((observed_counts.float()  / observed_counts.sum().clamp_min(1)).min().item())
+        retention = self._categorical_retention(scalar, labels)
 
         return FeatureObservation(
             values=labels,
@@ -667,9 +738,12 @@ class ScalarObservationHead:
             observation_type_id=self.BINNING,
             observation_type_name="threshold_binning",
             quality_score=smallest_fraction,
+            retention=retention,
             prototypes=torch.empty(0, 1, device=z.device, dtype=z.dtype),
             thresholds=thresholds,
         )
+
+
 
     def observe(self, latent, generator):
         z = _standardize(latent.float(),dim=0)
@@ -784,9 +858,8 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         connection_probs=(0.30, 0.45, 0.65, 0.85),
         edge_weight_concentration=0.60,
         latent_noise_scale=0.03,
+        sampling_penalty=0.25,
         observation_noise_scale=0.03,
-        dominant_mass_threshold=0.70,
-        dominant_feature_fraction=0.70,
         observation_type_probs=(0.60, 0.20, 0.20),
         categorical_cardinalities=(2, 3, 4, 5, 6),
         categorical_cardinality_probs=(0.40, 0.30, 0.18, 0.08, 0.04),
@@ -825,13 +898,9 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         self.latent_dim = 1
         self.latent_noise_scale = float(latent_noise_scale)
         self.observation_noise_scale = float(observation_noise_scale)
-        self.dominant_mass_threshold = float(dominant_mass_threshold)
-        self.dominant_feature_fraction = float(dominant_feature_fraction)
+        self.sampling_penalty = float(sampling_penalty)
+        self.importance_scale = 0.2
 
-        if not (0.0 <= self.dominant_mass_threshold <= 1.0):
-            raise ValueError("dominant_mass_threshold must be in [0, 1].")
-        if not (0.0 <= self.dominant_feature_fraction <= 1.0):
-            raise ValueError("dominant_feature_fraction must be in [0, 1].")
 
         self.scm_kwargs = dict(
             num_roots=num_roots,
@@ -869,6 +938,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         self.g_x, self.x_seed = make_gen(self.device, x_seed)
         self.n = int(_randint(self.n_min, self.n_max + 1, (), self.g_dag, self.device).item())
         self.d = int(_randint(self.d_min, self.d_max + 1, (), self.g_dag, self.device,).item())
+        
         super().__init__()
 
     @staticmethod
@@ -882,84 +952,84 @@ class WeightedMixedScalarSCMTask(GenerateTask):
                 index.append((layer_idx, node_idx))
         return values, index
 
-    def _dominant_group(self, candidate_ids, flat_influence):
-        influence = flat_influence[candidate_ids]
-        positive_mask = influence > 0
-        ids = candidate_ids[positive_mask]
-        influence = influence[positive_mask]
-        if ids.numel() == 0:
-            return torch.empty(0, device=self.device, dtype=torch.long)
 
-        order = torch.argsort(influence, descending=True)
-        ids = ids[order]
-        influence = influence[order]
-        cutoff = self.dominant_mass_threshold * influence.sum()
-        cumulative = torch.cumsum(influence, dim=0)
-        reached = torch.where( cumulative >= cutoff)[0]
+    def _apply_sampling_penalty(self, scores, selected_global_id, flat_index, penalty):
+        updated = scores.clone()
+        selected_layer, selected_node = flat_index[selected_global_id]
+        index_lookup = {key: global_id for global_id, key in enumerate(flat_index)}
 
-        if reached.numel() > 0:
-            size = int(reached[0].item()) + 1
-        else:
-            size = int(ids.numel())
-        return ids[:size]
+        ancestor_distance = {}
+        frontier = {(selected_layer, selected_node): 0}
+        while frontier:
+            next_frontier = {}
+            for (layer_idx, node_idx), distance in frontier.items():
+                if layer_idx == 0:
+                    continue
+                connection = self.scm.connections[layer_idx - 1]
+                parents = torch.where(connection.adj[:, node_idx])[0].tolist()
+                for parent_idx in parents:
+                    key = (layer_idx - 1, parent_idx)
+                    new_distance = distance + 1
+                    if key not in ancestor_distance or new_distance < ancestor_distance[key]:
+                        ancestor_distance[key] = new_distance
+                        next_frontier[key] = new_distance
+            frontier = next_frontier
 
-    def _sample_without_replacement(self, ids, count):
-        if count <= 0 or ids.numel() == 0:
-            return torch.empty(0,  device=self.device, dtype=torch.long)
+        descendant_distance = {}
+        frontier = {(selected_layer, selected_node): 0}
+        while frontier:
+            next_frontier = {}
+            for (layer_idx, node_idx), distance in frontier.items():
+                if layer_idx >= len(self.scm.widths) - 2:
+                    continue
+                connection = self.scm.connections[layer_idx]
+                children = torch.where(connection.adj[node_idx])[0].tolist()
+                for child_idx in children:
+                    key = (layer_idx + 1, child_idx)
+                    new_distance = distance + 1
+                    if key not in descendant_distance or new_distance < descendant_distance[key]:
+                        descendant_distance[key] = new_distance
+                        next_frontier[key] = new_distance
+            frontier = next_frontier
 
-        count = min(int(count), int(ids.numel()))
-        positions = torch.randperm(ids.numel(), generator=self.g_dag, device=ids.device)[:count]
-        return ids[positions]
+        related_distance = {}
+        for key, distance in ancestor_distance.items():
+            related_distance[key] = distance
+        for key, distance in descendant_distance.items():
+            related_distance[key] = distance
 
-    def _sample_feature_ids(self, flat_index, flat_influence):
-        # All nodes except the final target layer are candidates.
-        candidates = torch.tensor(
-            [global_id for global_id, (layer_idx, _) in enumerate(flat_index) if layer_idx < len(self.scm.widths) - 1],
-            device=self.device,
-            dtype=torch.long,
-        )
+        for key, distance in related_distance.items():
+            global_id = index_lookup[key]
+            factor = penalty ** (1.0 / float(distance))
+            updated[global_id] *= factor
 
+        updated[selected_global_id] = 0.0
+        updated /= updated.sum().clamp_min(1e-12)
+        return updated
+
+    def _sample_feature_ids(self, flat_index, flat_influence, penalty):
+        candidates = torch.tensor([global_id for global_id, (layer_idx, _) in enumerate(flat_index) if layer_idx < len(self.scm.widths) - 1], device=self.device, dtype=torch.long)
         d = min(self.d, int(candidates.numel()))
-        dominant = self._dominant_group(candidates, flat_influence)
-        dominant_set = set(dominant.tolist())
-        other = torch.tensor(
-            [node_id for node_id in candidates.tolist() if node_id not in dominant_set],
-            device=self.device,
-            dtype=torch.long,
-        )
-        n_dominant = min(
-            round(self.dominant_feature_fraction * d),
-            int(dominant.numel()),
-        )
+        sampling_scores = flat_influence.clone()
+        candidate_mask = torch.zeros_like(sampling_scores, dtype=torch.bool)
+        candidate_mask[candidates] = True
+        sampling_scores[~candidate_mask] = 0.0
+        selected = []
+        for _ in range(d):
+            available_scores = sampling_scores[candidates]
+            if available_scores.sum() <= 0:
+                remaining = torch.tensor([node_id for node_id in candidates.tolist() if node_id not in selected], device=self.device, dtype=torch.long)
+                chosen = remaining[torch.randint(remaining.numel(), (1,), generator=self.g_dag, device=self.device)].item()
+            else:
+                probs = available_scores / available_scores.sum()
+                position = torch.multinomial(probs, 1, generator=self.g_dag).item()
+                chosen = int(candidates[position].item())
+            selected.append(chosen)
+            sampling_scores = self._apply_sampling_penalty(sampling_scores, chosen, flat_index, penalty=penalty)
+        permutation = torch.randperm(len(selected), generator=self.g_dag, device=self.device)
+        selected_tensor = torch.tensor(selected, device=self.device, dtype=torch.long)[permutation]
+        return selected_tensor.tolist()
 
-        n_other = d - n_dominant
-
-        if n_other > other.numel():
-            deficit = n_other - int(other.numel())
-            n_dominant += deficit
-            n_other = int(other.numel())
-        selected_dominant = self._sample_without_replacement(dominant, n_dominant)
-        selected_other = self._sample_without_replacement(other, n_other)
-        selected = torch.cat((selected_dominant, selected_other))
-
-        if selected.numel() < d:
-            selected_set = set(selected.tolist())
-            remaining = torch.tensor(
-                [node_id for node_id in candidates.tolist() 
-                 if node_id not in selected_set],
-                device=self.device,
-                dtype=torch.long,
-            )
-            fill = self._sample_without_replacement(remaining, d - selected.numel())
-            selected = torch.cat((selected, fill))
-
-        permutation = torch.randperm(
-            selected.numel(),
-            generator=self.g_dag,
-            device=self.device,
-        )
-        selected = selected[permutation]
-        return selected.tolist(), dominant
 
     def _observe_features(self, flat_latents, feature_ids):
         n = flat_latents[0].shape[0]
@@ -969,6 +1039,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         cardinality = torch.zeros(d, device=self.device, dtype=torch.long)
         type_ids = torch.empty(d, device=self.device, dtype=torch.long)
         quality = torch.zeros(d, device=self.device, dtype=torch.float32)
+        retention = torch.ones(d, device=self.device, dtype=torch.float32)
 
         type_names = []
         prototypes = []
@@ -986,45 +1057,49 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             cardinality[column] = observed.cardinality
             type_ids[column] = observed.observation_type_id
             quality[column] = observed.quality_score
+            retention[column] = observed.retention
             type_names.append(observed.observation_type_name)
             prototypes.append(observed.prototypes)
             thresholds.append(observed.thresholds)
             heads.append(head)
 
         return (X, feature_type, cardinality, type_ids, type_names, 
-                quality, prototypes, thresholds, heads)
+                quality, retention, prototypes, thresholds, heads)
+
 
     def _generate(self):
-        self.scm = WeightedLayeredScalarSCM(
-            self.g_dag,
-            self.g_x,
-            self.g_aleatoric,
-            **self.scm_kwargs,
-        )
 
-        all_latents = self.scm.forward(self.n, latent_noise_scale=self.latent_noise_scale)
-        flat_latents, flat_index = self._flatten(all_latents)
-        layer_influence = self.scm.compute_sampling_influence(target_node_idx=0)
-        flat_influence = torch.cat(layer_influence)
-        feature_ids, dominant_group = self._sample_feature_ids(flat_index, flat_influence,)
-        self.d = len(feature_ids)
-
-        feature_strength_list = []
-        for global_id in feature_ids:
-            layer_idx, node_idx = flat_index[global_id]
-            strength = self.scm.compute_node_influence(
-                all_latents=all_latents,
-                layer_idx=layer_idx,
-                node_idx=node_idx,
-                target_node_idx=0,
-            )
-            feature_strength_list.append(strength)
-        feature_strength = torch.stack(feature_strength_list)
-        importance_ratio = feature_strength / feature_strength.sum().clamp_min(1e-12)
-
-        (X_clean,feature_type,cardinality,type_ids,
-         type_names,quality,prototypes,thresholds,heads) = self._observe_features(flat_latents, feature_ids)
+        with torch.enable_grad():
         
+            self.scm = WeightedLayeredScalarSCM(
+                self.g_dag,
+                self.g_x,
+                self.g_aleatoric,
+                **self.scm_kwargs,
+            )
+
+            all_latents = self.scm.forward(self.n, latent_noise_scale=self.latent_noise_scale)
+
+            flat_latents, flat_index = self._flatten(all_latents)
+            layer_influence = self.scm.compute_sampling_influence(target_node_idx=0)
+            flat_influence = torch.cat(layer_influence)
+            flat_influence = flat_influence / flat_influence.sum().clamp_min(1e-12)
+
+
+            feature_ids = self._sample_feature_ids(flat_index, flat_influence, penalty=self.sampling_penalty)
+            self.d = len(feature_ids)
+
+            selected_node_indices = [flat_index[global_id] for global_id in feature_ids]
+            feature_strength = self.scm.compute_node_influence(all_latents=all_latents, 
+                                                            node_indices=selected_node_indices,
+                                                            target_node_idx=0
+                                                            )
+
+        (X_clean,feature_type,cardinality,type_ids, type_names,quality,
+         feature_retention, prototypes, thresholds, heads) = self._observe_features(flat_latents, feature_ids)
+        feature_strength = feature_strength / (feature_strength + self.importance_scale)
+        feature_importance = feature_strength * feature_retention
+
         target_global_id = sum(self.scm.widths[:-1])
         target_head = ScalarTargetObservationHead(
             device=self.device,
@@ -1039,13 +1114,6 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             self.n_classes = self.num_classes
         feature_ids_tensor = torch.tensor(feature_ids, device=self.device, dtype=torch.long)
 
-        dominant_set = set(dominant_group.tolist())
-
-        selected_from_dominant = torch.tensor(
-                [float(node_id in dominant_set) for node_id in feature_ids],
-                device=self.device,
-                dtype=torch.float32
-        )
         X_observed = X_clean.clone()
         missing_mask = _rand(*X_observed.shape, generator=self.g_x, device=self.device) < self.p_missing
         X_observed[missing_mask] = torch.nan
@@ -1073,12 +1141,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             "feature_thresholds": thresholds,
             "feature_ids": feature_ids_tensor,
             "target_id": torch.tensor(target_global_id, device=self.device, dtype=torch.long),
-            "feature_strength": feature_strength,
-            "importance_ratio": importance_ratio,
-            "is_active": (feature_strength > 0).float(),
-            "sampled_active": selected_from_dominant,
-            "selected_from_dominant_group": selected_from_dominant,
-            "dominant_group_ids": dominant_group,
+            "feature_importance": feature_importance,
             "all_node_influence": flat_influence,
             "layer_node_influence": layer_influence,
             "layer_widths": torch.tensor(self.scm.widths, device=self.device, dtype=torch.long),
@@ -1096,10 +1159,14 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         self.target_observation_head = target_head
         self.n_features = self.d
 
-        return (
+        result = (
             X_observed[train_idx], y[train_idx],
             X_observed[test_idx], y[test_idx], info
         )
+
+        result = detach_tree(result)
+
+        return result
 
     def visualize(self):
         return None

@@ -66,13 +66,10 @@ def collate_openml_task(items,use_selector=True,
     """
     DataLoader input:
         list(OPENML_DATASETS.items())
-
     DataLoader must use:
         batch_size=1
-
     items example:
         [("adult", 1590)]
-
     Returns:
         TaskBatch with B=1
     """

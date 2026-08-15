@@ -409,10 +409,7 @@ def sample_edge(
     raise ValueError(f"Unknown edge type: {parent_spec} -> {child_spec}")
 
 
-# ============================================================
 # One layer connection
-# ============================================================
-
 class LayerConnection:
     """
     Sparse random connection from layer l to layer l+1.

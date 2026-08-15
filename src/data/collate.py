@@ -21,9 +21,7 @@ class TaskBatch:
     feature_type: torch.Tensor
     cardinality: torch.Tensor
 
-    is_active: torch.Tensor
-    importance_ratio: torch.Tensor
-    feature_strength: torch.Tensor
+    feature_importance: torch.Tensor
 
     cell_mask: torch.Tensor
     x_mean: torch.Tensor
@@ -101,17 +99,7 @@ def collate_tasks(tasks, use_selector=True):
         device=device,
     )
 
-    is_active = torch.zeros(
-        (B, d_max),
-        dtype=torch.float32,
-        device=device,
-    )
-    importance_ratio = torch.zeros(
-        (B, d_max),
-        dtype=torch.float32,
-        device=device,
-    )
-    feature_strength = torch.zeros(
+    feature_importance = torch.zeros(
         (B, d_max),
         dtype=torch.float32,
         device=device,
@@ -171,9 +159,7 @@ def collate_tasks(tasks, use_selector=True):
         feature_type[b, :d] = task.info["feature_type"]
         cardinality[b, :d] = task.info["cardinality"]
 
-        is_active[b, :d] = task.info["is_active"]
-        importance_ratio[b, :d] = task.info["importance_ratio"]
-        feature_strength[b, :d] = task.info["feature_strength"]
+        feature_importance[b, :d] = task.info["feature_importance"]
 
         # n_classes_list.append(task.n_classes)
         if task.n_classes is None:
@@ -227,9 +213,7 @@ def collate_tasks(tasks, use_selector=True):
         d_emb=d_emb,
         feature_type=feature_type,
         cardinality=cardinality,
-        is_active=is_active,
-        importance_ratio=importance_ratio,
-        feature_strength=feature_strength,
+        feature_importance=feature_importance,
         cell_mask=cell_mask,
         x_mean=x_mean,
         x_std=x_std,

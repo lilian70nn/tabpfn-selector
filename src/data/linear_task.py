@@ -197,16 +197,12 @@ class MixedLinearTask(GenerateTask):
         self.feature_type = feature_type
         self.cardinality = cardinality
 
-        eps = 1e-8
-        is_active = (feature_strength > eps).float()
-        importance_ratio = feature_strength / feature_strength.sum().clamp_min(1e-12)
+        feature_importance = feature_strength / feature_strength.sum().clamp_min(1e-12)
 
         info = {
             "feature_type": feature_type,
             "cardinality": cardinality,
-            "is_active": is_active,
-            "importance_ratio": importance_ratio,
-            "feature_strength": feature_strength,
+            "feature_importance": feature_importance,
             "sampled_active": active.float(),
             "missing_mask_train": missing_mask[train_idx],
             "missing_mask_test": missing_mask[test_idx],
