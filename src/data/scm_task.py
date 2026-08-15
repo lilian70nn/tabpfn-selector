@@ -1076,8 +1076,8 @@ class WeightedMixedScalarSCMTask(GenerateTask):
 
         (X_clean,feature_type,cardinality,type_ids, type_names,quality,
          feature_retention, prototypes, thresholds, heads) = self._observe_features(flat_latents, feature_ids)
-        feature_strength = feature_strength / (feature_strength + self.importance_scale)
         feature_importance = feature_strength * feature_retention
+        feature_importance = feature_importance / feature_importance.sum().clamp_min(1e-12)
 
         target_global_id = sum(self.scm.widths[:-1])
         target_head = ScalarTargetObservationHead(
