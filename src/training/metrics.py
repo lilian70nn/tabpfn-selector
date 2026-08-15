@@ -99,7 +99,7 @@ def importance_metrics(batch, out):
     assert out["importance_logits"] is not None
 
     pred = torch.sigmoid(out["importance_logits"])  # [B, d_max]
-    target = batch.importance_ratio.float()
+    target = batch.feature_importance.float()
 
     feat_idx = torch.arange(batch.d_max, device=pred.device)[None, :]
     feat_mask = feat_idx < batch.d_emb[:, None]
