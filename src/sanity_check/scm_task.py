@@ -291,6 +291,7 @@ def run_scm_sanity_check(dataset, dataset_no_penalty):
     return df
 
 
+
 if __name__ == "__main__":
 
     TASK_KWARGS = dict(
@@ -328,39 +329,56 @@ if __name__ == "__main__":
         device=torch.device("cpu"),
     )
 
+    base_seeds = [0, 10_000, 20_000, 30_000, 40_000]
+    num_tasks_per_seed = 100
 
-    task_kwargs_025 = TASK_KWARGS.copy()
-    task_kwargs_025["sampling_penalty"] = 0.25
+    all_dfs = []
 
-    task_kwargs_100 = TASK_KWARGS.copy()
-    task_kwargs_100["sampling_penalty"] = 1.0
+    for base_seed in base_seeds:
+        print(f"\n===== BASE SEED {base_seed} =====")
 
-    dataset_025 = SyntheticTaskDataset(
-        num_tasks=10,
-        task_factory=WeightedMixedScalarSCMTask,
-        task_kind="classification",
-        min_classes=2,
-        max_classes=4,
-        base_seed=0,
-        task_kwargs=task_kwargs_025,
-    )
+        task_kwargs_025 = TASK_KWARGS.copy()
+        task_kwargs_025["sampling_penalty"] = 0.25
 
-    dataset_100 = SyntheticTaskDataset(
-        num_tasks=10,
-        task_factory=WeightedMixedScalarSCMTask,
-        task_kind="classification",
-        min_classes=2,
-        max_classes=4,
-        base_seed=0,
-        task_kwargs=task_kwargs_100,
-    )
+        task_kwargs_100 = TASK_KWARGS.copy()
+        task_kwargs_100["sampling_penalty"] = 1.0
 
-    df = run_scm_sanity_check(dataset_025,dataset_100)
+        dataset_025 = SyntheticTaskDataset(
+            num_tasks=num_tasks_per_seed,
+            task_factory=WeightedMixedScalarSCMTask,
+            task_kind="classification",
+            min_classes=2,
+            max_classes=4,
+            base_seed=base_seed,
+            task_kwargs=task_kwargs_025,
+        )
 
-    if df["task_kind"].iloc[0] == "classification":
-        summary = df.groupby("n_classes").mean(numeric_only=True)
-    else:
-        summary = df.mean(numeric_only=True)
+        dataset_100 = SyntheticTaskDataset(
+            num_tasks=num_tasks_per_seed,
+            task_factory=WeightedMixedScalarSCMTask,
+            task_kind="classification",
+            min_classes=2,
+            max_classes=4,
+            base_seed=base_seed,
+            task_kwargs=task_kwargs_100,
+        )
 
+        df_seed = run_scm_sanity_check(dataset_025, dataset_100)
+        df_seed["base_seed"] = base_seed
+        all_dfs.append(df_seed)
+
+    df = pd.concat(all_dfs, ignore_index=True)
+
+    summary = df.groupby("n_classes").mean(numeric_only=True)
     summary.to_csv("scm_v10_sanity_summary.csv")
 
+    seed_summary = df.groupby(["base_seed", "n_classes"]).mean(numeric_only=True)
+    seed_summary.to_csv("scm_v10_sanity_summary_by_seed.csv")
+
+    df.to_csv("scm_v10_sanity_all_tables.csv", index=False)
+
+    print("\nOVERALL SUMMARY")
+    print(summary)
+
+    print("\nSUMMARY BY SEED")
+    print(seed_summary)
