@@ -1,8 +1,7 @@
 import torch
 
 from src.data.datasets import SyntheticTaskDataset
-from src.data.scm_task import MixedSCMTask
-from src.data.scm_task_v10 import WeightedMixedScalarSCMTask
+from src.data.scm_task import WeightedMixedScalarSCMTask
 from src.data.collate import collate_tasks
 from src.model.tabpfn_v2 import TabularPFNModel
 from src.training.train import train_synthetic
