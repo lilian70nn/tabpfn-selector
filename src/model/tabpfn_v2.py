@@ -131,7 +131,7 @@ class TabularPFNModel(nn.Module):
         feat_idx = torch.arange(batch.d_max, device=pred.device)[None, :]
         feat_mask = feat_idx < batch.d_emb[:, None]
 
-        target = batch.importance_ratio.float()  # [B, d_max]
+        target = batch.feature_importance.float()  # [B, d_max]
 
         return F.mse_loss(
             pred[feat_mask],
