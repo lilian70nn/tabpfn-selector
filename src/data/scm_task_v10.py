@@ -117,6 +117,7 @@ class ScalarLatentEdge:
             name="edge-family probabilities",
         )
         self.edge_type = int(torch.multinomial(probs, 1, generator=generator).item())
+        self.use_residual = bool(_rand((), generator=generator, device=device) < 0.5)
         
         # Scalar -> scalar linear + activation.
         self.linear_w = _randn((), generator=generator, device=device)
@@ -186,11 +187,15 @@ class ScalarLatentEdge:
         x = parent_latent.float()
         if self.edge_type == self.LINEAR:
             value = self.linear_w * x + self.linear_b
-            return self._activation(value)
+            nonlinear = self._activation(value)
         if self.edge_type == self.MLP:
             hidden = torch.tanh(x @ self.mlp_W1.T + self.mlp_b1)
-            return hidden @ self.mlp_W2.T + self.mlp_b2
-        return self._soft_tree(x)
+            nonlinear = hidden @ self.mlp_W2.T + self.mlp_b2
+        else:
+            nonlinear = self._soft_tree(x)
+        if self.use_residual:
+            return nonlinear + x
+        return nonlinear
 
 
 # ============================================================================
