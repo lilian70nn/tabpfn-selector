@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from src.training.helper import move_batch_to_device, infer_loader_use_selector
 from src.training.eval import evaluate_synthetic
 import torch
@@ -15,30 +17,39 @@ def train_synthetic(
     val_loader=None,
     val_every=500,
     val_batches=50,
+    imp_trace=True,
+    trace_num_tables=10,
     save_path=None,
-    best_ckpt_path=None,
 ):
     model.to(device)
     model.train()
 
+    save_dir = None
+    log_path = None
+    trace_path = None
+    best_ckpt_path = None
+
     if save_path is not None:
-        from pathlib import Path
-        save_path = Path(save_path)
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(save_path, "w") as f:
+        save_dir = Path(save_path)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        log_path = save_dir / "train_log.txt"
+        trace_path = save_dir / "importance_trace.txt"
+        best_ckpt_path = save_dir / "best_ckpt.pt"
+        with open(log_path, "w") as f:
             f.write("")
-
-    best_pred_loss = float("inf")
-
-    if best_ckpt_path is not None:
-        from pathlib import Path
-        best_ckpt_path = Path(best_ckpt_path)
-        best_ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+        if imp_trace:
+            with open(trace_path, "w") as f:
+                f.write("")
 
     def log_line(s):
         print(s, flush=True)
-        if save_path is not None:
-            with open(save_path, "a") as f:
+        if log_path is not None:
+            with open(log_path, "a") as f:
+                f.write(s + "\n")
+
+    def trace_line(s):
+        if trace_path is not None:
+            with open(trace_path, "a") as f:
                 f.write(s + "\n")
 
     loader_use_selector = infer_loader_use_selector(train_loader)
@@ -54,6 +65,34 @@ def train_synthetic(
         assert val_use_selector == loader_use_selector, (
             "train_loader and val_loader must use the same use_selector setting"
         )
+    else:
+        imp_trace = False
+
+    trace_batch = None
+    actual_trace_num_tables = 0
+
+    if imp_trace:
+        if not loader_use_selector:
+            raise ValueError("imp_trace=True requires use_selector=True")
+        raw_trace_batch = next(iter(val_loader))
+        original_batch_size = int(raw_trace_batch.X_train.shape[0])
+        actual_trace_num_tables = min(int(trace_num_tables), original_batch_size)
+
+        for name, value in vars(raw_trace_batch).items():
+            if (torch.is_tensor(value) and value.ndim > 0 and value.shape[0] == original_batch_size):
+                setattr(raw_trace_batch, name, value[:actual_trace_num_tables].clone())
+
+        trace_batch = move_batch_to_device(raw_trace_batch, device)
+
+        d_list = trace_batch.d_emb.detach().cpu().tolist()
+        gt_imp_list = trace_batch.feature_importance.detach().float().cpu().tolist()
+
+        trace_line(f"[setup] num_tables={actual_trace_num_tables}")
+
+        for table_idx, d in enumerate(d_list):
+            gt_imp = gt_imp_list[table_idx][:d]
+            gt_str = ",".join(f"{x:.8f}" for x in gt_imp)
+            trace_line(f"[gt_imp] table={table_idx} d={d} values={gt_str}")
 
     train_iter = iter(train_loader)
 
@@ -62,6 +101,7 @@ def train_synthetic(
     running_imp = 0.0
     running_n = 0
     running_imp_n = 0
+    best_pred_loss = float("inf")
 
     for step in range(1, steps + 1):
 
@@ -77,11 +117,7 @@ def train_synthetic(
         optimizer.zero_grad(set_to_none=True)
         out = model(batch)
 
-        loss_dict = model.total_loss(
-            batch,
-            out,
-            importance_weight=importance_weight,
-        )
+        loss_dict = model.total_loss(batch, out, importance_weight=importance_weight)
         loss = loss_dict["loss"]
 
         if not torch.isfinite(loss):
@@ -133,7 +169,6 @@ def train_synthetic(
 
             if val_metrics["pred_loss"] < best_pred_loss:
                 best_pred_loss = val_metrics["pred_loss"]
-
                 if best_ckpt_path is not None:
                     torch.save(
                         {
@@ -143,14 +178,9 @@ def train_synthetic(
                             "best_pred_loss": best_pred_loss,
                             "val_metrics": val_metrics,
                         },
-                        best_ckpt_path,
-                    )
-
-                log_line(
-                    f"[best] step {step:06d} | "
-                    f"val_pred_loss {best_pred_loss:.6f} | "
-                    f"saved {best_ckpt_path}"
-                )
+                        best_ckpt_path
+                    ) 
+                log_line(f"[best] step {step:06d} | val_pred_loss {best_pred_loss:.6f}")
 
             if loader_use_selector:
                 log_line(
@@ -175,4 +205,20 @@ def train_synthetic(
                     f"auc {val_metrics.get('roc_auc', float('nan')):.4f}"
                 )
 
+            if imp_trace:
+                model.eval()
+                with torch.no_grad():
+                    trace_out = model(trace_batch)
+                    trace_logits = trace_out["importance_logits"]
+                    trace_scores = torch.sigmoid(trace_logits)
+
+                imp_score_list = trace_scores.detach().float().cpu().tolist()
+
+                for table_idx, d in enumerate(d_list):
+                    imp_scores = imp_score_list[table_idx][:d]
+                    score_str = ",".join(f"{x:.8f}" for x in imp_scores)
+                    trace_line(f"[imp_score] step={step} table={table_idx} d={d} values={score_str}")
             model.train()
+
+
+
