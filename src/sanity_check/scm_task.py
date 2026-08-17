@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 from src.data.datasets import SyntheticTaskDataset
-from src.data.scm_task_v10 import WeightedMixedScalarSCMTask
+from src.data.scm_task import WeightedMixedScalarSCMTask
 
 
 from sklearn.compose import ColumnTransformer
@@ -309,7 +309,7 @@ if __name__ == "__main__":
         connection_probs=(0.20, 0.20, 0.30, 0.85),
         edge_weight_concentration=0.30,
         latent_noise_scale=0.0,
-        sampling_penalty=0.25,
+        sampling_penalty=0.20,
         observation_noise_scale=0.03,
         observation_type_probs=(0.70, 0.15, 0.15),
         categorical_cardinalities=(2, 3, 4, 5, 6),
