@@ -68,6 +68,7 @@ def train_synthetic(
     else:
         imp_trace = False
 
+    train_iter = iter(train_loader)
     trace_batch = None
     actual_trace_num_tables = 0
 
@@ -94,7 +95,6 @@ def train_synthetic(
             gt_str = ",".join(f"{x:.8f}" for x in gt_imp)
             trace_line(f"[gt_imp] table={table_idx} d={d} values={gt_str}")
 
-    train_iter = iter(train_loader)
 
     running_loss = 0.0
     running_pred = 0.0
