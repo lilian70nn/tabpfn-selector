@@ -51,7 +51,7 @@ TASK_KWARGS = dict(
 
 
 train_dataset = SyntheticTaskDataset(
-    num_tasks=100000,
+    num_tasks=50000,
     task_factory=WeightedMixedScalarSCMTask,
     task_kind="classification",
     min_classes=2,
@@ -61,7 +61,7 @@ train_dataset = SyntheticTaskDataset(
 )
 
 val_dataset = SyntheticTaskDataset(
-    num_tasks=10000,
+    num_tasks=5000,
     task_factory=WeightedMixedScalarSCMTask,
     task_kind="classification",
     min_classes=2,
@@ -91,9 +91,9 @@ val_loader = DataLoader(
 
 
 model = TabularPFNModel(
-    k=96,
-    m=384,
-    n_heads=8,
+    k=64,
+    m=120,
+    n_heads=4,
     depth=16,
     max_cardinality=10,
     task_kind="classification",
