@@ -117,7 +117,7 @@ train_synthetic(
     grad_clip=1.0,
     log_every=50,
     val_loader=val_loader,
-    val_every=500,
+    val_every=300,
     val_batches=50,
     imp_trace=True,
     trace_num_tables=10,
