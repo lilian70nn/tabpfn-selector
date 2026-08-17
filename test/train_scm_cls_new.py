@@ -73,7 +73,7 @@ val_dataset = SyntheticTaskDataset(
 
 train_loader = DataLoader(
     train_dataset,
-    batch_size=12,
+    batch_size=16,
     shuffle=True,
     num_workers=2,
     pin_memory=True,
@@ -82,7 +82,7 @@ train_loader = DataLoader(
 
 val_loader = DataLoader(
     val_dataset,
-    batch_size=12,
+    batch_size=16,
     shuffle=False,
     num_workers=0,
     pin_memory=True,
@@ -113,7 +113,7 @@ train_synthetic(
     optimizer=optimizer,
     device=device,
     steps=30000,
-    importance_weight=30,
+    importance_weight=50,
     grad_clip=1.0,
     log_every=50,
     val_loader=val_loader,
