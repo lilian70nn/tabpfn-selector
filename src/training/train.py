@@ -95,6 +95,21 @@ def train_synthetic(
             gt_str = ",".join(f"{x:.8f}" for x in gt_imp)
             trace_line(f"[gt_imp] table={table_idx} d={d} values={gt_str}")
 
+        model.eval()
+        with torch.no_grad():
+            trace_out = model(trace_batch)
+            trace_logits = trace_out["importance_logits"]
+            trace_scores = torch.sigmoid(trace_logits)
+
+        imp_score_list = trace_scores.detach().float().cpu().tolist()
+
+        for table_idx, d in enumerate(d_list):
+            imp_scores = imp_score_list[table_idx][:d]
+            score_str = ",".join(f"{x:.8f}" for x in imp_scores)
+            trace_line(f"[imp_score] step=0 table={table_idx} d={d} values={score_str}")
+
+        model.train()
+
 
     running_loss = 0.0
     running_pred = 0.0
