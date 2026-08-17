@@ -119,8 +119,10 @@ train_synthetic(
     val_loader=val_loader,
     val_every=500,
     val_batches=50,
-    save_path="/dss/dsshome1/07/ra58bim2/pfn_exp/outputs/scm_cls.txt",
-    best_ckpt_path = "/dss/dsshome1/07/ra58bim2/pfn_exp/outputs/scm_cls_best_ckpt.pt"
+    imp_trace=True,
+    trace_num_tables=10,
+    save_path="/content",
+
 )
  
 
