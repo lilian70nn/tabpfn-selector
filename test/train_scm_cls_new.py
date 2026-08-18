@@ -51,7 +51,7 @@ TASK_KWARGS = dict(
 
 
 train_dataset = SyntheticTaskDataset(
-    num_tasks=5000,
+    num_tasks=50000,
     task_factory=WeightedMixedScalarSCMTask,
     task_kind="classification",
     min_classes=2,
@@ -61,7 +61,7 @@ train_dataset = SyntheticTaskDataset(
 )
 
 val_dataset = SyntheticTaskDataset(
-    num_tasks=500,
+    num_tasks=5000,
     task_factory=WeightedMixedScalarSCMTask,
     task_kind="classification",
     min_classes=2,
