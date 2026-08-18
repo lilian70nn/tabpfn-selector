@@ -51,7 +51,7 @@ TASK_KWARGS = dict(
 
 
 train_dataset = SyntheticTaskDataset(
-    num_tasks=50000,
+    num_tasks=5000,
     task_factory=WeightedMixedScalarSCMTask,
     task_kind="classification",
     min_classes=2,
@@ -61,7 +61,7 @@ train_dataset = SyntheticTaskDataset(
 )
 
 val_dataset = SyntheticTaskDataset(
-    num_tasks=5000,
+    num_tasks=500,
     task_factory=WeightedMixedScalarSCMTask,
     task_kind="classification",
     min_classes=2,
@@ -77,6 +77,7 @@ train_loader = DataLoader(
     shuffle=True,
     num_workers=2,
     pin_memory=True,
+    persistent_workers=True,
     collate_fn=partial(collate_tasks, use_selector=True),
 )
 
