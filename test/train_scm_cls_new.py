@@ -14,6 +14,8 @@ torch.backends.cudnn.allow_tf32 = True
 
 from functools import partial
 
+
+
 TASK_KWARGS = dict(
     n_min=400,
     n_max=512,
@@ -31,14 +33,11 @@ TASK_KWARGS = dict(
     latent_noise_scale=0.0,
     sampling_penalty=0.25,
     observation_noise_scale=0.03,
-    observation_type_probs=(0.70, 0.15, 0.15),
+    observation_type_probs=(0.60, 0.20, 0.20),
     categorical_cardinalities=(2, 3, 4, 5, 6),
     categorical_cardinality_probs=(0.40, 0.30, 0.18, 0.08, 0.04),
     min_samples_per_category=8,
     min_component_weight=0.05,
-    prototype_max_attempts=8,
-    prototype_min_separation=1.0,
-    binning_jitter=0.20,
     source_prior_probs=(0.45, 0.20, 0.15, 0.05),
     linear_activation_prob=0.60,
     small_mlp_prob=0.25,
