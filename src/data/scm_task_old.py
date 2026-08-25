@@ -188,7 +188,7 @@ class ScalarLatentEdge:
         if self.edge_type == self.LINEAR:
             value = self.linear_w * x + self.linear_b
             nonlinear = self._activation(value)
-        if self.edge_type == self.MLP:
+        elif self.edge_type == self.MLP:
             hidden = torch.tanh(x @ self.mlp_W1.T + self.mlp_b1)
             nonlinear = hidden @ self.mlp_W2.T + self.mlp_b2
         else:
@@ -622,7 +622,7 @@ class ScalarObservationHead:
             )
             score = score + self.observation_noise_scale * noise
 
-        score = _standardize(score, dim=0)
+        # score = _standardize(score, dim=0)
         return FeatureObservation(
             values=score,
             is_categorical=False,
@@ -670,7 +670,8 @@ class ScalarObservationHead:
         )
 
     def _binning(self, z, generator):
-        scalar = _standardize(z[:, 0].clone(), dim=0)
+        #scalar = _standardize(z[:, 0].clone(), dim=0)
+        scalar = z[:, 0].clone()
         k = self._sample_cardinality(scalar.shape[0], generator)
 
         if k == 0:
@@ -725,7 +726,8 @@ class ScalarObservationHead:
 
 
     def observe(self, latent, generator):
-        z = _standardize(latent.float(),dim=0)
+        #z = _standardize(latent.float(),dim=0)
+        z = latent.float()
 
         if self.sampled_type == self.CONTINUOUS:
             return self._continuous(z, generator)
@@ -760,7 +762,8 @@ class ScalarTargetObservationHead:
         if self.observation_noise_scale > 0:
             noise = torch.randn(value.shape, generator=generator, device=self.device, dtype=value.dtype)
             value = (value + self.observation_noise_scale * noise)
-        return _standardize(value, dim=0)
+        #return _standardize(value, dim=0)
+        return value
     
 
     @staticmethod
