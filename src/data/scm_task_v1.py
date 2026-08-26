@@ -370,7 +370,7 @@ class WeightedScalarLayerConnection:
                 raise RuntimeError(
                     f"Child {child} produced no value."
                 )
-            
+            value = _standardize(value, dim=0)
             if latent_noise_scale > 0:
                 noise = torch.randn(value.shape, generator=generator, device=self.device, dtype=value.dtype)
                 value = (value + float(latent_noise_scale) * noise)
