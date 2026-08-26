@@ -1,7 +1,7 @@
 # replace the dominant sampling method by ancestor/descendant penalty.
 # retention add in the gradient imp for discrete faetures 
 
-# remove standardization & weights improved to be with both signs
+# remove target head 
 
 from dataclasses import dataclass
 
@@ -55,10 +55,10 @@ def _normalize_probs(values, device, expected_len=None, name="probabilities"):
     return probs / probs.sum()
 
 
-def _sample_latent(n, prior_probs, g_x, device):
+def _sample_latent(n, prior_probs, g_dag, g_x, device):
 
     SOURCE_PRIORS = ("gaussian", "uniform", "heavy_tailed", "skewed")
-    prior_id = int(torch.multinomial(prior_probs, 1, generator=g_x).item())
+    prior_id = int(torch.multinomial(prior_probs, 1, generator=g_dag).item())
     name = SOURCE_PRIORS[prior_id]
 
     if name == "gaussian":
@@ -77,11 +77,10 @@ def _sample_latent(n, prior_probs, g_x, device):
 
     elif name == "skewed":
         normal = _randn(n, 1, generator=g_x, device=device)
-        strength = 0.4 + 0.6 * _rand((), generator=g_x, device=device)
+        strength = 0.4 + 0.6 * _rand((), generator=g_dag, device=device)
         z = torch.exp(normal * strength)
 
-    #z = _standardize(z.float(), dim=0)
-    z = z.float()
+    z = _standardize(z.float(), dim=0)
     z.requires_grad_(True)
     return z
 
@@ -160,7 +159,7 @@ class ScalarLatentEdge:
             return torch.sin(x)
 
         if self.activation_name == "square":
-            return torch.clamp(x, -6.0, 6.0).square()
+            return x.square()
 
         if self.activation_name == "softplus":
             return F.softplus(x)
@@ -269,23 +268,11 @@ class WeightedScalarLayerConnection:
                 device=device,
                 dtype=torch.float32,
             )
-            # raw_weights = torch._standard_gamma(concentration, generator=self.g_dag).clamp_min(1e-8)
-            # normalized_weights = (raw_weights / raw_weights.sum())
-            # self.weights[parents, child] = normalized_weights
-            # method = int(torch.multinomial(method_probs, 1, generator=self.g_dag).item())
-            # self.child_methods[child] = method
-
-            raw_magnitudes = torch._standard_gamma(concentration, generator=self.g_dag).clamp_min(1e-8)
-            signs = torch.where(
-                _rand(parents.numel(), generator=self.g_dag, device=device) < 0.5,
-                -torch.ones(parents.numel(), device=device, dtype=torch.float32),
-                torch.ones(parents.numel(), device=device, dtype=torch.float32)
-            )
-            signed_weights = raw_magnitudes * signs
-            normalized_weights = signed_weights / signed_weights.abs().sum().clamp_min(1e-12)
+            raw_weights = torch._standard_gamma(concentration, generator=self.g_dag).clamp_min(1e-8)
+            normalized_weights = (raw_weights / raw_weights.sum())
             self.weights[parents, child] = normalized_weights
             method = int(torch.multinomial(method_probs, 1, generator=self.g_dag).item())
-            self.child_methods[child] = method            
+            self.child_methods[child] = method
 
             if method == 0:
                 for parent in parents.tolist():
@@ -322,7 +309,7 @@ class WeightedScalarLayerConnection:
             parents = torch.where(self.adj[:, child])[0]
 
             if parents.numel() == 0:
-                value = _sample_latent(parent_latents[0].shape[0], self.source_prior_probs, self.g_x, self.device)
+                value = _sample_latent(parent_latents[0].shape[0], self.source_prior_probs, self.g_dag, self.g_x, self.device)
             else:
                 method = int(self.child_methods[child].item())
                 if method == 0:
@@ -371,9 +358,11 @@ class WeightedScalarLayerConnection:
                     f"Child {child} produced no value."
                 )
             
+            value = _standardize(value,  dim=0)
             if latent_noise_scale > 0:
                 noise = torch.randn(value.shape, generator=generator, device=self.device, dtype=value.dtype)
                 value = (value + float(latent_noise_scale) * noise)
+                value = _standardize(value, dim=0)
             children.append(value)
         return children
 
@@ -447,7 +436,7 @@ class WeightedLayeredScalarSCM:
 
 
     def forward(self, n_samples, latent_noise_scale=None):
-        current = [_sample_latent(n_samples, self.source_prior_probs, self.g_x, self.device) for _ in range(self.num_roots)]
+        current = [_sample_latent(n_samples, self.source_prior_probs, self.g_dag, self.g_x, self.device) for _ in range(self.num_roots)]
         all_latents = [current]
         noise_scale = (
             self.latent_noise_scale
@@ -475,7 +464,7 @@ class WeightedLayeredScalarSCM:
         ]
         influence[-1][target_node_idx] = 1.0
         for layer in range(self.num_layers - 2, -1, -1):
-            influence[layer] = decay * self.connections[layer].weights.abs() @ influence[layer + 1]
+            influence[layer] = decay * self.connections[layer].weights @ influence[layer + 1]
         return influence
         
 
@@ -533,7 +522,7 @@ class ScalarObservationHead:
     PROTOTYPE = 1
     BINNING = 2
 
-    NAMES = ("continuous_scalar", "prototype_discretization", "threshold_binning")
+    NAMES = ("continuous_scalar", "prototype_discretization", "dirichlet_binning")
 
     def __init__(
         self,
@@ -656,10 +645,11 @@ class ScalarObservationHead:
         )[:k]
         return scalar[indices]
 
-    def _prototype(self, z, generator):
-        scalar = z[:, 0].clone()
-        k = self._sample_cardinality(scalar.shape[0], generator)
 
+    def _prototype(self, z, generator, k=None):
+        scalar = z[:, 0].clone()
+        if k is None:
+            k = self._sample_cardinality(scalar.shape[0], generator)
         if k == 0:
             return self._continuous(z, generator, name="continuous_fallback_from_prototype")
 
@@ -682,46 +672,40 @@ class ScalarObservationHead:
             thresholds=torch.empty(0, device=z.device, dtype=z.dtype),
         )
 
-    def _binning(self, z, generator):
-        #scalar = _standardize(z[:, 0].clone(), dim=0)
+    def _dirichlet_binning(self, z, generator, concentration=3.0, k=None):
         scalar = z[:, 0].clone()
-        k = self._sample_cardinality(scalar.shape[0], generator)
-
-        if k == 0:
-            return self._continuous(z, generator, name="continuous_fallback_from_binning")
-
+        if k is None:
+            k = self._sample_cardinality(scalar.shape[0], generator)
         n = scalar.numel()
-        minimum = max(
-            self.min_samples_per_category,
-            int(torch.ceil(torch.tensor(self.min_component_weight * n, device=z.device)).item()),
-        )
-        remaining = n - k * minimum
-        if remaining < 0:
-            return self._continuous(z, generator, name="continuous_fallback_from_binning")
+        k = int(k)
 
-        raw = _rand(k, generator=generator, device=z.device)
-        extras_float = raw / raw.sum().clamp_min(1e-12) * remaining
+        if k < 2:
+            raise ValueError("k must be at least 2.")
+
+        minimum = max(self.min_samples_per_category, int(torch.ceil(torch.tensor(self.min_component_weight * n, device=z.device)).item()))
+        if k * minimum > n:
+            raise ValueError(f"Cannot create {k} categories with minimum category size {minimum} and n={n}.")
+
+        remaining = n - k * minimum
+        alpha = torch.full((k,), float(concentration), device=z.device, dtype=torch.float32)
+        raw = torch._standard_gamma(alpha, generator=generator)
+        proportions = raw / raw.sum().clamp_min(1e-12)
+
+        extras_float = proportions * remaining
         extras = torch.floor(extras_float).long()
         leftover = remaining - int(extras.sum().item())
         if leftover > 0:
             residual_order = torch.argsort(extras_float - extras.float(), descending=True)
             extras[residual_order[:leftover]] += 1
-        counts = (extras + minimum).tolist()
+
+        counts = extras + minimum
+        cumulative = torch.cumsum(counts, dim=0)[:-1]
         sorted_values = torch.sort(scalar).values
-        thresholds = []
-        cumulative = 0
+        thresholds = 0.5 * (sorted_values[cumulative - 1] + sorted_values[cumulative])
+        labels = torch.bucketize(scalar, thresholds).long()
 
-        for count in counts[:-1]:
-            cumulative += int(count)
-            left_value = sorted_values[cumulative - 1]
-            right_value = sorted_values[cumulative]
-            threshold = 0.5 * (left_value + right_value)
-            thresholds.append(threshold)
-
-        thresholds = torch.stack(thresholds)
-        labels = torch.bucketize(scalar,thresholds).long()
-        observed_counts = torch.bincount(labels,minlength=k)
-        smallest_fraction = float((observed_counts.float()  / observed_counts.sum().clamp_min(1)).min().item())
+        observed_counts = torch.bincount(labels, minlength=k)
+        smallest_fraction = float((observed_counts.float() / observed_counts.sum()).min().item())
         retention = self._categorical_retention(scalar, labels)
 
         return FeatureObservation(
@@ -729,7 +713,7 @@ class ScalarObservationHead:
             is_categorical=True,
             cardinality=k,
             observation_type_id=self.BINNING,
-            observation_type_name="threshold_binning",
+            observation_type_name="dirichlet_binning",
             quality_score=smallest_fraction,
             retention=retention,
             prototypes=torch.empty(0, 1, device=z.device, dtype=z.dtype),
@@ -737,81 +721,24 @@ class ScalarObservationHead:
         )
 
 
-
     def observe(self, latent, generator):
-        #z = _standardize(latent.float(),dim=0)
         z = latent.float()
-
         if self.sampled_type == self.CONTINUOUS:
             return self._continuous(z, generator)
         if self.sampled_type == self.PROTOTYPE:
             return self._prototype(z, generator)
-        return self._binning(z, generator)
+        return self._dirichlet_binning(z, generator)
 
 
-# ============================================================================
-# Target observation
-# ============================================================================
+    def observe_categorical(self, latent, generator, k):
+        z = latent.float()
+        categorical_probs = self.observation_type_probs[1:]
+        categorical_probs = categorical_probs / categorical_probs.sum()
+        method = int(torch.multinomial(categorical_probs, 1, generator=generator).item())
+        if method == 0:
+            return self._prototype(z, generator, k=k)
+        return self._dirichlet_binning(z, generator, k=k)
 
-
-class ScalarTargetObservationHead:
-    """
-    Target is read directly from the scalar target node.
-    No projection is used.
-    """
-
-    def __init__(
-        self,
-        device,
-        observation_noise_scale=0.03,
-    ):
-        self.device = device
-        self.observation_noise_scale = float(observation_noise_scale)
-
-    def score(self, latent, generator):
-        if latent.ndim != 2 or latent.shape[1] != 1:
-            raise ValueError(f"Scalar target expects latent shape [N, 1], received {tuple(latent.shape)}.")
-        value = latent[:, 0].float()
-        if self.observation_noise_scale > 0:
-            noise = torch.randn(value.shape, generator=generator, device=self.device, dtype=value.dtype)
-            value = (value + self.observation_noise_scale * noise)
-        #return _standardize(value, dim=0)
-        return value
-    
-
-    @staticmethod
-    def balanced_classes(score, num_classes, generator):
-        """
-        Convert continuous target score into classes using
-        mildly randomized quantile thresholds.
-        Unlike exact balanced splitting, class proportions
-        are allowed to vary while avoiding extremely tiny classes.
-        """
-
-        num_classes = int(num_classes)
-        if num_classes < 2:
-            raise ValueError("num_classes must be at least 2.")
-
-        if num_classes > 4:
-            raise ValueError("This implementation currently supports 2 to 4 classes.")
-
-        if num_classes == 2:
-            q = 0.40 + 0.20 * torch.rand((), generator=generator,  device=score.device)
-            quantiles = torch.stack([q])
-
-        elif num_classes == 3:
-            q1 = 0.25 + 0.15 * torch.rand((), generator=generator, device=score.device)
-            q2 = 0.60 + 0.15 * torch.rand((), generator=generator, device=score.device)
-            quantiles = torch.stack((q1,q2))
-
-        else:
-            q1 = 0.15 + 0.15 * torch.rand((), generator=generator, device=score.device)
-            q2 = 0.40 + 0.20 * torch.rand((), generator=generator, device=score.device)
-            q3 = 0.70 + 0.15 * torch.rand((), generator=generator, device=score.device)
-            quantiles = torch.stack((q1, q2, q3,))
-        thresholds = torch.quantile(score, quantiles)
-        labels = torch.bucketize(score, thresholds)
-        return labels.long()
 
 
 # ============================================================================
@@ -894,7 +821,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         self.latent_noise_scale = float(latent_noise_scale)
         self.observation_noise_scale = float(observation_noise_scale)
         self.sampling_penalty = float(sampling_penalty)
-        self.importance_scale = 0.2
+        self.importance_eps = 1e-3
 
 
         self.scm_kwargs = dict(
@@ -1035,6 +962,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         type_ids = torch.empty(d, device=self.device, dtype=torch.long)
         quality = torch.zeros(d, device=self.device, dtype=torch.float32)
         retention = torch.ones(d, device=self.device, dtype=torch.float32)
+        categorical_features_ok = True
 
         type_names = []
         prototypes = []
@@ -1047,6 +975,15 @@ class WeightedMixedScalarSCMTask(GenerateTask):
                 **self.observation_kwargs,
             )
             observed = head.observe(flat_latents[node_id], self.g_aleatoric)
+
+            if observed.is_categorical:
+                counts = torch.bincount(observed.values.long(), minlength=observed.cardinality)
+                if bool((counts == 0).any()):
+                    categorical_features_ok = False
+                elif counts.min().float() / counts.max().float() < 0.05:
+                    categorical_features_ok = False
+
+                        
             X[:, column] = observed.values.float()
             feature_type[column] = self.CATEGORICAL if observed.is_categorical else self.CONTINUOUS
             cardinality[column] = observed.cardinality
@@ -1059,7 +996,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             heads.append(head)
 
         return (X, feature_type, cardinality, type_ids, type_names, 
-                quality, retention, prototypes, thresholds, heads)
+                quality, retention, prototypes, thresholds, heads, categorical_features_ok)
 
 
     def _generate(self):
@@ -1091,27 +1028,36 @@ class WeightedMixedScalarSCMTask(GenerateTask):
                                                             )
 
         (X_clean,feature_type,cardinality,type_ids, type_names,quality,
-         feature_retention, prototypes, thresholds, heads) = self._observe_features(flat_latents, feature_ids)
+         feature_retention, prototypes, thresholds, heads, categorical_features_ok) = self._observe_features(flat_latents, feature_ids)
         feature_importance = feature_strength * feature_retention
+        importance_ok = bool(feature_importance.max() >= self.importance_eps)
         feature_importance = feature_importance / feature_importance.sum().clamp_min(1e-12)
 
         target_global_id = sum(self.scm.widths[:-1])
-        target_head = ScalarTargetObservationHead(
-            device=self.device,
-            observation_noise_scale=self.observation_noise_scale
-        )
-        target_score = target_head.score(flat_latents[target_global_id], self.g_aleatoric)
+        target_head = ScalarObservationHead(generator=self.g_dag, device=self.device, **self.observation_kwargs)
+        target_latent = flat_latents[target_global_id]
+
+
         if self.num_classes is None:
-            y = target_score
+            target_observed = target_head._continuous(target_latent.float(), self.g_aleatoric)
+            y = target_observed.values
             self.n_classes = None
+            target_ok = True
         else:
-            y = target_head.balanced_classes(target_score, self.num_classes, self.g_dag)
+            target_observed = target_head.observe_categorical(target_latent, self.g_aleatoric, k=self.num_classes)
+            y = target_observed.values.long()
             self.n_classes = self.num_classes
+            counts = torch.bincount(y, minlength=self.num_classes)
+            
+            target_ok = (not bool((counts == 0).any())) and bool(counts.min().float() / counts.max().float() >= 0.05)
+
         feature_ids_tensor = torch.tensor(feature_ids, device=self.device, dtype=torch.long)
 
         X_observed = X_clean.clone()
         missing_mask = _rand(*X_observed.shape, generator=self.g_x, device=self.device) < self.p_missing
         X_observed[missing_mask] = torch.nan
+
+        is_valid = categorical_features_ok and target_ok and importance_ok
 
         if self.num_classes is not None:
             train_idx, test_idx = stratified_classification_split(
@@ -1132,6 +1078,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             "feature_observation_type_ids": type_ids,
             "feature_observation_type_names": type_names,
             "feature_observation_quality": quality,
+            "is_valid": is_valid,
             "feature_prototypes": prototypes,
             "feature_thresholds": thresholds,
             "feature_ids": feature_ids_tensor,

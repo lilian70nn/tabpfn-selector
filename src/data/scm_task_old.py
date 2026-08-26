@@ -53,10 +53,10 @@ def _normalize_probs(values, device, expected_len=None, name="probabilities"):
     return probs / probs.sum()
 
 
-def _sample_latent(n, prior_probs, g_dag, g_x, device):
+def _sample_latent(n, prior_probs, g_x, device):
 
     SOURCE_PRIORS = ("gaussian", "uniform", "heavy_tailed", "skewed")
-    prior_id = int(torch.multinomial(prior_probs, 1, generator=g_dag).item())
+    prior_id = int(torch.multinomial(prior_probs, 1, generator=g_x).item())
     name = SOURCE_PRIORS[prior_id]
 
     if name == "gaussian":
@@ -75,7 +75,7 @@ def _sample_latent(n, prior_probs, g_dag, g_x, device):
 
     elif name == "skewed":
         normal = _randn(n, 1, generator=g_x, device=device)
-        strength = 0.4 + 0.6 * _rand((), generator=g_dag, device=device)
+        strength = 0.4 + 0.6 * _rand((), generator=g_x, device=device)
         z = torch.exp(normal * strength)
 
     z = _standardize(z.float(), dim=0)
@@ -307,7 +307,7 @@ class WeightedScalarLayerConnection:
             parents = torch.where(self.adj[:, child])[0]
 
             if parents.numel() == 0:
-                value = _sample_latent(parent_latents[0].shape[0], self.source_prior_probs, self.g_dag, self.g_x, self.device)
+                value = _sample_latent(parent_latents[0].shape[0], self.source_prior_probs, self.g_x, self.device)
             else:
                 method = int(self.child_methods[child].item())
                 if method == 0:
@@ -434,7 +434,7 @@ class WeightedLayeredScalarSCM:
 
 
     def forward(self, n_samples, latent_noise_scale=None):
-        current = [_sample_latent(n_samples, self.source_prior_probs, self.g_dag, self.g_x, self.device) for _ in range(self.num_roots)]
+        current = [_sample_latent(n_samples, self.source_prior_probs, self.g_x, self.device) for _ in range(self.num_roots)]
         all_latents = [current]
         noise_scale = (
             self.latent_noise_scale
