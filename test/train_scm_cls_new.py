@@ -1,7 +1,7 @@
 import torch
 
 from src.data.datasets import SyntheticTaskDataset
-from src.data.scm_task_v1 import WeightedMixedScalarSCMTask
+from src.data.scm_task import WeightedMixedScalarSCMTask
 from src.data.collate import collate_tasks
 from src.model.tabpfn_v2 import TabularPFNModel
 from src.training.train import train_synthetic
@@ -39,9 +39,9 @@ TASK_KWARGS = dict(
     min_samples_per_category=8,
     min_component_weight=0.05,
     source_prior_probs=(0.45, 0.20, 0.15, 0.05),
-    linear_activation_prob=0.60,
+    linear_activation_prob=0.50,
     small_mlp_prob=0.25,
-    soft_tree_prob=0.15,
+    soft_tree_prob=0.25,
     small_mlp_hidden_dim=None,
     soft_tree_depth=2,
     soft_tree_temperature=0.5,
