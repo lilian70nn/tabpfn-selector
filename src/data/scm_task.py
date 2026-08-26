@@ -37,6 +37,12 @@ def _randint(low, high, shape, generator, device):
     )
 
 
+def _standardize(x, dim=0, eps = 1e-6):
+    mean = x.mean(dim=dim, keepdim=True).detach()
+    std = x.std(dim=dim, unbiased=False, keepdim=True,).clamp_min(eps).detach()
+    return (x - mean) / std
+
+
 def _normalize_probs(values, device, expected_len=None, name="probabilities"):
     probs = torch.as_tensor(values, device=device, dtype=torch.float32)
     if expected_len is not None and probs.numel() != expected_len:
@@ -346,6 +352,7 @@ class WeightedScalarLayerConnection:
             if latent_noise_scale > 0:
                 noise = torch.randn(value.shape, generator=generator, device=self.device, dtype=value.dtype)
                 value = (value + float(latent_noise_scale) * noise)
+            value = _standardize(value, dim=0)
             children.append(value)
         return children
 
