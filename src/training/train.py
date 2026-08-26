@@ -97,16 +97,17 @@ def train_synthetic(
 
         model.eval()
         with torch.no_grad():
-            trace_out = model(trace_batch)
-            trace_logits = trace_out["importance_logits"]
-            trace_scores = torch.sigmoid(trace_logits)
+            trace_out = model(trace_batch, return_selector_layers=True)
+            trace_logits_layers = trace_out["importance_logits_layers"]
+            trace_scores_layers = torch.sigmoid(trace_logits_layers)
 
-        imp_score_list = trace_scores.detach().float().cpu().tolist()
+        imp_score_layers_list = trace_scores_layers.detach().float().cpu().tolist()
 
         for table_idx, d in enumerate(d_list):
-            imp_scores = imp_score_list[table_idx][:d]
-            score_str = ",".join(f"{x:.8f}" for x in imp_scores)
-            trace_line(f"[imp_score] step=0 table={table_idx} d={d} values={score_str}")
+            for layer_idx, layer_scores in enumerate(imp_score_layers_list[table_idx]):
+                imp_scores = layer_scores[:d]
+                score_str = ",".join(f"{x:.8f}" for x in imp_scores)
+                trace_line(f"[imp_score] step=0 table={table_idx} layer={layer_idx} d={d} values={score_str}")
 
         model.train()
 
@@ -223,17 +224,17 @@ def train_synthetic(
             if imp_trace:
                 model.eval()
                 with torch.no_grad():
-                    trace_out = model(trace_batch)
-                    trace_logits = trace_out["importance_logits"]
-                    trace_scores = torch.sigmoid(trace_logits)
+                    trace_out = model(trace_batch, return_selector_layers=True)
+                    trace_logits_layers = trace_out["importance_logits_layers"]
+                    trace_scores_layers = torch.sigmoid(trace_logits_layers)
 
-                imp_score_list = trace_scores.detach().float().cpu().tolist()
+                imp_score_layers_list = trace_scores_layers.detach().float().cpu().tolist()
 
                 for table_idx, d in enumerate(d_list):
-                    imp_scores = imp_score_list[table_idx][:d]
-                    score_str = ",".join(f"{x:.8f}" for x in imp_scores)
-                    trace_line(f"[imp_score] step={step} table={table_idx} d={d} values={score_str}")
+                    for layer_idx, layer_scores in enumerate(imp_score_layers_list[table_idx]):
+                        imp_scores = layer_scores[:d]
+                        score_str = ",".join(f"{x:.8f}" for x in imp_scores)
+                        trace_line(f"[imp_score] step={step} table={table_idx} layer={layer_idx} d={d} values={score_str}")
+
             model.train()
-
-
 

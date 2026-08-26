@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 from .attention import AxisAttention
 
@@ -77,10 +78,16 @@ class TabularBackbone(nn.Module):
             for _ in range(depth)
         ])
 
-    def forward(self, tokens, cell_mask, meta):
+    def forward(self, tokens, cell_mask, meta, return_selector_layers=False):
         x = tokens
+        selector_layers = [] if return_selector_layers else None
 
         for block in self.blocks:
             x = block(x, cell_mask, meta)
+            if return_selector_layers:
+                selector_layers.append(x[:, meta["selector_idx"], :meta["d_max"], :])
 
-        return x
+        if return_selector_layers:
+            selector_layers = torch.stack(selector_layers, dim=1)
+
+        return x, selector_layers

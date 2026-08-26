@@ -51,10 +51,10 @@ class TabularPFNModel(nn.Module):
             assert num_y_buckets is not None
             self.head = nn.Linear(k, num_y_buckets)
 
-    def forward(self, batch):
+    def forward(self, batch, return_selector_layers=False):
         tokens, cell_mask, meta = self.encoder(batch)
 
-        h = self.backbone(tokens, cell_mask, meta)
+        h, selector_layers = self.backbone(tokens, cell_mask, meta, return_selector_layers)
 
         test_start = meta["test_start"]
         y_slot = meta["y_slot"]
@@ -65,10 +65,16 @@ class TabularPFNModel(nn.Module):
         test_mask = cell_mask[:, test_start:, y_slot] # [B, Nte_max]
 
         importance_logits = None
+        importance_logits_layers = None
 
         if bool(batch.use_selector):
             selector_repr = h[:, selector_idx, :d_max, :]          # [B, d_max, K]
             importance_logits = self.importance_head(selector_repr).squeeze(-1)  # [B, d_max]
+
+            if return_selector_layers:
+                selector_init = tokens[:, selector_idx, :d_max, :]
+                selector_all_layers = torch.cat([selector_init.unsqueeze(1), selector_layers], dim=1)
+                importance_logits_layers = self.importance_head(selector_all_layers).squeeze(-1)
 
         y_test_logits = self.head(test_repr)
 
@@ -76,6 +82,7 @@ class TabularPFNModel(nn.Module):
             "logits": y_test_logits,
             "test_mask": test_mask,
             "importance_logits": importance_logits,
+            "importance_logits_layers": importance_logits_layers,
             "meta": meta,
         }
 
