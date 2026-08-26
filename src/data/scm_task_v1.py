@@ -481,9 +481,10 @@ class WeightedLayeredScalarSCM:
 
     def compute_node_influence(self, all_latents, node_indices, target_node_idx=0):
         """
-        Compute functional influence for multiple nodes in one autograd call.
-        node_indices: iterable of (layer_idx, node_idx)
-        returns: Tensor of shape [num_nodes]
+        Scale-normalized local functional influence.
+        strength_j =E[|d target / d node_j|] * std(node_j) / std(target)
+        This makes influence much less sensitive to arbitrary
+        latent scale once internal standardization is removed.
         """
 
         target = all_latents[-1][target_node_idx]
@@ -495,12 +496,22 @@ class WeightedLayeredScalarSCM:
             retain_graph=False,
             allow_unused=True,
         )
-        strengths = [
-            torch.zeros((), device=self.device, dtype=torch.float32)
-            if grad is None else grad.abs().mean().float() for grad in grads
-        ]
+        target_std = target.detach().float().std(unbiased=False)
+        if not torch.isfinite(target_std) or target_std <= 1e-8:
+            return torch.zeros(len(nodes), device=self.device, dtype=torch.float32)
+        strengths = []
+        for node, grad in zip(nodes, grads):
+            if grad is None:
+                strength = torch.zeros((), device=self.device, dtype=torch.float32)
+            else:
+                node_std =  node.detach().float().std(unbiased=False)
+                if not torch.isfinite(node_std) or node_std <= 1e-8:
+                    strength = torch.zeros((), device=self.device, dtype=torch.float32)
+                else:
+                    grad_mag = grad.detach().abs().mean().float()
+                    strength = grad_mag * node_std / target_std
+            strengths.append(strength)
         return torch.stack(strengths)
-
 
 # ============================================================================
 # Feature observation
