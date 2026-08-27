@@ -1,8 +1,6 @@
 # replace the dominant sampling method by ancestor/descendant penalty.
 # retention add in the gradient imp for discrete faetures 
 
-# remove target head 
-
 from dataclasses import dataclass
 
 import torch
@@ -80,7 +78,7 @@ def _sample_latent(n, prior_probs, g_x, device):
         strength = 0.4 + 0.6 * _rand((), generator=g_x, device=device)
         z = torch.exp(normal * strength)
 
-    z = _standardize(z.float(), dim=0)
+    z = z.float()
     z.requires_grad_(True)
     return z
 
@@ -102,9 +100,7 @@ class ScalarLatentEdge:
 
     def __init__(
         self, generator, device,
-        linear_activation_prob = 0.60,
-        small_mlp_prob = 0.25,
-        soft_tree_prob = 0.15,
+        edge_family_probs=(0.50, 0.25, 0.25),
         small_mlp_hidden_dim = None,
         soft_tree_depth = 2,
         soft_tree_temperature = 0.5,
@@ -113,7 +109,7 @@ class ScalarLatentEdge:
         self.soft_tree_depth = int(soft_tree_depth)
         self.soft_tree_temperature = float(soft_tree_temperature)
         probs = _normalize_probs(
-            (linear_activation_prob, small_mlp_prob, soft_tree_prob),
+            edge_family_probs,
             device,
             expected_len=3,
             name="edge-family probabilities",
@@ -159,14 +155,12 @@ class ScalarLatentEdge:
             return torch.sin(x)
 
         if self.activation_name == "square":
-            return x.square()
+            return torch.clamp(x, -6.0, 6.0).square()
 
         if self.activation_name == "softplus":
             return F.softplus(x)
 
-        raise RuntimeError(
-            f"Unknown activation: {self.activation_name}"
-        )
+        raise RuntimeError(f"Unknown activation: {self.activation_name}")
 
     def _soft_tree(self, x):
         logits = (x @ self.tree_gate_W.T + self.tree_gate_b) / self.soft_tree_temperature
@@ -268,8 +262,14 @@ class WeightedScalarLayerConnection:
                 device=device,
                 dtype=torch.float32,
             )
-            raw_weights = torch._standard_gamma(concentration, generator=self.g_dag).clamp_min(1e-8)
-            normalized_weights = (raw_weights / raw_weights.sum())
+            raw_magnitudes = torch._standard_gamma(concentration, generator=self.g_dag).clamp_min(1e-8)
+            signs = torch.where(
+                _rand(parents.numel(), generator=self.g_dag, device=device) < 0.5,
+                -torch.ones(parents.numel(), device=device, dtype=torch.float32),
+                torch.ones(parents.numel(), device=device, dtype=torch.float32)
+            )
+            signed_weights = raw_magnitudes * signs
+            normalized_weights = signed_weights / signed_weights.abs().sum().clamp_min(1e-12)
             self.weights[parents, child] = normalized_weights
             method = int(torch.multinomial(method_probs, 1, generator=self.g_dag).item())
             self.child_methods[child] = method
@@ -317,10 +317,7 @@ class WeightedScalarLayerConnection:
                     for parent in parents.tolist():
                         edge = self.edges[parent][child]
                         if edge is None:
-                            raise RuntimeError(
-                                f"Missing edge function for "
-                                f"parent={parent}, child={child}."
-                            )
+                            raise RuntimeError(f"Missing edge function for parent={parent}, child={child}.")
                         contribution = (self.weights[parent, child] * edge(parent_latents[parent]))
                         value = (contribution if value is None else value + contribution)
 
@@ -331,19 +328,13 @@ class WeightedScalarLayerConnection:
                         aggregate = ( contribution if aggregate is None else aggregate + contribution)
                     child_function = self.child_scalar_edges[child]
                     if child_function is None:
-                        raise RuntimeError(
-                            f"Missing child scalar function "
-                            f"for child={child}."
-                        )
+                        raise RuntimeError(f"Missing child scalar function for child={child}.")
                     value = child_function(aggregate)
 
                 else:
                     parameters = self.child_joint_mlps[child]
                     if parameters is None:
-                        raise RuntimeError(
-                            f"Missing joint MLP parameters "
-                            f"for child={child}."
-                        )
+                        raise RuntimeError(f"Missing joint MLP parameters for child={child}.")
                     weighted_inputs = [self.weights[parent, child] * parent_latents[parent] for parent in parents.tolist()]
                     parent_matrix = torch.cat(weighted_inputs, dim=1)
                     hidden = self._random_mlp_activation(
@@ -354,15 +345,12 @@ class WeightedScalarLayerConnection:
                     value = (hidden @ parameters["W2"].T + parameters["b2"])
 
             if value is None:
-                raise RuntimeError(
-                    f"Child {child} produced no value."
-                )
+                raise RuntimeError(f"Child {child} produced no value.")
             
-            value = _standardize(value,  dim=0)
             if latent_noise_scale > 0:
                 noise = torch.randn(value.shape, generator=generator, device=self.device, dtype=value.dtype)
                 value = (value + float(latent_noise_scale) * noise)
-                value = _standardize(value, dim=0)
+            value = _standardize(value, dim=0)
             children.append(value)
         return children
 
@@ -464,15 +452,16 @@ class WeightedLayeredScalarSCM:
         ]
         influence[-1][target_node_idx] = 1.0
         for layer in range(self.num_layers - 2, -1, -1):
-            influence[layer] = decay * self.connections[layer].weights @ influence[layer + 1]
+            influence[layer] = decay * self.connections[layer].weights.abs() @ influence[layer + 1]
         return influence
         
 
     def compute_node_influence(self, all_latents, node_indices, target_node_idx=0):
         """
-        Compute functional influence for multiple nodes in one autograd call.
-        node_indices: iterable of (layer_idx, node_idx)
-        returns: Tensor of shape [num_nodes]
+        Scale-normalized local functional influence.
+        strength_j = E[|d target / d node_j|] * std(node_j) / std(target)
+        The scale correction makes influence comparable across nodes,
+        including root nodes that are not internally standardized.
         """
 
         target = all_latents[-1][target_node_idx]
@@ -484,10 +473,21 @@ class WeightedLayeredScalarSCM:
             retain_graph=False,
             allow_unused=True,
         )
-        strengths = [
-            torch.zeros((), device=self.device, dtype=torch.float32)
-            if grad is None else grad.abs().mean().float() for grad in grads
-        ]
+        target_std = target.detach().float().std(unbiased=False)
+        if not torch.isfinite(target_std) or target_std <= 1e-8:
+            return torch.zeros(len(nodes), device=self.device, dtype=torch.float32)
+        strengths = []
+        for node, grad in zip(nodes, grads):
+            if grad is None:
+                strength = torch.zeros((), device=self.device, dtype=torch.float32)
+            else:
+                node_std =  node.detach().float().std(unbiased=False)
+                if not torch.isfinite(node_std) or node_std <= 1e-8:
+                    strength = torch.zeros((), device=self.device, dtype=torch.float32)
+                else:
+                    grad_mag = grad.detach().abs().mean().float()
+                    strength = grad_mag * node_std / target_std
+            strengths.append(strength)
         return torch.stack(strengths)
 
 
@@ -534,18 +534,11 @@ class ScalarObservationHead:
         min_samples_per_category=8,
         min_component_weight=0.05,
         observation_noise_scale=0.05,
-        prototype_max_attempts=8,
-        prototype_min_separation=1.0,
-        binning_jitter=0.20,
     ):
         self.device = device
         self.min_samples_per_category = int(min_samples_per_category)
         self.min_component_weight = float(min_component_weight)
         self.observation_noise_scale = float(observation_noise_scale)
-
-        self.prototype_max_attempts = int(prototype_max_attempts)
-        self.prototype_min_separation = float(prototype_min_separation)
-        self.binning_jitter = float(binning_jitter)
 
         self.observation_type_probs = (
             _normalize_probs(
@@ -599,7 +592,6 @@ class ScalarObservationHead:
 
         global_mean = scalar.mean()
         between_var = torch.zeros((), device=scalar.device, dtype=scalar.dtype)
-        n = scalar.numel()
 
         for category in torch.unique(labels):
             mask = labels == category
@@ -624,7 +616,6 @@ class ScalarObservationHead:
             )
             score = score + self.observation_noise_scale * noise
 
-        # score = _standardize(score, dim=0)
         return FeatureObservation(
             values=score,
             is_categorical=False,
@@ -644,7 +635,6 @@ class ScalarObservationHead:
             device=scalar.device,
         )[:k]
         return scalar[indices]
-
 
     def _prototype(self, z, generator, k=None):
         scalar = z[:, 0].clone()
@@ -720,7 +710,6 @@ class ScalarObservationHead:
             thresholds=thresholds,
         )
 
-
     def observe(self, latent, generator):
         z = latent.float()
         if self.sampled_type == self.CONTINUOUS:
@@ -746,7 +735,7 @@ class ScalarObservationHead:
 # ============================================================================
 
 
-class WeightedMixedScalarSCMTask(GenerateTask):
+class SCMTask(GenerateTask):
     """
     Mixed tabular SCM with one-dimensional continuous latent nodes.
     Underlying SCM: every node is continuous and scalar.
@@ -787,13 +776,8 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         categorical_cardinality_probs=(0.40, 0.30, 0.18, 0.08, 0.04),
         min_samples_per_category=8,
         min_component_weight=0.05,
-        prototype_max_attempts=8,
-        prototype_min_separation=1.0,
-        binning_jitter=0.20,
         source_prior_probs=(0.45, 0.20, 0.15, 0.05),
-        linear_activation_prob=0.60,
-        small_mlp_prob=0.25,
-        soft_tree_prob=0.15,
+        edge_family_probs=(0.50, 0.25, 0.25),
         small_mlp_hidden_dim=None,
         soft_tree_depth=2,
         soft_tree_temperature=0.5,
@@ -823,7 +807,6 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         self.sampling_penalty = float(sampling_penalty)
         self.importance_eps = 1e-3
 
-
         self.scm_kwargs = dict(
             num_roots=num_roots,
             num_layers=num_layers,
@@ -834,9 +817,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             edge_weight_concentration=edge_weight_concentration,
             latent_noise_scale=latent_noise_scale,
             source_prior_probs=source_prior_probs,
-            linear_activation_prob=linear_activation_prob,
-            small_mlp_prob=small_mlp_prob,
-            soft_tree_prob=soft_tree_prob,
+            edge_family_probs=edge_family_probs,
             small_mlp_hidden_dim=small_mlp_hidden_dim,
             soft_tree_depth=soft_tree_depth,
             soft_tree_temperature=soft_tree_temperature,
@@ -849,9 +830,6 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             categorical_cardinality_probs=categorical_cardinality_probs,
             min_samples_per_category=min_samples_per_category,
             min_component_weight=min_component_weight,
-            prototype_max_attempts=prototype_max_attempts,
-            prototype_min_separation=prototype_min_separation,
-            binning_jitter=binning_jitter,
             observation_noise_scale=observation_noise_scale,
         )
 
@@ -983,7 +961,6 @@ class WeightedMixedScalarSCMTask(GenerateTask):
                 elif counts.min().float() / counts.max().float() < 0.05:
                     categorical_features_ok = False
 
-                        
             X[:, column] = observed.values.float()
             feature_type[column] = self.CATEGORICAL if observed.is_categorical else self.CONTINUOUS
             cardinality[column] = observed.cardinality
@@ -1032,11 +1009,17 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         feature_importance = feature_strength * feature_retention
         importance_ok = bool(feature_importance.max() >= self.importance_eps)
         feature_importance = feature_importance / feature_importance.sum().clamp_min(1e-12)
+        
 
         target_global_id = sum(self.scm.widths[:-1])
+        feature_ids_tensor = torch.tensor(feature_ids, device=self.device, dtype=torch.long)
+
+        X_observed = X_clean.clone()
+        missing_mask = _rand(*X_observed.shape, generator=self.g_x, device=self.device) < self.p_missing
+        X_observed[missing_mask] = torch.nan
+
         target_head = ScalarObservationHead(generator=self.g_dag, device=self.device, **self.observation_kwargs)
         target_latent = flat_latents[target_global_id]
-
 
         if self.num_classes is None:
             target_observed = target_head._continuous(target_latent.float(), self.g_aleatoric)
@@ -1047,15 +1030,10 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             target_observed = target_head.observe_categorical(target_latent, self.g_aleatoric, k=self.num_classes)
             y = target_observed.values.long()
             self.n_classes = self.num_classes
+
             counts = torch.bincount(y, minlength=self.num_classes)
-            
+
             target_ok = (not bool((counts == 0).any())) and bool(counts.min().float() / counts.max().float() >= 0.05)
-
-        feature_ids_tensor = torch.tensor(feature_ids, device=self.device, dtype=torch.long)
-
-        X_observed = X_clean.clone()
-        missing_mask = _rand(*X_observed.shape, generator=self.g_x, device=self.device) < self.p_missing
-        X_observed[missing_mask] = torch.nan
 
         is_valid = categorical_features_ok and target_ok and importance_ok
 
@@ -1071,6 +1049,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             order = torch.randperm(self.n, generator=self.g_x, device=self.device)
             train_idx = order[:-n_test]
             test_idx = order[-n_test:]
+        
 
         info = {
             "feature_type": feature_type,
@@ -1078,12 +1057,16 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             "feature_observation_type_ids": type_ids,
             "feature_observation_type_names": type_names,
             "feature_observation_quality": quality,
-            "is_valid": is_valid,
+            "feature_retention": feature_retention,
             "feature_prototypes": prototypes,
             "feature_thresholds": thresholds,
             "feature_ids": feature_ids_tensor,
             "target_id": torch.tensor(target_global_id, device=self.device, dtype=torch.long),
             "feature_importance": feature_importance,
+            "is_valid": is_valid,
+            "categorical_features_ok": categorical_features_ok,
+            "target_ok": target_ok,
+            "importance_ok": importance_ok,
             "all_node_influence": flat_influence,
             "layer_node_influence": layer_influence,
             "layer_widths": torch.tensor(self.scm.widths, device=self.device, dtype=torch.long),

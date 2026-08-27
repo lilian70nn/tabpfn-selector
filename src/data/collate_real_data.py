@@ -3,8 +3,8 @@ import pandas as pd
 import openml
 from sklearn.model_selection import train_test_split
 
-from src.data.collate import TaskBatch
-from src.data.collate import build_cell_mask
+from .collate import TaskBatch
+from .collate import build_cell_mask
 
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
