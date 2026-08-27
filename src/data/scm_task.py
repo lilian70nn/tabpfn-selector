@@ -100,9 +100,7 @@ class ScalarLatentEdge:
 
     def __init__(
         self, generator, device,
-        linear_activation_prob = 0.60,
-        small_mlp_prob = 0.25,
-        soft_tree_prob = 0.15,
+        edge_family_probs=(0.50, 0.25, 0.25),
         small_mlp_hidden_dim = None,
         soft_tree_depth = 2,
         soft_tree_temperature = 0.5,
@@ -111,7 +109,7 @@ class ScalarLatentEdge:
         self.soft_tree_depth = int(soft_tree_depth)
         self.soft_tree_temperature = float(soft_tree_temperature)
         probs = _normalize_probs(
-            (linear_activation_prob, small_mlp_prob, soft_tree_prob),
+            edge_family_probs,
             device,
             expected_len=3,
             name="edge-family probabilities",
@@ -461,9 +459,9 @@ class WeightedLayeredScalarSCM:
     def compute_node_influence(self, all_latents, node_indices, target_node_idx=0):
         """
         Scale-normalized local functional influence.
-        strength_j =E[|d target / d node_j|] * std(node_j) / std(target)
-        This makes influence much less sensitive to arbitrary
-        latent scale once internal standardization is removed.
+        strength_j = E[|d target / d node_j|] * std(node_j) / std(target)
+        The scale correction makes influence comparable across nodes,
+        including root nodes that are not internally standardized.
         """
 
         target = all_latents[-1][target_node_idx]
@@ -779,9 +777,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
         min_samples_per_category=8,
         min_component_weight=0.05,
         source_prior_probs=(0.45, 0.20, 0.15, 0.05),
-        linear_activation_prob=0.50,
-        small_mlp_prob=0.25,
-        soft_tree_prob=0.25,
+        edge_family_probs=(0.50, 0.25, 0.25),
         small_mlp_hidden_dim=None,
         soft_tree_depth=2,
         soft_tree_temperature=0.5,
@@ -821,9 +817,7 @@ class WeightedMixedScalarSCMTask(GenerateTask):
             edge_weight_concentration=edge_weight_concentration,
             latent_noise_scale=latent_noise_scale,
             source_prior_probs=source_prior_probs,
-            linear_activation_prob=linear_activation_prob,
-            small_mlp_prob=small_mlp_prob,
-            soft_tree_prob=soft_tree_prob,
+            edge_family_probs=edge_family_probs,
             small_mlp_hidden_dim=small_mlp_hidden_dim,
             soft_tree_depth=soft_tree_depth,
             soft_tree_temperature=soft_tree_temperature,
