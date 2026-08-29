@@ -1,7 +1,7 @@
 import torch
 
 from src.data.datasets import SyntheticTaskDataset
-from src.data.scm_task import WeightedMixedScalarSCMTask
+from src.data.scm_task_v2.task import SCMTask
 from src.data.collate import collate_tasks
 from src.model.tabpfn_v2 import TabularPFNModel
 from src.training.train import train_synthetic
@@ -49,7 +49,7 @@ TASK_KWARGS = dict(
 
 train_dataset = SyntheticTaskDataset(
     num_tasks=50000,
-    task_factory=WeightedMixedScalarSCMTask,
+    task_factory=SCMTask,
     task_kind="classification",
     min_classes=2,
     max_classes=4,
@@ -59,7 +59,7 @@ train_dataset = SyntheticTaskDataset(
 
 val_dataset = SyntheticTaskDataset(
     num_tasks=5000,
-    task_factory=WeightedMixedScalarSCMTask,
+    task_factory=SCMTask,
     task_kind="classification",
     min_classes=2,
     max_classes=4,
