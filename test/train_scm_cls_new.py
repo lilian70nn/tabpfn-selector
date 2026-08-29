@@ -81,6 +81,7 @@ TASK_KWARGS = {
     "min_samples_per_category": 8,
     "min_component_weight": 0.05,
     "observation_noise_scale": 0.03,
+    "device":torch.device("cpu")
 }
 
 train_dataset = SyntheticTaskDataset(
