@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import torch
-from .helper import build_cell_mask
+from .utils import build_cell_mask
 from typing import Optional
 
 @dataclass
