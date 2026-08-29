@@ -11,7 +11,6 @@ class SyntheticTaskDataset(Dataset):
         min_classes=2,
         max_classes=10,
         base_seed=0,
-        max_attempts=10
     ):
         self.num_tasks = int(num_tasks)
         self.task_factory = task_factory
@@ -20,7 +19,6 @@ class SyntheticTaskDataset(Dataset):
         self.min_classes = int(min_classes)
         self.max_classes = int(max_classes)
         self.base_seed = int(base_seed)
-        self.max_attempts = int(max_attempts)
 
         assert self.task_kind in ["classification", "regression"]
         assert "num_classes" not in self.task_kwargs
@@ -33,52 +31,36 @@ class SyntheticTaskDataset(Dataset):
     def __len__(self):
         return self.num_tasks
 
-    # def __getitem__(self, idx):
-    #     rng = random.Random(self.base_seed + int(idx))
-
-    #     dag_seed = rng.randrange(2**31)
-    #     x_seed = rng.randrange(2**31)
-    #     aleatoric_seed = rng.randrange(2**31)
-
-    #     if self.task_kind == "classification":
-    #         num_classes = rng.randint(self.min_classes, self.max_classes)
-    #     else:
-    #         num_classes = None
-
-    #     return self.task_factory(
-    #         **self.task_kwargs,
-    #         num_classes=num_classes,
-    #         dag_seed=dag_seed,
-    #         x_seed=x_seed,
-    #         aleatoric_seed=aleatoric_seed,
-    #     )
 
     def __getitem__(self, idx):
         rng = random.Random(self.base_seed + int(idx))
+
+        dag_seed = rng.randrange(2**31)
+        x_seed = rng.randrange(2**31)
+        aleatoric_seed = rng.randrange(2**31)
+
         if self.task_kind == "classification":
             num_classes = rng.randint(self.min_classes, self.max_classes)
         else:
             num_classes = None
 
-        for _ in range(self.max_attempts):
-            dag_seed = rng.randrange(2**31)
-            x_seed = rng.randrange(2**31)
-            aleatoric_seed = rng.randrange(2**31)
-            task = self.task_factory(
-                **self.task_kwargs,
-                num_classes=num_classes,
-                dag_seed=dag_seed,
-                x_seed=x_seed,
-                aleatoric_seed=aleatoric_seed,
-            )
-            info = task.info
 
-            if not isinstance(info, dict) or "is_valid" not in info:
-                return task
+        task = self.task_factory(
+            **self.task_kwargs,
+            num_classes=num_classes,
+            dag_seed=dag_seed,
+            x_seed=x_seed,
+            aleatoric_seed=aleatoric_seed,
+        )
+
+        info = task.info
+
+        if isinstance(info, dict) and "is_valid" in info:
             is_valid = info["is_valid"]
             if hasattr(is_valid, "item"):
                 is_valid = is_valid.item()
-            if bool(is_valid):
-                return task
-        raise RuntimeError(f"Failed to generate a valid task for idx={idx} after {self.max_attempts} attempts.")
+            if not bool(is_valid):
+                return None
+
+        return task
 

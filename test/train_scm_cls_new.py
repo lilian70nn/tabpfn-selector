@@ -59,16 +59,15 @@ TASK_KWARGS = {
     "final_width": 1,
 
     "connection_probs": (
-        (0.30, 0.40),
-        (0.55, 0.75),
+        ((0.20, 0.35), (0.45, 0.65))
     ),
 
     "latent_noise_scale": (0.0, 0.03),
-    "source_prior_probs": (0.45, 0.20, 0.15, 0.05),
+    "source_prior_probs": (0.45, 0.20, 0.15, 0.20),
 
     "arity_probs": (2.5, 3.0, 3.0),
 
-    "unary_op_probs": (0.5, 1.5, 2.0, 2.0, 1.5, 1.0, 1.5),
+    "unary_op_probs": (1.0, 1.0, 2.0, 2.0, 1.5, 1.0, 1.5),
     "binary_op_probs": (2.0, 2.0, 2.0, 2.0),
     "ternary_op_probs": (3.0, 1.0, 1.0, 3.0),
 
