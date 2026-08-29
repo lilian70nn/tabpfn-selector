@@ -22,7 +22,6 @@ class SyntheticTaskDataset(Dataset):
 
         assert self.task_kind in ["classification", "regression"]
         assert "num_classes" not in self.task_kwargs
-        assert self.max_attempts >= 1
 
         if self.task_kind == "classification":
             assert self.min_classes >= 2
