@@ -39,6 +39,7 @@ class TaskBatch:
 
 
 def collate_tasks(tasks, use_selector=True):
+    tasks = [t for t in tasks if t is not None]
     B = len(tasks)
     device = tasks[0].X_train.device
 
