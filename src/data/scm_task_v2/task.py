@@ -243,11 +243,15 @@ class SCMTask(GenerateTask):
                 feature_importance,
                 k=self.num_classes,
             )
-            y = target_observed.values.long()
-            self.n_classes = self.num_classes
+            if target_observed is None:
+                target_ok = False
+                y = torch.zeros(self.n, device=self.device, dtype=torch.long)
+            else:
+                y = target_observed.values.long()
+                counts = torch.bincount(y, minlength=self.num_classes)
+                target_ok = not bool((counts == 0).any()) and bool(counts.min().float() / counts.max().float() >= 0.05)
 
-            counts = torch.bincount(y, minlength=self.num_classes)
-            target_ok = not bool((counts == 0).any()) and bool(counts.min().float() / counts.max().float() >= 0.05)
+            self.n_classes = self.num_classes
 
         is_valid = categorical_features_ok and target_ok and importance_ok
 
