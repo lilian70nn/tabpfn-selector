@@ -63,7 +63,7 @@ TASK_KWARGS = {
         ((0.20, 0.35), (0.45, 0.65))
     ),
 
-    "latent_noise_scale": (0.0, 0.03),
+    "latent_noise_scale": (0.0, 0.0),
     "source_prior_probs": (0.55, 0.20, 0.15, 0.10),
 
     "arity_probs": (2.5, 3.0, 3.0),
