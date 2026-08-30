@@ -40,9 +40,9 @@ class SCMTask(GenerateTask):
             latent_noise_scale=(0.0, 0.03), 
             source_prior_probs=(0.45, 0.20, 0.15, 0.05),
             arity_probs=(2.5, 4.5, 3.0), 
-            unary_op_probs=(0.5, 1.5, 2.0, 2.0, 1.5, 1.0, 1.5), 
-            binary_op_probs=(2.5, 2.0, 3.5, 2.0), 
-            ternary_op_probs=(2.0, 3.0, 2.0, 3.0), 
+            unary_op_probs=(0.5, 1.5, 2.0, 2.0, 1.5, 1.0, 1.5, 0.75), 
+            binary_op_probs=(2.5, 2.0, 3.5, 2.0, 1.5), 
+            ternary_op_probs=(2.0, 3.0, 2.0, 3.0, 1.5), 
             scale_min=0.25, 
             scale_max=4.0,
             observation_type_probs=(6.0, 2.0, 2.0), 
@@ -82,9 +82,9 @@ class SCMTask(GenerateTask):
         self.source_prior_probs = source_prior_probs
 
         self.arity_probs = sample_dirichlet(arity_probs, generator=self.g_dag, device=self.device, expected_len=3)
-        self.unary_op_probs = sample_dirichlet(unary_op_probs, generator=self.g_dag, device=self.device, expected_len=7)
-        self.binary_op_probs = sample_dirichlet(binary_op_probs, generator=self.g_dag, device=self.device, expected_len=4)
-        self.ternary_op_probs = sample_dirichlet(ternary_op_probs, generator=self.g_dag, device=self.device, expected_len=4)
+        self.unary_op_probs = sample_dirichlet(unary_op_probs, generator=self.g_dag, device=self.device, expected_len=8)
+        self.binary_op_probs = sample_dirichlet(binary_op_probs, generator=self.g_dag, device=self.device, expected_len=5)
+        self.ternary_op_probs = sample_dirichlet(ternary_op_probs, generator=self.g_dag, device=self.device, expected_len=5)
 
         self.scale_min = float(scale_min)
         self.scale_max = float(scale_max)

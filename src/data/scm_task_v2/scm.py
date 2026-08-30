@@ -1,4 +1,5 @@
 import torch
+import math
 import torch.nn.functional as F
 from .utils import rand, randint, randn, standardize, normalize_probs
 
@@ -60,9 +61,10 @@ class RandomMultivariateFunction:
     for the lifetime of the SCM.
     """
 
-    UNARY_OPS = ("identity", "scale", "tanh", "sin", "square", "abs", "softplus")
-    BINARY_OPS = ("add", "sub", "mul", "safe_div")
-    TERNARY_OPS = ("sum3", "mul_add", "mul_sub", "gated_mix")
+    UNARY_OPS = ("identity", "scale", "tanh", "sin", "square", "abs", "softplus", "soft_tree")
+    BINARY_OPS = ("add", "sub", "mul", "safe_div", "activated_affine")
+    TERNARY_OPS = ("sum3", "mul_add", "mul_sub", "gated_mix", "activated_affine")
+    ACTIVATIONS = ("relu", "tanh", "sigmoid", "softplus")
 
     UNARY = 0
     BINARY = 1
@@ -74,10 +76,13 @@ class RandomMultivariateFunction:
             generator, 
             device, 
             arity_probs=(0.25, 0.45, 0.30), 
-            unary_op_probs=(0.05, 0.15, 0.20, 0.20, 0.15, 0.10, 0.15), 
-            binary_op_probs=(0.25, 0.20, 0.35, 0.20), 
-            ternary_op_probs=(0.20, 0.30, 0.20, 0.30), 
-            scale_min=0.25, scale_max=4.0
+            unary_op_probs=(0.05, 0.15, 0.20, 0.20, 0.15, 0.10, 0.15, 0.10), 
+            binary_op_probs=(0.25, 0.20, 0.35, 0.20, 0.20), 
+            ternary_op_probs=(0.20, 0.30, 0.20, 0.30, 0.20), 
+            scale_min=0.25,
+            scale_max=4.0,
+            soft_tree_depth=2,
+            soft_tree_temperature=0.5
     ):
 
         self.num_inputs = int(num_inputs)
@@ -94,6 +99,8 @@ class RandomMultivariateFunction:
 
         self.scale_min = float(scale_min)
         self.scale_max = float(scale_max)
+        self.soft_tree_depth = int(soft_tree_depth)
+        self.soft_tree_temperature = float(soft_tree_temperature)
 
         if self.scale_min <= 0:
             raise ValueError("scale_min must be > 0.")
@@ -101,6 +108,10 @@ class RandomMultivariateFunction:
             raise ValueError("scale_max must be >= scale_min.")
         if self.arity_probs[self.BINARY] <= 0:
             raise ValueError("binary probability must be positive.")
+        if self.soft_tree_depth < 1:
+            raise ValueError("soft_tree_depth must be >= 1.")
+        if self.soft_tree_temperature <= 0:
+            raise ValueError("soft_tree_temperature must be > 0.")
 
         self.program = self._sample_program()
 
@@ -118,11 +129,27 @@ class RandomMultivariateFunction:
         sign = -1.0 if bool(rand((), generator=self.generator, device=self.device) < 0.5) else 1.0
         return sign * float(magnitude.item())
 
-    def _sample_arity(self, pool_size):
+    def _sample_affine_parameters(self, arity):
+        weight = randn((arity,), generator=self.generator, device=self.device) / math.sqrt(arity)
+        bias = randn((), generator=self.generator, device=self.device) * 0.5
+        activation = self.ACTIVATIONS[self._sample_categorical(torch.ones(len(self.ACTIVATIONS), device=self.device))]
+        return weight, bias, activation
+    
+
+    def _sample_soft_tree(self):
+        n_internal = 2 ** self.soft_tree_depth - 1
+        n_leaves = 2 ** self.soft_tree_depth
+        gate_w = randn(n_internal, 1, generator=self.generator, device=self.device)
+        gate_b = randn(n_internal, generator=self.generator, device=self.device)
+        leaf_values = randn(n_leaves, 1, generator=self.generator, device=self.device)
+        return {"gate_w": gate_w, "gate_b": gate_b, "leaf_values": leaf_values}
+    
+
+    def _sample_arity(self, pool_size, arity_probs):
         if pool_size < 2:
             raise ValueError(f"_sample_arity requires pool_size >= 2, got {pool_size}.")
 
-        probs = self.arity_probs.clone()
+        probs = arity_probs.clone()
 
         if pool_size >= 6:
             probs[self.UNARY] *= 0.25
@@ -140,6 +167,7 @@ class RandomMultivariateFunction:
 
     def _sample_program(self):
         pool = [("input", input_idx) for input_idx in range(self.num_inputs)]
+        arity_probs = self.arity_probs.clone()
 
         while len(pool) > 1:
             current_pool = list(pool)
@@ -152,13 +180,23 @@ class RandomMultivariateFunction:
                     next_pool.append(current_pool.pop())
                     continue
 
-                arity = self._sample_arity(pool_size)
+                arity = self._sample_arity(pool_size, arity_probs)
 
                 if arity == self.UNARY:
+                    arity_probs[self.UNARY] *= 0.6
+                    arity_probs = arity_probs / arity_probs.sum().clamp_min(1e-12)
+
                     idx = self._sample_indices(pool_size, 1)[0]
                     child = current_pool.pop(idx)             
                     op = self.UNARY_OPS[self._sample_categorical(self.unary_op_probs)]
-                    parameter = self._sample_scale() if op == "scale" else None
+
+                    if op == "scale":
+                        parameter = self._sample_scale()
+                    elif op == "soft_tree":
+                        parameter = self._sample_soft_tree()
+                    else:
+                        parameter = None
+
                     next_pool.append(("unary", op, parameter, child))
 
                 elif arity == self.BINARY:
@@ -176,7 +214,8 @@ class RandomMultivariateFunction:
                         self.binary_op_probs = self.binary_op_probs / self.binary_op_probs.sum().clamp_min(1e-12)
                         self.ternary_op_probs = self.ternary_op_probs / self.ternary_op_probs.sum().clamp_min(1e-12)
 
-                    next_pool.append(("binary", op, x1, x2))
+                    parameter = self._sample_affine_parameters(2) if op == "activated_affine" else None
+                    next_pool.append(("binary", op, parameter, x1, x2))
 
                 elif arity == self.TERNARY:
                     i, j, k = self._sample_indices(pool_size, 3)
@@ -193,7 +232,8 @@ class RandomMultivariateFunction:
                         self.binary_op_probs = self.binary_op_probs / self.binary_op_probs.sum().clamp_min(1e-12)
                         self.ternary_op_probs = self.ternary_op_probs / self.ternary_op_probs.sum().clamp_min(1e-12)
 
-                    next_pool.append(("ternary", op, x1, x2, x3))
+                    parameter = self._sample_affine_parameters(3) if op == "activated_affine" else None
+                    next_pool.append(("ternary", op, parameter, x1, x2, x3))
 
                 else:
                     raise RuntimeError(f"Unknown arity: {arity}")
@@ -201,6 +241,38 @@ class RandomMultivariateFunction:
             pool = next_pool
 
         return pool[0]
+
+
+    def _soft_tree(self, x, parameter):
+
+        gate_w = parameter["gate_w"]
+        gate_b = parameter["gate_b"]
+        leaf_values = parameter["leaf_values"]
+        logits = (x @ gate_w.T + gate_b) / self.soft_tree_temperature
+        right = torch.sigmoid(logits)
+        left = 1.0 - right
+        paths = torch.ones(x.shape[0], 1, device=x.device, dtype=x.dtype)
+        offset = 0
+
+        for depth in range(self.soft_tree_depth):
+            width = 2 ** depth
+            left_prob = left[:, offset:offset + width]
+            right_prob = right[:, offset:offset + width]
+            paths = torch.stack((paths * left_prob, paths * right_prob), dim=-1).reshape(x.shape[0], -1)
+            offset += width
+
+        return paths @ leaf_values
+
+    def _apply_activation(self, x, activation):
+        if activation == "relu":
+            return F.relu(x)
+        if activation == "tanh":
+            return torch.tanh(x)
+        if activation == "sigmoid":
+            return torch.sigmoid(x)
+        if activation == "softplus":
+            return F.softplus(torch.clamp(x, -10.0, 10.0))
+        raise RuntimeError(f"Unknown activation: {activation}")
 
     def _apply_unary(self, op, x, parameter):
         if op == "identity":
@@ -217,9 +289,11 @@ class RandomMultivariateFunction:
             return torch.abs(x)
         if op == "softplus":
             return F.softplus(torch.clamp(x, -10.0, 10.0))
+        if op == "soft_tree":
+            return self._soft_tree(x, parameter)
         raise RuntimeError(f"Unknown unary op: {op}")
 
-    def _apply_binary(self, op, x1, x2):
+    def _apply_binary(self, op, x1, x2, parameter=None):
         if op == "add":
             return x1 + x2
         if op == "sub":
@@ -228,9 +302,14 @@ class RandomMultivariateFunction:
             return torch.clamp(x1, -6.0, 6.0) * torch.clamp(x2, -6.0, 6.0)
         if op == "safe_div":
             return x1 / (1.0 + torch.abs(x2))
+        if op == "activated_affine":
+            weight, bias, activation = parameter
+            z = weight[0] * x1 + weight[1] * x2 + bias
+            return self._apply_activation(z, activation)
+
         raise RuntimeError(f"Unknown binary op: {op}")
 
-    def _apply_ternary(self, op, x1, x2, x3):
+    def _apply_ternary(self, op, x1, x2, x3, parameter=None):
         if op == "sum3":
             return x1 + x2 + x3
         if op == "mul_add":
@@ -240,6 +319,11 @@ class RandomMultivariateFunction:
         if op == "gated_mix":
             gate = torch.sigmoid(torch.clamp(x3, -10.0, 10.0))
             return gate * x1 + (1.0 - gate) * x2
+        if op == "activated_affine":
+            weight, bias, activation = parameter
+            z = weight[0] * x1 + weight[1] * x2 + weight[2] * x3 + bias
+            return self._apply_activation(z, activation)
+        
         raise RuntimeError(f"Unknown ternary op: {op}")
 
     def _evaluate(self, node, x):
@@ -252,11 +336,11 @@ class RandomMultivariateFunction:
             _, op, parameter, child = node
             return self._apply_unary(op, self._evaluate(child, x), parameter)
         if kind == "binary":
-            _, op, left, right = node
-            return self._apply_binary(op, self._evaluate(left, x), self._evaluate(right, x))
+            _, op, parameter, left, right = node
+            return self._apply_binary(op, self._evaluate(left, x), self._evaluate(right, x), parameter)
         if kind == "ternary":
-            _, op, first, second, third = node
-            return self._apply_ternary(op, self._evaluate(first, x), self._evaluate(second, x), self._evaluate(third, x))
+            _, op, parameter, first, second, third = node
+            return self._apply_ternary(op, self._evaluate(first, x), self._evaluate(second, x), self._evaluate(third, x), parameter)
 
         raise RuntimeError(f"Unknown node kind: {kind}")
 
@@ -287,8 +371,8 @@ class ScalarLayerConnection:
             source_prior_probs=(0.45, 0.20, 0.15, 0.05),
             arity_probs=(0.25, 0.45, 0.30),
             unary_op_probs=(0.05, 0.15, 0.20, 0.20, 0.15, 0.10, 0.15),
-            binary_op_probs=(0.25, 0.20, 0.35, 0.20),
-            ternary_op_probs=(0.20, 0.30, 0.20, 0.30),
+            binary_op_probs=(0.25, 0.20, 0.35, 0.20, 0.20),
+            ternary_op_probs=(0.20, 0.30, 0.20, 0.30, 0.20),
             scale_min=0.25,
             scale_max=4.0
     ):
@@ -374,8 +458,8 @@ class WeightedLayeredScalarSCM:
             source_prior_probs=(0.45, 0.20, 0.15, 0.05),
             arity_probs=(0.25, 0.45, 0.30),
             unary_op_probs=(0.05, 0.15, 0.20, 0.20, 0.15, 0.10, 0.15),
-            binary_op_probs=(0.25, 0.20, 0.35, 0.20),
-            ternary_op_probs=(0.20, 0.30, 0.20, 0.30),
+            binary_op_probs=(0.25, 0.20, 0.35, 0.20, 0.20),
+            ternary_op_probs=(0.20, 0.30, 0.20, 0.30, 0.20),
             scale_min=0.25,
             scale_max=4.0,
             device=None
