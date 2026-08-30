@@ -156,7 +156,7 @@ class RandomMultivariateFunction:
 
                 if arity == self.UNARY:
                     idx = self._sample_indices(pool_size, 1)[0]
-                    child = current_pool.pop(idx)
+                    child = current_pool.pop(idx)             
                     op = self.UNARY_OPS[self._sample_categorical(self.unary_op_probs)]
                     parameter = self._sample_scale() if op == "scale" else None
                     next_pool.append(("unary", op, parameter, child))
@@ -168,6 +168,14 @@ class RandomMultivariateFunction:
                         current_pool.pop(idx)
 
                     op = self.BINARY_OPS[self._sample_categorical(self.binary_op_probs)]
+
+                    if op == "mul":
+                        self.binary_op_probs[2] = 0.0
+                        self.ternary_op_probs[1] = 0.0
+                        self.ternary_op_probs[2] = 0.0
+                        self.binary_op_probs = self.binary_op_probs / self.binary_op_probs.sum().clamp_min(1e-12)
+                        self.ternary_op_probs = self.ternary_op_probs / self.ternary_op_probs.sum().clamp_min(1e-12)
+
                     next_pool.append(("binary", op, x1, x2))
 
                 elif arity == self.TERNARY:
@@ -177,6 +185,14 @@ class RandomMultivariateFunction:
                         current_pool.pop(idx)
 
                     op = self.TERNARY_OPS[self._sample_categorical(self.ternary_op_probs)]
+
+                    if op in ("mul_add", "mul_sub"):
+                        self.binary_op_probs[2] = 0.0
+                        self.ternary_op_probs[1] = 0.0
+                        self.ternary_op_probs[2] = 0.0
+                        self.binary_op_probs = self.binary_op_probs / self.binary_op_probs.sum().clamp_min(1e-12)
+                        self.ternary_op_probs = self.ternary_op_probs / self.ternary_op_probs.sum().clamp_min(1e-12)
+
                     next_pool.append(("ternary", op, x1, x2, x3))
 
                 else:

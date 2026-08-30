@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import torch
-from .utils import normalize_probs
+from .utils import normalize_probs, randint
 
 @dataclass(frozen=True)
 class FeatureObservation:
@@ -134,39 +134,96 @@ class ScalarObservationHead:
             thresholds=torch.empty(0, device=z.device, dtype=z.dtype),
         )
 
-    def _select_prototypes(self, scalar, k, generator):
-        indices = torch.randperm(
-            scalar.shape[0],
-            generator=generator,
-            device=scalar.device,
-        )[:k]
-        return scalar[indices]
+    # def _select_prototypes(self, scalar, k, generator):
+    #     indices = torch.randperm(
+    #         scalar.shape[0],
+    #         generator=generator,
+    #         device=scalar.device,
+    #     )[:k]
+    #     return scalar[indices]
 
-    def _prototype(self, z, generator, k=None):
+    # def _prototype(self, z, generator, k=None):
+    #     scalar = z[:, 0].clone()
+    #     if k is None:
+    #         k = self._sample_cardinality(scalar.shape[0], generator)
+    #     if k == 0:
+    #         return self._continuous(z, generator, name="continuous_fallback_from_prototype")
+
+    #     prototypes = self._select_prototypes(scalar, k, generator)
+    #     distances = torch.abs(scalar[:, None] - prototypes[None, :])
+    #     labels = distances.argmin(dim=1).long()
+    #     counts = torch.bincount(labels, minlength=k)
+    #     smallest_fraction = float((counts.float() / counts.sum().clamp_min(1)).min().item())
+    #     retention = self._categorical_retention(scalar, labels)
+
+    #     return FeatureObservation(
+    #         values=labels,
+    #         is_categorical=True,
+    #         cardinality=k,
+    #         observation_type_id=self.PROTOTYPE,
+    #         observation_type_name="prototype_discretization",
+    #         quality_score=smallest_fraction,
+    #         retention=retention,
+    #         prototypes=prototypes[:, None],
+    #         thresholds=torch.empty(0, device=z.device, dtype=z.dtype),
+    #     )
+
+    def _select_prototypes(self, scalar, k, generator):
+        n = scalar.shape[0]
+        first_idx = int(randint(0, n, (1,), generator=generator, device=scalar.device).item())
+        selected_indices = [first_idx]
+        prototypes = [scalar[first_idx]]
+
+        for _ in range(1, k):
+            current = torch.stack(prototypes)
+            distances = torch.abs(scalar[:, None] - current[None, :])
+            min_distances = distances.min(dim=1).values
+            weights = min_distances.square()
+            weights[selected_indices] = 0.0
+            if bool(weights.sum() <= 1e-12):
+                return None
+            next_idx = int(torch.multinomial(weights, 1, generator=generator).item())
+            selected_indices.append(next_idx)
+            prototypes.append(scalar[next_idx])
+
+        return torch.stack(prototypes)
+
+
+    def _prototype(self, z, generator, k=None, max_attempts=5):
         scalar = z[:, 0].clone()
+        n = scalar.shape[0]
+
         if k is None:
             k = self._sample_cardinality(scalar.shape[0], generator)
         if k == 0:
             return self._continuous(z, generator, name="continuous_fallback_from_prototype")
 
-        prototypes = self._select_prototypes(scalar, k, generator)
-        distances = torch.abs(scalar[:, None] - prototypes[None, :])
-        labels = distances.argmin(dim=1).long()
-        counts = torch.bincount(labels, minlength=k)
-        smallest_fraction = float((counts.float() / counts.sum().clamp_min(1)).min().item())
-        retention = self._categorical_retention(scalar, labels)
+        minimum = max(self.min_samples_per_category, int(torch.ceil(torch.tensor(self.min_component_weight * n, device=z.device)).item()))
+        for _ in range(max_attempts):
+            prototypes = self._select_prototypes(scalar, k, generator)
+            if prototypes is None:
+                continue
 
-        return FeatureObservation(
-            values=labels,
-            is_categorical=True,
-            cardinality=k,
-            observation_type_id=self.PROTOTYPE,
-            observation_type_name="prototype_discretization",
-            quality_score=smallest_fraction,
-            retention=retention,
-            prototypes=prototypes[:, None],
-            thresholds=torch.empty(0, device=z.device, dtype=z.dtype),
-        )
+            distances = torch.abs(scalar[:, None] - prototypes[None, :])
+            labels = distances.argmin(dim=1).long()
+            counts = torch.bincount(labels, minlength=k)
+            if bool((counts >= minimum).all()):
+                smallest_fraction = float((counts.float()/counts.sum().clamp_min(1)).min().item())
+                retention = self._categorical_retention(scalar, labels)
+                return FeatureObservation(
+                    values=labels,
+                    is_categorical=True,
+                    cardinality=k,
+                    observation_type_id=self.PROTOTYPE,
+                    observation_type_name="prototype_discretization",
+                    quality_score=smallest_fraction,
+                    retention=retention,
+                    prototypes=prototypes[:, None],
+                    thresholds=torch.empty(0, device=z.device, dtype=z.dtype),
+                )
+
+        return self._continuous(z, generator, name="continuous_fallback_from_prototype")            
+
 
     def _dirichlet_binning(self, z, generator, concentration=3.0, k=None):
         scalar = z[:, 0].clone()
@@ -231,5 +288,171 @@ class ScalarObservationHead:
         categorical_probs = categorical_probs / categorical_probs.sum()
         method = int(torch.multinomial(categorical_probs, 1, generator=generator).item())
         if method == 0:
-            return self._prototype(z, generator, k=k)
+            observed = self._prototype(z, generator, k=k)
+            if not observed.is_categorical:
+                return self._dirichlet_binning(z, generator, k=k)
+            return observed
+
         return self._dirichlet_binning(z, generator, k=k)
+
+    def _target_discretization(self, z, observed_X, feature_type, feature_importance, k, n_neighbors=10, x_weight=0.7):
+        scalar = z[:, 0].float()
+        X = observed_X.float()
+        importance = feature_importance.float().clone()
+        n, d = X.shape
+
+        balance_minimum = int(torch.ceil(torch.tensor(0.5 * n / k, device=z.device)).item())
+        minimum = max(self.min_samples_per_category, int(torch.ceil(torch.tensor(self.min_component_weight * n, device=z.device)).item()), balance_minimum)
+
+        if n < k * minimum:
+            return None
+
+        importance = importance.clamp_min(0.0)
+        if bool(importance.sum() <= 1e-12):
+            importance = torch.ones_like(importance)
+        importance = importance / importance.sum()
+
+        distance_sq = torch.zeros((n, n), device=X.device, dtype=torch.float32)
+
+        for j in range(d):
+            xj = X[:, j]
+
+            if bool(feature_type[j]):
+                feature_distance_sq = (xj[:, None] != xj[None, :]).float()
+            else:
+                x_mean = xj.mean()
+                x_std = xj.std(unbiased=False)
+                if bool(x_std < 1e-12):
+                    x_std = torch.tensor(1.0, device=X.device, dtype=X.dtype)
+                x_scaled = (xj - x_mean) / x_std
+                feature_distance_sq = (x_scaled[:, None] - x_scaled[None, :]).square()
+
+            distance_sq += importance[j] * feature_distance_sq
+
+        distances = torch.sqrt(distance_sq.clamp_min(0.0))
+        distances.fill_diagonal_(float("inf"))
+
+        num_neighbors = min(n_neighbors, n - 1)
+        neighbor_distances, neighbor_indices = torch.topk(distances, k=num_neighbors, dim=1, largest=False)
+
+        sigma = neighbor_distances.median().clamp_min(1e-12)
+        neighbor_weights = torch.exp(-neighbor_distances.square() / (2.0 * sigma.square()))
+
+        order = torch.argsort(scalar)
+        scalar_sorted = scalar[order]
+
+        sorted_position = torch.empty(n, dtype=torch.long, device=z.device)
+        sorted_position[order] = torch.arange(n, device=z.device)
+
+        src = torch.arange(n, device=z.device)[:, None].expand(-1, num_neighbors).reshape(-1)
+        dst = neighbor_indices.reshape(-1)
+        edge_weights = neighbor_weights.reshape(-1)
+
+        mask = src < dst
+        src = src[mask]
+        dst = dst[mask]
+        edge_weights = edge_weights[mask]
+
+        pos_src = sorted_position[src]
+        pos_dst = sorted_position[dst]
+        left = torch.minimum(pos_src, pos_dst)
+        right = torch.maximum(pos_src, pos_dst)
+
+        difference = torch.zeros(n + 1, device=z.device, dtype=torch.float32)
+        difference.scatter_add_(0, left + 1, edge_weights)
+        difference.scatter_add_(0, right + 1, -edge_weights)
+
+        x_cut_cost = torch.cumsum(difference, dim=0)
+        valid_x_cost = x_cut_cost[minimum:n - minimum + 1]
+        x_scale = valid_x_cost.mean().clamp_min(1e-12)
+        x_cut_cost = x_cut_cost / x_scale
+
+        prefix = torch.zeros(n + 1, device=z.device, dtype=torch.float32)
+        prefix_sq = torch.zeros(n + 1, device=z.device, dtype=torch.float32)
+        prefix[1:] = torch.cumsum(scalar_sorted, dim=0)
+        prefix_sq[1:] = torch.cumsum(scalar_sorted.square(), dim=0)
+
+        total_sum = prefix[n]
+        total_sq_sum = prefix_sq[n]
+        total_sse = (total_sq_sum - total_sum.square() / n).clamp_min(1e-12)
+
+        starts = torch.arange(n + 1, device=z.device)[:, None]
+        ends = torch.arange(n + 1, device=z.device)[None, :]
+        counts = ends - starts
+        safe_counts = counts.clamp_min(1)
+
+        segment_sum = prefix[ends] - prefix[starts]
+        segment_sq_sum = prefix_sq[ends] - prefix_sq[starts]
+        segment_sse = segment_sq_sum - segment_sum.square() / safe_counts.float()
+        segment_costs = segment_sse / total_sse
+
+        invalid_segment = counts < minimum
+        segment_costs = segment_costs.masked_fill(invalid_segment, float("inf"))
+
+        valid_cut = torch.zeros(n + 1, dtype=torch.bool, device=z.device)
+        valid_cut[1:n] = scalar_sorted[:-1] < scalar_sorted[1:]
+
+        inf = float("inf")
+        dp = torch.full((k + 1, n + 1), inf, device=z.device, dtype=torch.float32)
+        back = torch.full((k + 1, n + 1), -1, device=z.device, dtype=torch.long)
+        dp[0, 0] = 0.0
+
+        for groups in range(1, k + 1):
+            min_end = groups * minimum
+            max_end = n - (k - groups) * minimum
+
+            previous = dp[groups - 1]
+            start_penalty = previous.clone()
+
+            if groups > 1:
+                start_penalty = start_penalty + x_weight * x_cut_cost
+                start_penalty = start_penalty.masked_fill(~valid_cut, inf)
+
+            candidate_costs = start_penalty[:, None] + segment_costs
+
+            end_mask = torch.zeros(n + 1, dtype=torch.bool, device=z.device)
+            end_mask[min_end:max_end + 1] = True
+            candidate_costs[:, ~end_mask] = inf
+
+            best_costs, best_starts = candidate_costs.min(dim=0)
+            dp[groups] = best_costs
+            back[groups] = best_starts
+
+        if not bool(torch.isfinite(dp[k, n])):
+            return None
+
+        cuts = []
+        end = n
+
+        for groups in range(k, 1, -1):
+            start = int(back[groups, end].item())
+            if start < 0:
+                return None
+            cuts.append(start)
+            end = start
+
+        cuts.reverse()
+
+        cut_tensor = torch.tensor(cuts, device=z.device, dtype=torch.long)
+        thresholds = (scalar_sorted[cut_tensor - 1] + scalar_sorted[cut_tensor]) * 0.5
+
+        labels = torch.bucketize(scalar, thresholds).long()
+        counts = torch.bincount(labels, minlength=k)
+
+        if bool((counts < minimum).any()):
+            return None
+
+        smallest_fraction = float((counts.float() / counts.sum()).min().item())
+        retention = self._categorical_retention(scalar, labels)
+
+        return FeatureObservation(
+            values=labels,
+            is_categorical=True,
+            cardinality=k,
+            observation_type_id=-1,
+            observation_type_name="target_discretization",
+            quality_score=smallest_fraction,
+            retention=retention,
+            prototypes=torch.empty(0, 1, device=z.device, dtype=z.dtype),
+            thresholds=thresholds,
+        )

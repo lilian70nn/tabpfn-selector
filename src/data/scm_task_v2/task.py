@@ -235,7 +235,14 @@ class SCMTask(GenerateTask):
             target_ok = True
 
         else:
-            target_observed = target_head.observe_categorical(target_latent, self.g_aleatoric, k=self.num_classes)
+            # target_observed = target_head.observe_categorical(target_latent, self.g_aleatoric, k=self.num_classes)
+            target_observed = target_head._target_discretization(
+                target_latent,
+                X_clean,
+                feature_type,
+                feature_importance,
+                k=self.num_classes,
+            )
             y = target_observed.values.long()
             self.n_classes = self.num_classes
 

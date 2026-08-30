@@ -355,7 +355,7 @@ if __name__ == "__main__":
         min_component_weight=0.05,
         observation_noise_scale=0.03,
         device=torch.device("cpu"),
-        dag_seed=45,
+        dag_seed=35,
         x_seed=35,
         aleatoric_seed=67,
     )
