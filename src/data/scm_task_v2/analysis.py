@@ -232,6 +232,15 @@ def evaluate_prior(prior, n_tasks=300, task_kind="classification", min_classes=2
         n_valid += 1
         metrics = _evaluate_task(task, num_classes, mlp_epochs, seed=base_seed + idx, topk=topk)
         metrics["num_classes"] = num_classes
+
+        if num_classes is not None:
+            _, _, y_train, y_test = _get_data(task)
+            y = np.concatenate([y_train, y_test]).astype(np.int64)
+            counts = np.bincount(y, minlength=num_classes)
+            metrics["class_balance"] = float(counts.min() / counts.max())
+        else:
+            metrics["class_balance"] = np.nan
+
         valid_rows.append(metrics)
 
         if (idx + 1) % 10 == 0:
@@ -243,7 +252,7 @@ def evaluate_prior(prior, n_tasks=300, task_kind="classification", min_classes=2
 
     if task_kind == "regression":
         if not valid_rows:
-            return pd.DataFrame([{"priors": prior_name, "valid_rate": valid_rate, "num_classes": np.nan, "task_ratio": 1.0, "cat_ratio": np.nan, "mlp_score": np.nan, "nonlinearity_ratio": np.nan, "importance_spearman": np.nan, "importance_topk": np.nan}])
+            return pd.DataFrame([{"priors": prior_name, "valid_rate": valid_rate, "num_classes": np.nan, "task_ratio": 1.0, "cat_ratio": np.nan, "class_balance": np.nan, "mlp_score": np.nan, "nonlinearity_ratio": np.nan, "importance_spearman": np.nan, "importance_topk": np.nan}])
 
         return pd.DataFrame([{
             "priors": prior_name,
@@ -251,6 +260,7 @@ def evaluate_prior(prior, n_tasks=300, task_kind="classification", min_classes=2
             "num_classes": np.nan,
             "task_ratio": 1.0,
             "cat_ratio": _mean(valid_rows, "cat_ratio"),
+            "class_balance": np.nan,
             "mlp_score": _mean(valid_rows, "mlp_score"),
             "nonlinearity_ratio": _mean(valid_rows, "nonlinearity_ratio"),
             "importance_spearman": _mean(valid_rows, "importance_spearman"),
@@ -267,6 +277,7 @@ def evaluate_prior(prior, n_tasks=300, task_kind="classification", min_classes=2
             "num_classes": num_classes,
             "task_ratio": len(group) / max(n_valid, 1),
             "cat_ratio": _mean(group, "cat_ratio") if group else np.nan,
+            "class_balance": _mean(group, "class_balance") if group else np.nan,
             "mlp_score": _mean(group, "mlp_score") if group else np.nan,
             "nonlinearity_ratio": _mean(group, "nonlinearity_ratio") if group else np.nan,
             "importance_spearman": _mean(group, "importance_spearman") if group else np.nan,
@@ -313,9 +324,9 @@ if __name__ == "__main__":
     result = evaluate_prior(
         prior=PRIOR,
         n_tasks=300,
-        task_kind="regression",
-        # min_classes=2,
-        # max_classes=4,
+        task_kind="classification",
+        min_classes=2,
+        max_classes=4,
         mlp_epochs=500,
         topk=3,
         base_seed=0,

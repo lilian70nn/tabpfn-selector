@@ -91,6 +91,50 @@ def classification_metrics(batch, out):
         "roc_auc": avg(roc_aucs),
     }
 
+@torch.no_grad()
+def regression_metrics(batch, out):
+    pred = out["logits"].squeeze(-1)
+    test_mask = out["test_mask"]
+    y_true = batch.y_test.float()
+
+    r2s = []
+    maes = []
+    rmses = []
+
+    B = pred.shape[0]
+
+    for b in range(B):
+        mask_b = test_mask[b]
+
+        yt = y_true[b, mask_b]
+        yp = pred[b, mask_b]
+
+        if yt.numel() == 0:
+            continue
+
+        err = yp - yt
+
+        mae = err.abs().mean()
+        rmse = torch.sqrt((err ** 2).mean())
+
+        ss_res = ((yt - yp) ** 2).sum()
+        ss_tot = ((yt - yt.mean()) ** 2).sum()
+
+        if ss_tot > 1e-12:
+            r2 = 1.0 - ss_res / ss_tot
+            r2s.append(float(r2.detach()))
+
+        maes.append(float(mae.detach()))
+        rmses.append(float(rmse.detach()))
+
+    def avg(xs):
+        return float(sum(xs) / max(len(xs), 1))
+
+    return {
+        "r2": avg(r2s),
+        "mae": avg(maes),
+        "rmse": avg(rmses),
+    }
 
 @torch.no_grad()
 def importance_metrics(batch, out):
