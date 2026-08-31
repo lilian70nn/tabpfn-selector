@@ -198,28 +198,7 @@ def train_synthetic(
                     ) 
                 log_line(f"[best] step {step:06d} | val_pred_loss {best_pred_loss:.6f}")
 
-            if loader_use_selector:
-                log_line(
-                    f"[val] step {step:06d} | "
-                    f"loss {val_metrics['loss']:.4f} | "
-                    f"pred {val_metrics['pred_loss']:.4f} | "
-                    f"imp {val_metrics['importance_loss']:.6f} | "
-                    f"acc {val_metrics.get('acc', float('nan')):.4f} | "
-                    f"bal_acc {val_metrics.get('balanced_acc', float('nan')):.4f} | "
-                    f"f1 {val_metrics.get('macro_f1', float('nan')):.4f} | "
-                    f"auc {val_metrics.get('roc_auc', float('nan')):.4f} | "
-                    f"imp_corr {val_metrics.get('importance_pearson', float('nan')):.4f}"
-                )
-            else:
-                log_line(
-                    f"[val] step {step:06d} | "
-                    f"loss {val_metrics['loss']:.4f} | "
-                    f"pred {val_metrics['pred_loss']:.4f} | "
-                    f"acc {val_metrics.get('acc', float('nan')):.4f} | "
-                    f"bal_acc {val_metrics.get('balanced_acc', float('nan')):.4f} | "
-                    f"f1 {val_metrics.get('macro_f1', float('nan')):.4f} | "
-                    f"auc {val_metrics.get('roc_auc', float('nan')):.4f}"
-                )
+            log_line(f"[val] step {step:06d} | " + " | ".join(f"{key} {value:.4f}" for key, value in val_metrics.items()))
 
             if imp_trace:
                 model.eval()

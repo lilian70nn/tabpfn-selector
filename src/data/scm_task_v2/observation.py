@@ -302,9 +302,7 @@ class ScalarObservationHead:
         n, d = X.shape
 
         balance_factor = 0.5 + 0.25 * torch.distributions.Beta(3.26, 1.44).sample()
-
-        balance_minimum = int(torch.ceil(balance_factor * n / k).item())
-        minimum = max(self.min_samples_per_category, int(torch.ceil(torch.tensor(self.min_component_weight * n, device=z.device)).item()), balance_minimum)
+        minimum = int(torch.ceil(balance_factor * n / k).item())
 
         if n < k * minimum:
             return None
