@@ -129,7 +129,7 @@ model = TabularPFNModel(
     depth=16,
     max_cardinality=10,
     task_kind="regression",
-    max_classes=4,
+    num_y_buckets=100,
 )
 
 optimizer = torch.optim.AdamW(
