@@ -83,12 +83,12 @@ def classification_metrics(batch, out):
         return float(sum(xs) / max(len(xs), 1))
 
     return {
-        "acc": avg(accs),
-        "balanced_acc": avg(balanced_accs),
-        "macro_precision": avg(precisions),
-        "macro_recall": avg(recalls),
-        "macro_f1": avg(f1s),
-        "roc_auc": avg(roc_aucs),
+        "accuracy": avg(accs),
+        "balanced_accuracy": avg(balanced_accs),
+        "precision": avg(precisions),
+        "recall": avg(recalls),
+        "f1": avg(f1s),
+        "auc": avg(roc_aucs),
     }
 
 @torch.no_grad()

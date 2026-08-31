@@ -16,37 +16,6 @@ from functools import partial
 
 
 
-# TASK_KWARGS = dict(
-#     n_min=400,
-#     n_max=512,
-#     d_min=8,
-#     d_max=16,
-#     test_frac=0.15,
-#     p_missing=0.05,
-#     num_roots=8,
-#     num_layers=5,
-#     hidden_width_min=6,
-#     hidden_width_max=10,
-#     final_width=1,
-#     connection_probs=(0.20, 0.20, 0.30, 0.85),
-#     edge_weight_concentration=0.30,
-#     latent_noise_scale=0.0,
-#     sampling_penalty=0.25,
-#     observation_noise_scale=0.03,
-#     observation_type_probs=(0.60, 0.20, 0.20),
-#     categorical_cardinalities=(2, 3, 4, 5, 6),
-#     categorical_cardinality_probs=(0.40, 0.30, 0.18, 0.08, 0.04),
-#     min_samples_per_category=8,
-#     min_component_weight=0.05,
-#     source_prior_probs=(0.45, 0.20, 0.15, 0.05),
-#     edge_family_probs=(0.40, 0.30, 0.30),
-#     small_mlp_hidden_dim=None,
-#     soft_tree_depth=2,
-#     soft_tree_temperature=0.5,
-#     device=torch.device("cpu"),
-# )
-
-
 PRIOR = {
     "n_min": 400,
     "n_max": 512,

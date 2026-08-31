@@ -157,15 +157,14 @@ def train_synthetic(
             if loader_use_selector:
                 log_line(
                     f"step {step:06d} | "
-                    f"loss {running_loss / running_n:.4f} | "
-                    f"pred {running_pred / running_n:.4f} | "
-                    f"imp {running_imp / max(running_imp_n, 1):.6f}"
+                    f"total_loss {running_loss / running_n:.4f} | "
+                    f"pred_loss {running_pred / running_n:.4f} | "
+                    f"imp_loss {running_imp / max(running_imp_n, 1):.6f}"
                 )
             else:
                 log_line(
                     f"step {step:06d} | "
-                    f"loss {running_loss / running_n:.4f} | "
-                    f"pred {running_pred / running_n:.4f}"
+                    f"pred_loss {running_pred / running_n:.4f}"
                 )
 
             running_loss = 0.0
