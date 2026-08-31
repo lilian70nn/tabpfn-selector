@@ -282,18 +282,18 @@ class ScalarObservationHead:
         return self._dirichlet_binning(z, generator)
 
 
-    def observe_categorical(self, latent, generator, k):
-        z = latent.float()
-        categorical_probs = self.observation_type_probs[1:]
-        categorical_probs = categorical_probs / categorical_probs.sum()
-        method = int(torch.multinomial(categorical_probs, 1, generator=generator).item())
-        if method == 0:
-            observed = self._prototype(z, generator, k=k)
-            if not observed.is_categorical:
-                return self._dirichlet_binning(z, generator, k=k)
-            return observed
+    # def observe_categorical(self, latent, generator, k):
+    #     z = latent.float()
+    #     categorical_probs = self.observation_type_probs[1:]
+    #     categorical_probs = categorical_probs / categorical_probs.sum()
+    #     method = int(torch.multinomial(categorical_probs, 1, generator=generator).item())
+    #     if method == 0:
+    #         observed = self._prototype(z, generator, k=k)
+    #         if not observed.is_categorical:
+    #             return self._dirichlet_binning(z, generator, k=k)
+    #         return observed
 
-        return self._dirichlet_binning(z, generator, k=k)
+    #     return self._dirichlet_binning(z, generator, k=k)
 
     def _target_discretization(self, z, observed_X, feature_type, feature_importance, k, n_neighbors=10, x_weight=0.7):
         scalar = z[:, 0].float()
@@ -306,11 +306,6 @@ class ScalarObservationHead:
 
         if n < k * minimum:
             return None
-
-        importance = importance.clamp_min(0.0)
-        if bool(importance.sum() <= 1e-12):
-            importance = torch.ones_like(importance)
-        importance = importance / importance.sum()
 
         distance_sq = torch.zeros((n, n), device=X.device, dtype=torch.float32)
 
@@ -437,8 +432,11 @@ class ScalarObservationHead:
         thresholds = (scalar_sorted[cut_tensor - 1] + scalar_sorted[cut_tensor]) * 0.5
 
         labels = torch.bucketize(scalar, thresholds).long()
-        counts = torch.bincount(labels, minlength=k)
+        if torch.rand((), generator=self.generator, device=z.device) < 0.5:
+            permutation = torch.randperm(k, generator=self.generator, device=z.device)
+            labels = permutation[labels]
 
+        counts = torch.bincount(labels, minlength=k)
         if bool((counts < minimum).any()):
             return None
 
