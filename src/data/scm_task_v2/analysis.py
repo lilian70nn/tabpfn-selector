@@ -175,6 +175,14 @@ def _compare_importance(gt, estimated, topk=3):
     return float(rho), float(overlap)
 
 
+
+
+def _mean(rows, key):
+    values = np.asarray([row[key] for row in rows], dtype=np.float64)
+    values = values[np.isfinite(values)]
+    return float(values.mean()) if len(values) else np.nan
+
+
 def _evaluate_task(task, num_classes, mlp_epochs, seed, topk):
     X_train, X_test, y_train, y_test = _get_data(task)
     feature_type = _get_feature_type(task)
@@ -189,22 +197,26 @@ def _evaluate_task(task, num_classes, mlp_epochs, seed, topk):
         nonlinearity_ratio = (mlp_score - linear_score) / abs(mlp_score)
 
     estimated_importance = _estimate_importance(X_train, X_test, y_train, y_test, feature_type, num_classes, seed)
-    gt_importance = _to_numpy(task.info["feature_importance"])
+    gt_importance = _to_numpy(task.info["feature_importance"]).astype(np.float64).reshape(-1)
     importance_spearman, importance_topk = _compare_importance(gt_importance, estimated_importance, topk)
+
+    gt_sorted = np.sort(gt_importance)[::-1]
+    gt_top1 = float(gt_sorted[0]) if len(gt_sorted) else np.nan
+    gt_top3 = float(gt_sorted[:min(3, len(gt_sorted))].sum()) if len(gt_sorted) else np.nan
+    gt_nonzero = int(np.sum(gt_importance > 1e-6))
+    gt_nonzero_ratio = float(gt_nonzero / len(gt_importance)) if len(gt_importance) else np.nan
 
     return {
         "cat_ratio": cat_ratio,
         "mlp_score": mlp_score,
         "nonlinearity_ratio": float(nonlinearity_ratio),
+        "gt_top1": gt_top1,
+        "gt_top3": gt_top3,
+        "gt_nonzero": gt_nonzero,
+        "gt_nonzero_ratio": gt_nonzero_ratio,
         "importance_spearman": importance_spearman,
         "importance_topk": importance_topk,
     }
-
-
-def _mean(rows, key):
-    values = np.asarray([row[key] for row in rows], dtype=np.float64)
-    values = values[np.isfinite(values)]
-    return float(values.mean()) if len(values) else np.nan
 
 
 def evaluate_prior(prior, n_tasks=300, task_kind="classification", min_classes=2, max_classes=4, mlp_epochs=500, topk=3, base_seed=0, prior_name="prior"):
@@ -252,7 +264,22 @@ def evaluate_prior(prior, n_tasks=300, task_kind="classification", min_classes=2
 
     if task_kind == "regression":
         if not valid_rows:
-            return pd.DataFrame([{"priors": prior_name, "valid_rate": valid_rate, "num_classes": np.nan, "task_ratio": 1.0, "cat_ratio": np.nan, "class_balance": np.nan, "mlp_score": np.nan, "nonlinearity_ratio": np.nan, "importance_spearman": np.nan, "importance_topk": np.nan}])
+            return pd.DataFrame([{
+                "priors": prior_name,
+                "valid_rate": valid_rate,
+                "num_classes": np.nan,
+                "task_ratio": 1.0,
+                "cat_ratio": np.nan,
+                "class_balance": np.nan,
+                "mlp_score": np.nan,
+                "nonlinearity_ratio": np.nan,
+                "gt_top1": np.nan,
+                "gt_top3": np.nan,
+                "gt_nonzero": np.nan,
+                "gt_nonzero_ratio": np.nan,
+                "importance_spearman": np.nan,
+                "importance_topk": np.nan,
+            }])
 
         return pd.DataFrame([{
             "priors": prior_name,
@@ -263,6 +290,10 @@ def evaluate_prior(prior, n_tasks=300, task_kind="classification", min_classes=2
             "class_balance": np.nan,
             "mlp_score": _mean(valid_rows, "mlp_score"),
             "nonlinearity_ratio": _mean(valid_rows, "nonlinearity_ratio"),
+            "gt_top1": _mean(valid_rows, "gt_top1"),
+            "gt_top3": _mean(valid_rows, "gt_top3"),
+            "gt_nonzero": _mean(valid_rows, "gt_nonzero"),
+            "gt_nonzero_ratio": _mean(valid_rows, "gt_nonzero_ratio"),
             "importance_spearman": _mean(valid_rows, "importance_spearman"),
             "importance_topk": _mean(valid_rows, "importance_topk"),
         }])
@@ -280,6 +311,10 @@ def evaluate_prior(prior, n_tasks=300, task_kind="classification", min_classes=2
             "class_balance": _mean(group, "class_balance") if group else np.nan,
             "mlp_score": _mean(group, "mlp_score") if group else np.nan,
             "nonlinearity_ratio": _mean(group, "nonlinearity_ratio") if group else np.nan,
+            "gt_top1": _mean(group, "gt_top1") if group else np.nan,
+            "gt_top3": _mean(group, "gt_top3") if group else np.nan,
+            "gt_nonzero": _mean(group, "gt_nonzero") if group else np.nan,
+            "gt_nonzero_ratio": _mean(group, "gt_nonzero_ratio") if group else np.nan,
             "importance_spearman": _mean(group, "importance_spearman") if group else np.nan,
             "importance_topk": _mean(group, "importance_topk") if group else np.nan,
         })
@@ -287,7 +322,7 @@ def evaluate_prior(prior, n_tasks=300, task_kind="classification", min_classes=2
     return pd.DataFrame(output)
 
 
-PRIOR = {
+PRIOR1 = {
     "n_min": 400,
     "n_max": 512,
     "d_min": 8,
@@ -299,8 +334,40 @@ PRIOR = {
     "final_width": 1,
 
     "connection_probs": (
-        (0.20, 0.35),
-        (0.45, 0.65),
+        (0.25, 0.40),
+        (0.55, 0.75),
+    ),
+
+    "source_prior_probs": (0.55, 0.20, 0.15, 0.10),
+    "arity_probs": (2.5, 3.0, 3.0,),
+    "unary_op_probs": (1.0, 1.0, 2.0, 2.0, 1.0, 1.0, 1.5, 0.75),
+    "binary_op_probs":(2.0, 2.0, 2.0, 1.5, 1.5),
+    "ternary_op_probs": (3.0, 1.0, 1.0, 3.0, 1.5),
+    "observation_type_probs": (6.5, 1.75, 1.75),
+    "latent_noise_scale": (0.0, 0.0,),
+    "scale_min": 0.25,
+    "scale_max": 4.0,
+    "categorical_cardinalities": (2, 3, 4, 5, 6),
+    "categorical_cardinality_probs": (0.40, 0.30, 0.18, 0.08, 0.04,),
+    "min_samples_per_category": 8,
+    "min_component_weight": 0.05,
+    "observation_noise_scale": 0.03,
+}
+
+PRIOR2 = {
+    "n_min": 400,
+    "n_max": 512,
+    "d_min": 8,
+    "d_max": 16,
+    "test_frac": 0.15,
+    "p_missing": 0.05,
+    "num_roots": 5,
+    "num_layers": 3,
+    "final_width": 1,
+
+    "connection_probs": (
+        (0.25, 0.40),
+        (0.55, 0.75),
     ),
 
     "source_prior_probs": (0.55, 0.20, 0.15, 0.10),
@@ -321,17 +388,60 @@ PRIOR = {
 
 
 if __name__ == "__main__":
+
+    seed = 59
     result = evaluate_prior(
-        prior=PRIOR,
+        prior=PRIOR1,
+        n_tasks=300,
+        task_kind="regression",
+        # min_classes=2,
+        # max_classes=4,
+        mlp_epochs=500,
+        topk=3,
+        base_seed=seed,
+        prior_name="prior",
+    )
+
+    result.to_csv("analysis1.csv", index=False)
+
+    result = evaluate_prior(
+        prior=PRIOR1,
         n_tasks=300,
         task_kind="classification",
         min_classes=2,
         max_classes=4,
         mlp_epochs=500,
         topk=3,
-        base_seed=0,
+        base_seed=seed,
+        prior_name="prior",
+    )
+    result.to_csv("analysis2.csv", index=False)
+
+    result = evaluate_prior(
+        prior=PRIOR2,
+        n_tasks=300,
+        task_kind="regression",
+        # min_classes=2,
+        # max_classes=4,
+        mlp_epochs=500,
+        topk=3,
+        base_seed=seed,
         prior_name="prior",
     )
 
-    result.to_csv("analysis.csv", index=False)
-    print(result)
+    result.to_csv("analysis3.csv", index=False)
+
+    result = evaluate_prior(
+        prior=PRIOR2,
+        n_tasks=300,
+        task_kind="classification",
+        min_classes=2,
+        max_classes=4,
+        mlp_epochs=500,
+        topk=3,
+        base_seed=seed,
+        prior_name="prior",
+    )
+    result.to_csv("analysis4.csv", index=False)
+
+

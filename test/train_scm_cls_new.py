@@ -59,8 +59,8 @@ PRIOR = {
     "final_width": 1,
 
     "connection_probs": (
-        (0.20, 0.35),
-        (0.45, 0.65),
+        (0.25, 0.40),
+        (0.55, 0.75),
     ),
 
     "source_prior_probs": (0.55, 0.20, 0.15, 0.10),
@@ -68,7 +68,7 @@ PRIOR = {
     "unary_op_probs": (1.0, 1.0, 2.0, 2.0, 1.0, 1.0, 1.5, 0.75),
     "binary_op_probs":(2.0, 2.0, 2.0, 1.5, 1.5),
     "ternary_op_probs": (3.0, 1.0, 1.0, 3.0, 1.5),
-    "observation_type_probs": (7.0, 1.5, 1.5),
+    "observation_type_probs": (6.5, 1.75, 1.75),
     "latent_noise_scale": (0.0, 0.0,),
     "scale_min": 0.25,
     "scale_max": 4.0,
