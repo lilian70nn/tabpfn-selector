@@ -5,7 +5,7 @@ import networkx as nx
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 
-from src.data.scm_task.task import SCMTask
+from Trash.scm_task.task import SCMTask
 
 
 def build_node_id_maps(scm):

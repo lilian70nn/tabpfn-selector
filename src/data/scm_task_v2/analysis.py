@@ -31,24 +31,20 @@ def _get_feature_type(task):
 def _is_table_valid(task, num_classes):
     info = task.info
     if not isinstance(info, dict): return False
-    if "is_valid" in info:
-        v = info["is_valid"].item() if hasattr(info["is_valid"], "item") else info["is_valid"]
-        if not bool(v): return False
+    if "is_valid" in info and not info["is_valid"]:
+        return False
 
     X_train, X_test, y_train, y_test = _get_data(task)
-    if X_train.ndim != 2 or X_test.ndim != 2 or X_train.shape[1] == 0: return False
-    if not np.isfinite(y_train).all() or not np.isfinite(y_test).all(): return False
-    if np.isinf(X_train).any() or np.isinf(X_test).any(): return False
-    if np.any(np.all(np.isnan(X_train), axis=0)) or np.any(np.all(np.isnan(X_test), axis=0)): return False
+    if not np.isfinite(y_train).all() or not np.isfinite(y_test).all():
+        return False
+    if np.isinf(X_train).any() or np.isinf(X_test).any():
+        return False
+    if np.any(np.all(np.isnan(X_train), axis=0)) or np.any(np.all(np.isnan(X_test), axis=0)):
+        return False
 
     if num_classes is None:
-        if len(y_train) < 2 or len(y_test) < 2: return False
-        if np.var(y_train) < 1e-8 or np.var(y_test) < 1e-8: return False
-    else:
-        train_classes = np.unique(y_train.astype(np.int64))
-        test_classes = np.unique(y_test.astype(np.int64))
-        expected = np.arange(num_classes)
-        if not np.array_equal(train_classes, expected) or not np.array_equal(test_classes, expected): return False
+        if np.var(y_train) < 1e-8 or np.var(y_test) < 1e-8:
+            return False
 
     return True
 
@@ -117,7 +113,8 @@ def _fit_mlp_score(X_train, X_test, y_train, y_test, feature_type, num_classes, 
             optimizer.step()
 
         model.eval()
-        with torch.no_grad(): pred = model(Xte_t).squeeze(1).cpu().numpy()
+        with torch.no_grad():
+            pred = model(Xte_t).squeeze(1).cpu().numpy()
         return float(r2_score(y_test, pred))
 
     ytr_t = torch.tensor(y_train, dtype=torch.long, device=device)
@@ -133,7 +130,8 @@ def _fit_mlp_score(X_train, X_test, y_train, y_test, feature_type, num_classes, 
         optimizer.step()
 
     model.eval()
-    with torch.no_grad(): pred = model(Xte_t).argmax(dim=1).cpu().numpy()
+    with torch.no_grad(): 
+        pred = model(Xte_t).argmax(dim=1).cpu().numpy()
     return float(balanced_accuracy_score(y_test.astype(np.int64), pred))
 
 
@@ -153,7 +151,8 @@ def _estimate_importance(X_train, X_test, y_train, y_test, feature_type, num_cla
     importance = np.maximum(result.importances_mean.astype(np.float64), 0.0)
 
     s = importance.sum()
-    if s > 0: importance /= s
+    if s > 0: 
+        importance /= s
     return importance
 
 
@@ -161,13 +160,15 @@ def _compare_importance(gt, estimated, topk=3):
     gt = np.asarray(gt, dtype=np.float64).reshape(-1)
     estimated = np.asarray(estimated, dtype=np.float64).reshape(-1)
 
-    if len(gt) != len(estimated) or len(gt) == 0: return np.nan, np.nan
+    if len(gt) != len(estimated) or len(gt) == 0:
+        return np.nan, np.nan
 
     if np.std(gt) < 1e-12 or np.std(estimated) < 1e-12:
         rho = 0.0
     else:
         rho = spearmanr(gt, estimated).statistic
-        if not np.isfinite(rho): rho = 0.0
+        if not np.isfinite(rho): 
+            rho = 0.0
 
     k = min(int(topk), len(gt))
     gt_top = set(np.argsort(gt)[-k:])
@@ -221,7 +222,8 @@ def _evaluate_task(task, num_classes, mlp_epochs, seed, topk):
 
 
 def evaluate_prior(prior, n_tasks=300, task_kind="classification", min_classes=2, max_classes=4, mlp_epochs=500, topk=3, base_seed=0, prior_name="prior"):
-    if task_kind not in ("classification", "regression"): raise ValueError("task_kind must be 'classification' or 'regression'.")
+    if task_kind not in ("classification", "regression"): 
+        raise ValueError("task_kind must be 'classification' or 'regression'.")
 
     valid_rows = []
     n_valid = 0
@@ -240,7 +242,8 @@ def evaluate_prior(prior, n_tasks=300, task_kind="classification", min_classes=2
 
         task = SCMTask(**prior, num_classes=num_classes, dag_seed=dag_seed, x_seed=x_seed, aleatoric_seed=aleatoric_seed)
 
-        if not _is_table_valid(task, num_classes): continue
+        if not _is_table_valid(task, num_classes): 
+            continue
 
         n_valid += 1
         metrics = _evaluate_task(task, num_classes, mlp_epochs, seed=base_seed + idx, topk=topk)

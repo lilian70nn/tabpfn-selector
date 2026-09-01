@@ -80,20 +80,17 @@ def plot_scm_graph(task, save_path="scm_graph.png"):
             positions[gid] = (x, y)
 
     ordinary_nodes = [
-        gid
-        for gid in graph.nodes
+        gid for gid in graph.nodes
         if gid not in feature_gid_to_column and gid != target_id
     ]
 
     continuous_nodes = [
-        int(gid)
-        for gid in feature_ids
+        int(gid) for gid in feature_ids
         if int(feature_type[feature_gid_to_column[int(gid)]]) == SCMTask.CONTINUOUS
     ]
 
     categorical_nodes = [
-        int(gid)
-        for gid in feature_ids
+        int(gid) for gid in feature_ids
         if int(feature_type[feature_gid_to_column[int(gid)]]) == SCMTask.CATEGORICAL
     ]
 
@@ -328,6 +325,7 @@ def print_selected_features(task):
 
 
 if __name__ == "__main__":
+    
     task = SCMTask(
         num_classes=3,
         n_min=400,
@@ -350,7 +348,7 @@ if __name__ == "__main__":
         unary_op_probs=(1.0, 1.0, 2.0, 2.0, 1.0, 1.0, 1.5, 0.75),
         binary_op_probs=(2.0, 2.0, 2.0, 1.5, 1.5),
         ternary_op_probs=(3.0, 1.0, 1.0, 3.0, 1.5),
-        observation_type_probs=(7.0, 1.5, 1.5),
+        observation_type_probs=(6.5, 1.75, 1.75),
         latent_noise_scale=(0.0, 0.0,),
         scale_min=0.25,
         scale_max=4.0,
@@ -366,8 +364,4 @@ if __name__ == "__main__":
     )
 
     print_selected_features(task)
-
-    plot_scm_graph(
-        task,
-        save_path="scm_graph.png",
-    )
+    plot_scm_graph(task, save_path="scm_graph.png")
