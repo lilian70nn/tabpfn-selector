@@ -295,7 +295,7 @@ class ScalarObservationHead:
 
     #     return self._dirichlet_binning(z, generator, k=k)
 
-    def _target_discretization(self, z, observed_X, feature_type, feature_importance, k, n_neighbors=10, x_weight=0.7):
+    def _target_discretization(self, z, observed_X, feature_type, feature_importance, k, n_neighbors=10, x_weight=0.7, generator=None):
         scalar = z[:, 0].float()
         X = observed_X.float()
         importance = feature_importance.float().clone()
@@ -432,8 +432,8 @@ class ScalarObservationHead:
         thresholds = (scalar_sorted[cut_tensor - 1] + scalar_sorted[cut_tensor]) * 0.5
 
         labels = torch.bucketize(scalar, thresholds).long()
-        if torch.rand((), generator=self.generator, device=z.device) < 0.5:
-            permutation = torch.randperm(k, generator=self.generator, device=z.device)
+        if torch.rand((), generator=generator, device=z.device) < 0.5:
+            permutation = torch.randperm(k, generator=generator, device=z.device)
             labels = permutation[labels]
 
         counts = torch.bincount(labels, minlength=k)

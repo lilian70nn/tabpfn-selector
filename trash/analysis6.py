@@ -6,7 +6,7 @@ import torch
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import balanced_accuracy_score, r2_score
 
-from .task import SCMTask
+from ..src.data.scm_task_v2.task import SCMTask
 
 
 # PRIOR = {

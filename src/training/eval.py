@@ -1,6 +1,6 @@
 import torch
 from src.training.helper import move_batch_to_device, infer_loader_use_selector
-from src.training.metrics import classification_metrics, importance_metrics
+from src.training.metrics import classification_metrics, importance_metrics, regression_metrics
 
 @torch.no_grad()
 def evaluate_synthetic(
@@ -55,7 +55,7 @@ def evaluate_synthetic(
         if model.task_kind == "classification":
             metrics = classification_metrics(batch, out)
         else:
-            metrics = {}
+            metrics = regression_metrics(batch, out)
 
         if loader_use_selector:
             metrics.update(importance_metrics(batch, out))

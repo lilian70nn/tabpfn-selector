@@ -11,7 +11,7 @@ from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import balanced_accuracy_score, r2_score
-from src.data.scm_task.task import SCMTask
+from Trash.scm_task.task import SCMTask
 
 
 def _to_numpy(x):

@@ -1,6 +1,6 @@
 import torch
 
-from .difficulty import compute_difficulty_metrics
+from .scm_task_v2.calibration.difficulty import compute_difficulty_metrics
 
 
 def make_linear_data(n=512, d=10, noise_std=0.1, seed=0):

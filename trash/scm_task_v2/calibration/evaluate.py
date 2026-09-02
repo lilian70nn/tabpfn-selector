@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from ..task import SCMTask
+from ....src.data.scm_task_v2.task import SCMTask
 from .structural import compute_structural_metrics
 from .difficulty import compute_difficulty_metrics
 from .matching import compute_observable_profile, profile_distance_to_reference

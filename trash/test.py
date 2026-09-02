@@ -1,5 +1,5 @@
 from pprint import pprint
-from .evaluate import evaluate_prior
+from .scm_task_v2.calibration.evaluate import evaluate_prior
 
 
 prior = {

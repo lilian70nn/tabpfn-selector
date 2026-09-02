@@ -1,6 +1,6 @@
 import torch
 from src.data.synthetic_task import GenerateTask
-from ..utils import (
+from ...src.data.utils import (
     make_gen,
     stratified_classification_split,
     detach_tree,

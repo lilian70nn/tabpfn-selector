@@ -242,6 +242,7 @@ class SCMTask(GenerateTask):
                 feature_type,
                 feature_importance,
                 k=self.num_classes,
+                generator=self.g_dag
             )
             if target_observed is None:
                 target_ok = False

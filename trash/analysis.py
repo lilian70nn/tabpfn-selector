@@ -17,8 +17,8 @@ from sklearn.feature_selection import mutual_info_classif, mutual_info_regressio
 from tqdm import tqdm
 from sklearn.metrics import mutual_info_score
 
-from ..datasets import SyntheticTaskDataset
-from .task import SCMTask
+from ..src.data.datasets import SyntheticTaskDataset
+from ..src.data.scm_task_v2.task import SCMTask
 
 
 def _to_numpy(x):

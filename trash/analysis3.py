@@ -312,6 +312,36 @@ BASE_PRIOR = {
     "min_samples_per_category": 8,
     "min_component_weight": 0.05,
     "observation_noise_scale": 0.03,
+        "connection_probs": [
+        ((0.20, 0.35), (0.45, 0.65)),
+    ],
+
+    "source_prior_probs": [
+        (0.55, 0.20, 0.15, 0.10),
+    ],
+
+    "arity_probs": [
+        (2.25, 3.0, 3.5),
+        (2.5, 3.0, 3.0),
+    ],
+
+    "unary_op_probs": [
+        (0.75, 1.0, 2.25, 2.25, 1.25, 1.0, 1.5),
+    ],
+
+    "binary_op_probs": [
+        (2.5, 2.0, 3.0, 1.5),
+        (2.0, 2.5, 3.0, 1.5),
+    ],
+
+    "ternary_op_probs": [
+        (3.0, 1.0, 1.0, 3.0),
+        (2.0, 1.5, 1.5, 3.0),
+    ],
+
+    "observation_type_probs": [
+        (6.0, 2.0, 2.0),
+    ],
 }
 
 SEARCH_SPACE = {

@@ -330,10 +330,10 @@ def evaluate_prior(prior, n_tasks=300, task_kind="classification", min_classes=2
 
 if __name__ == "__main__":
 
-    seed = 59
+    seed = 17
     result = evaluate_prior(
         prior=PRIOR,
-        n_tasks=300,
+        n_tasks=500,
         task_kind="regression",
         mlp_epochs=500,
         topk=3,
@@ -345,7 +345,7 @@ if __name__ == "__main__":
 
     result = evaluate_prior(
         prior=PRIOR,
-        n_tasks=300,
+        n_tasks=500,
         task_kind="classification",
         min_classes=2,
         max_classes=4,
