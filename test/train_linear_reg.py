@@ -77,8 +77,9 @@ model = TabularPFNModel(
     n_heads=4,
     depth=12,
     max_cardinality=10,
-    task_kind="classification",
-    max_classes=4,
+    task_kind="regression",
+    num_y_buckets=100,
+    # max_classes=4,
 )
 
 optimizer = torch.optim.AdamW(
