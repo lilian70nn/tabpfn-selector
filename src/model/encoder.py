@@ -88,13 +88,14 @@ class TabularInputEncoder(nn.Module):
             self.num_y_buckets = int(num_y_buckets)
             self.y_reg_encoder = nn.Embedding(self.num_y_buckets, self.k)
 
+            border_data = torch.load("src/data/scm_task_v2/borders_100.pt", map_location="cpu")
+            borders = border_data["borders"].float()
+
+            assert borders.numel() == self.num_y_buckets + 1
+
             self.register_buffer(
                 "regression_borders",
-                make_regression_borders(
-                    num_bins=self.num_y_buckets,
-                    low=-3.0,
-                    high=3.0,
-                ),
+                borders,
             )
 
 
