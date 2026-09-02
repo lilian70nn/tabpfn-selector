@@ -51,7 +51,7 @@ PRIOR = {
 
 
 train_dataset = SyntheticTaskDataset(
-    num_tasks=1000,
+    num_tasks=100000,
     task_factory=SCMTask,
     task_kind="classification",
     min_classes=2,
@@ -61,7 +61,7 @@ train_dataset = SyntheticTaskDataset(
 )
 
 val_dataset = SyntheticTaskDataset(
-    num_tasks=100,
+    num_tasks=10000,
     task_factory=SCMTask,
     task_kind="classification",
     min_classes=2,
