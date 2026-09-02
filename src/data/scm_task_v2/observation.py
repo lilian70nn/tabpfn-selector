@@ -211,9 +211,6 @@ class ScalarObservationHead:
                 smallest_fraction = float((counts.float()/counts.sum().clamp_min(1)).min().item())
                 retention = self._categorical_retention(scalar, labels)
 
-                if torch.rand((), generator=generator, device=z.device) < 0.5:
-                    permutation = torch.randperm(k, generator=generator, device=z.device)
-                    labels = permutation[labels]
                 return FeatureObservation(
                     values=labels,
                     is_categorical=True,

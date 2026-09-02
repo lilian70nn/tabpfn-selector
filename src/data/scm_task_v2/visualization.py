@@ -69,8 +69,8 @@ def plot_scm_graph(task, save_path="scm_graph.png"):
 
     positions = {}
 
-    x_gap = 4.0
-    y_gap = 1.5
+    x_gap = 2.8
+    y_gap = 1.25
 
     for layer_idx, width in enumerate(scm.widths):
         for node_idx in range(width):
@@ -94,7 +94,7 @@ def plot_scm_graph(task, save_path="scm_graph.png"):
         if int(feature_type[feature_gid_to_column[int(gid)]]) == SCMTask.CATEGORICAL
     ]
 
-    fig, ax = plt.subplots(figsize=(18, 10))
+    fig, ax = plt.subplots(figsize=(11, 9))
 
     nx.draw_networkx_edges(
         graph,
