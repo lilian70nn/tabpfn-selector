@@ -3,7 +3,7 @@ from .utils import make_gen, stratified_classification_split, discretize_latent_
 from .synthetic_task import GenerateTask
 
 
-class MixedLinearTask(GenerateTask):
+class LinearTask(GenerateTask):
     """
     Mixed tabular synthetic prior.
 
