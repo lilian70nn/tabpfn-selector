@@ -1,4 +1,5 @@
 import torch
+from pathlib import Path
 
 from src.data.datasets import SyntheticTaskDataset
 from src.data.scm_task_v2.task import SCMTask
@@ -106,7 +107,7 @@ optimizer = torch.optim.AdamW(
     weight_decay=1e-2,
 )
 
-
+save_path = Path(__file__).resolve().parent
 train_synthetic(
     model=model,
     train_loader=train_loader,
@@ -121,7 +122,7 @@ train_synthetic(
     val_batches=50,
     imp_trace=True,
     trace_num_tables=10,
-    save_path="/content",
+    save_path=save_path / "scm_reg_training_results",
 
 )
  
