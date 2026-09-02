@@ -1,11 +1,14 @@
 import torch
 from sklearn.metrics import (
     accuracy_score,
-    balanced_accuracy_score,
     precision_recall_fscore_support,
     roc_auc_score
 )
 import torch.nn.functional as F
+
+
+def avg(xs):
+    return float(sum(xs) / max(len(xs), 1))
 
 
 @torch.no_grad()
@@ -79,8 +82,6 @@ def classification_metrics(batch, out):
             except ValueError:
                 pass
 
-    def avg(xs):
-        return float(sum(xs) / max(len(xs), 1))
 
     return {
         "accuracy": avg(accs),
@@ -99,12 +100,16 @@ def regression_metrics(batch, out, borders):
     test_mask = out["test_mask"]    # [B, Nte_max]
     y_true = batch.y_test.float()
 
-    borders = borders.to(logits.device)
+    borders = borders.to(device=logits.device, dtype=logits.dtype)
+
     centers = (borders[:-1] + borders[1:]) / 2.0
+
+    # first/last bucket are open-ended because borders are -inf/+inf
+    centers[0] = borders[1] - (borders[2] - borders[1]) / 2.0
+    centers[-1] = borders[-2] + (borders[-2] - borders[-3]) / 2.0
 
     probs = torch.softmax(logits, dim=-1)
     z_pred = (probs * centers[None, None, :]).sum(dim=-1)
-
     y_pred = z_pred * batch.y_std[:, None] + batch.y_mean[:, None]
 
     r2s = []
@@ -112,10 +117,8 @@ def regression_metrics(batch, out, borders):
     rmses = []
 
     B = y_pred.shape[0]
-
     for b in range(B):
         mask_b = test_mask[b]
-
         yt = y_true[b, mask_b]
         yp = y_pred[b, mask_b]
 
@@ -123,7 +126,6 @@ def regression_metrics(batch, out, borders):
             continue
 
         err = yp - yt
-
         mae = err.abs().mean()
         rmse = torch.sqrt((err ** 2).mean())
 
@@ -137,8 +139,6 @@ def regression_metrics(batch, out, borders):
         maes.append(float(mae.detach()))
         rmses.append(float(rmse.detach()))
 
-    def avg(xs):
-        return float(sum(xs) / max(len(xs), 1))
 
     return {
         "r2": avg(r2s),
