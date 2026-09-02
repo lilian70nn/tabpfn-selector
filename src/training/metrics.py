@@ -91,23 +91,33 @@ def classification_metrics(batch, out):
         "auc": avg(roc_aucs),
     }
 
+
+
 @torch.no_grad()
-def regression_metrics(batch, out):
-    pred = out["logits"].squeeze(-1)
-    test_mask = out["test_mask"]
+def regression_metrics(batch, out, borders):
+    logits = out["logits"]          # [B, Nte_max, K]
+    test_mask = out["test_mask"]    # [B, Nte_max]
     y_true = batch.y_test.float()
+
+    borders = borders.to(logits.device)
+    centers = (borders[:-1] + borders[1:]) / 2.0
+
+    probs = torch.softmax(logits, dim=-1)
+    z_pred = (probs * centers[None, None, :]).sum(dim=-1)
+
+    y_pred = z_pred * batch.y_std[:, None] + batch.y_mean[:, None]
 
     r2s = []
     maes = []
     rmses = []
 
-    B = pred.shape[0]
+    B = y_pred.shape[0]
 
     for b in range(B):
         mask_b = test_mask[b]
 
         yt = y_true[b, mask_b]
-        yp = pred[b, mask_b]
+        yp = y_pred[b, mask_b]
 
         if yt.numel() == 0:
             continue
@@ -135,6 +145,8 @@ def regression_metrics(batch, out):
         "mae": avg(maes),
         "rmse": avg(rmses),
     }
+
+
 
 @torch.no_grad()
 def importance_metrics(batch, out):

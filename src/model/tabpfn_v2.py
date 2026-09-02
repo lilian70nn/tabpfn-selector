@@ -103,29 +103,16 @@ class TabularPFNModel(nn.Module):
             target_ok = target < batch.n_classes[:, None]
             assert bool(target_ok[test_mask].all())
 
-            return F.cross_entropy(
-                logits[test_mask],
-                target[test_mask],
-            )
+            return F.cross_entropy(logits[test_mask], target[test_mask])
 
         else:
             assert batch.y_mean is not None
             assert batch.y_std is not None
 
-            y_z = (
-                batch.y_test.float()
-                - batch.y_mean[:, None]
-            ) / batch.y_std[:, None]
+            y_z = (batch.y_test.float() - batch.y_mean[:, None]) / batch.y_std[:, None]
+            target_bucket = bucketize_y(y_z, self.encoder.regression_borders)
 
-            target_bucket = bucketize_y(
-                y_z,
-                self.encoder.regression_borders,
-            )
-
-            return F.cross_entropy(
-                logits[test_mask],
-                target_bucket[test_mask],
-            )
+            return F.cross_entropy(logits[test_mask], target_bucket[test_mask])
 
     def importance_loss(self, batch, out):
 
@@ -140,21 +127,14 @@ class TabularPFNModel(nn.Module):
 
         target = batch.feature_importance.float()  # [B, d_max]
 
-        return F.mse_loss(
-            pred[feat_mask],
-            target[feat_mask],
-        )
+        return F.mse_loss(pred[feat_mask], target[feat_mask])
 
 
     def total_loss(self, batch, out, importance_weight=None):
+        
         pred_loss = self.prediction_loss(batch, out)
-
         loss = pred_loss
-
-        result = {
-            "loss": loss,
-            "pred_loss": pred_loss,
-        }
+        result = {"loss": loss, "pred_loss": pred_loss}
 
         if bool(batch.use_selector):
             assert importance_weight is not None

@@ -55,7 +55,7 @@ def evaluate_synthetic(
         if model.task_kind == "classification":
             metrics = classification_metrics(batch, out)
         else:
-            metrics = regression_metrics(batch, out)
+            metrics = regression_metrics(batch, out, model.encoder.regression_borders)
 
         if loader_use_selector:
             metrics.update(importance_metrics(batch, out))
