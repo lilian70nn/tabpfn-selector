@@ -1,38 +1,68 @@
 import torch
 from pathlib import Path
+
 from ..datasets import SyntheticTaskDataset
 from .task import SCMTask
-from .priors import PRIOR
+from .priors import SCM_PRIOR, LINEAR_PRIOR
+
+from ..linear_task import LinearTask
+
+
 
 NUM_TASKS = 5000
 NUM_BUCKETS = 100
 BASE_SEED = 17
-OUT_PATH = Path(__file__).resolve().parent / "borders_100.pt"
 
-dataset = SyntheticTaskDataset(
-    num_tasks=NUM_TASKS,
+SCM_RATIO = 0.5
+LINEAR_RATIO = 0.5
+
+OUT_PATH = Path(__file__).resolve().parent.parent / "borders_100.pt"
+
+
+num_scm_tasks = int(NUM_TASKS * SCM_RATIO)
+num_linear_tasks = NUM_TASKS - num_scm_tasks
+
+
+scm_dataset = SyntheticTaskDataset(
+    num_tasks=num_scm_tasks,
     task_factory=SCMTask,
     task_kind="regression",
     base_seed=BASE_SEED,
-    task_kwargs=PRIOR
+    task_kwargs=SCM_PRIOR,
 )
+
+linear_dataset = SyntheticTaskDataset(
+    num_tasks=num_linear_tasks,
+    task_factory=LinearTask,
+    task_kind="regression",
+    base_seed=BASE_SEED + num_scm_tasks,
+    task_kwargs=LINEAR_PRIOR,
+)
+
 
 all_z = []
 
-for i in range(len(dataset)):
-    task = dataset[i]
 
-    if task is None:
-        continue
+def collect_standardized_targets(dataset):
+    for i in range(len(dataset)):
+        task = dataset[i]
 
-    y = task.y_train.float()
+        if task is None:
+            continue
 
-    y_mean = y.mean()
-    y_std = y.std(unbiased=False).clamp_min(1e-6)
+        y = task.y_train.float()
 
-    z = (y - y_mean) / y_std
+        y_mean = y.mean()
+        y_std = y.std(unbiased=False).clamp_min(1e-6)
 
-    all_z.append(z.cpu())
+        z = (y - y_mean) / y_std
+
+        all_z.append(z.cpu())
+
+
+collect_standardized_targets(scm_dataset)
+collect_standardized_targets(linear_dataset)
+
 
 all_z = torch.cat(all_z)
 
@@ -42,11 +72,14 @@ borders = torch.quantile(all_z, quantiles)
 borders[0] = -float("inf")
 borders[-1] = float("inf")
 
+
 torch.save(
     {
         "borders": borders,
         "num_buckets": NUM_BUCKETS,
         "num_tasks": NUM_TASKS,
+        "num_scm_tasks": num_scm_tasks,
+        "num_linear_tasks": num_linear_tasks,
         "num_samples": int(all_z.numel()),
     },
     OUT_PATH,
@@ -55,4 +88,6 @@ torch.save(
 print("saved:", OUT_PATH)
 print("borders shape:", borders.shape)
 print("num samples:", all_z.numel())
+print("num scm tasks:", num_scm_tasks)
+print("num linear tasks:", num_linear_tasks)
 print(borders)

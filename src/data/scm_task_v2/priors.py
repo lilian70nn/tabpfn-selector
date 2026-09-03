@@ -69,7 +69,7 @@ def sample_connection_probs(bounds, generator, device, expected_len):
     return tuple(values)
 
 
-PRIOR = {
+SCM_PRIOR = {
     "n_min": 400,
     "n_max": 512,
     "d_min": 8,
@@ -99,5 +99,19 @@ PRIOR = {
     "min_samples_per_category": 8,
     "min_component_weight": 0.05,
     "observation_noise_scale": 0.03,
+    "device":torch.device("cpu")
+}
+
+LINEAR_PRIOR = {
+    "n_min": 400,
+    "n_max": 512,
+    "d_min": 8,
+    "d_max": 16,
+    "test_frac": 0.15,
+    "p_categorical": 0.3,
+    "max_cardinality": 10,
+    "p_active": 0.65,
+    "p_missing": 0.05,
+    "noise_level": 0.1,
     "device":torch.device("cpu")
 }
