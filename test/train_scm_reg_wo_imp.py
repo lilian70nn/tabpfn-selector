@@ -120,7 +120,7 @@ train_synthetic(
     val_loader=val_loader,
     val_every=300,
     val_batches=50,
-    imp_trace=True,
+    imp_trace=False,
     trace_num_tables=10,
     save_path=save_path / "scm_reg_wo_imp_training_results",
 
