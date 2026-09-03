@@ -4,7 +4,7 @@ import pandas as pd
 from collections import Counter
 from tqdm import tqdm
 from .task import SCMTask
-from .priors import PRIOR
+from ..config import SCM_PRIOR
 
 
 def _program_stats(node, depth=1):
@@ -215,7 +215,7 @@ def analyze_programs(prior, n_tasks=1000, base_seed=0, n_examples=30):
 
 
 if __name__ == "__main__":
-    raw, summary, parent_depth, operators, depth_distribution, examples = analyze_programs(PRIOR, n_tasks=1000, base_seed=0, n_examples=30)
+    raw, summary, parent_depth, operators, depth_distribution, examples = analyze_programs(SCM_PRIOR, n_tasks=1000, base_seed=0, n_examples=30)
 
     print("\n=== Overall summary ===")
     print(summary.to_string(index=False))

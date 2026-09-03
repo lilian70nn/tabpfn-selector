@@ -1,19 +1,20 @@
 import torch
+import numpy as np
 import pandas as pd
 import openml
+
+
 from sklearn.model_selection import train_test_split
-
-from .collate import TaskBatch
-from .collate import build_cell_mask
-
-import numpy as np
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.inspection import permutation_importance
 from sklearn.feature_selection import mutual_info_classif
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+
+from .collate import TaskBatch
+from .collate import build_cell_mask
 
 
 TEST_FRAC = 0.1
@@ -33,15 +34,8 @@ def _encode_cat_from_train(s_train, s_test):
             return float("nan")
         return float(mapping.get(str(v), float("nan")))
 
-    x_train = torch.tensor(
-        [enc(v) for v in s_train],
-        dtype=torch.float32,
-    )
-
-    x_test = torch.tensor(
-        [enc(v) for v in s_test],
-        dtype=torch.float32,
-    )
+    x_train = torch.tensor([enc(v) for v in s_train], dtype=torch.float32)
+    x_test = torch.tensor([enc(v) for v in s_test], dtype=torch.float32,)
 
     return x_train, x_test, K
 
@@ -56,13 +50,18 @@ def _encode_cont_train_test(s_train, s_test):
     )
 
 
-def collate_openml_task(items,use_selector=True,
-                        classification=True,
-                        shuffle_features=True,
-                        feature_seed=0,
-                        compute_reference_importance=True,
-                        reference_seed=0,
-                        selected_features=None,):
+def collate_openml_task(
+        items,
+        use_selector=True,
+        classification=True,
+        shuffle_features=True,
+        feature_seed=0,
+        compute_reference_importance=True,
+        reference_seed=0,
+        selected_features=None
+):
+    
+
     """
     DataLoader input:
         list(OPENML_DATASETS.items())
@@ -77,9 +76,7 @@ def collate_openml_task(items,use_selector=True,
     assert len(items) == 1, "Use DataLoader(..., batch_size=1) for OpenML eval."
 
     name, openml_id = items[0]
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     dataset = openml.datasets.get_dataset(int(openml_id))
 
     X_df, y_raw, x_categorical_indicator, feature_names = dataset.get_data(
@@ -89,10 +86,7 @@ def collate_openml_task(items,use_selector=True,
     X_df = X_df.reset_index(drop=True)
     y_raw = pd.Series(y_raw).reset_index(drop=True)
 
-    assert len(x_categorical_indicator) == X_df.shape[1], (
-        len(x_categorical_indicator),
-        X_df.shape[1],
-    )
+    assert len(x_categorical_indicator) == X_df.shape[1], (len(x_categorical_indicator), X_df.shape[1])
 
     keep = ~y_raw.isna()
     X_df = X_df.loc[keep].reset_index(drop=True)
@@ -106,17 +100,8 @@ def collate_openml_task(items,use_selector=True,
 
     if classification or isinstance(y_raw.dtype, pd.CategoricalDtype) or y_raw.dtype == "object" or y_raw.dtype.name == "category":
         y_cat = y_raw.astype("category")
-        n_classes = torch.tensor(
-            [len(y_cat.cat.categories)],
-            dtype=torch.long,
-            device=device,
-
-        )
-        y_ids = torch.tensor(
-            y_cat.cat.codes.to_numpy(),
-            dtype=torch.long,
-            device=device,
-        )
+        n_classes = torch.tensor([len(y_cat.cat.categories)], dtype=torch.long, device=device)
+        y_ids = torch.tensor(y_cat.cat.codes.to_numpy(), dtype=torch.long, device=device)
         stratify = y_ids.cpu().numpy()
 
         y_mean = None
@@ -126,12 +111,7 @@ def collate_openml_task(items,use_selector=True,
         n_classes = None
         stratify = None
 
-        y_ids = torch.tensor(
-            pd.to_numeric(y_raw).astype("float32").to_numpy(),
-            dtype=torch.float32,
-            device=device,
-        )
-
+        y_ids = torch.tensor(pd.to_numeric(y_raw).astype("float32").to_numpy(), dtype=torch.float32, device=device)
         y_mean = torch.mean(y_ids).view(1)
         y_std = torch.std(y_ids, unbiased=False).clamp_min(1e-6).view(1)
 
@@ -188,11 +168,7 @@ def collate_openml_task(items,use_selector=True,
     cardinality = torch.tensor(cardinality, dtype=torch.long, device=device)
 
     if selected_features is not None:
-        selected_features = torch.as_tensor(
-            selected_features,
-            dtype=torch.long,
-            device=device,
-        )
+        selected_features = torch.as_tensor(selected_features, dtype=torch.long, device=device)
 
         X_train = X_train[:, selected_features]
         X_test = X_test[:, selected_features]

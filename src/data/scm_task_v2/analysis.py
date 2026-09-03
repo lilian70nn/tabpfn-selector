@@ -12,7 +12,7 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import balanced_accuracy_score, r2_score
 from .task import SCMTask
-from .priors import PRIOR
+from ..config import SCM_PRIOR
 
 
 def _to_numpy(x):
@@ -332,7 +332,7 @@ if __name__ == "__main__":
 
     seed = 17
     result = evaluate_prior(
-        prior=PRIOR,
+        prior=SCM_PRIOR,
         n_tasks=500,
         task_kind="regression",
         mlp_epochs=500,
@@ -344,7 +344,7 @@ if __name__ == "__main__":
     result.to_csv("analysis1.csv", index=False)
 
     result = evaluate_prior(
-        prior=PRIOR,
+        prior=SCM_PRIOR,
         n_tasks=500,
         task_kind="classification",
         min_classes=2,

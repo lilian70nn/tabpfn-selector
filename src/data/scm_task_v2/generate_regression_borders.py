@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ..datasets import SyntheticTaskDataset
 from .task import SCMTask
-from .priors import SCM_PRIOR, LINEAR_PRIOR
+from ..config import SCM_PRIOR, LINEAR_PRIOR
 
 from ..linear_task import LinearTask
 
