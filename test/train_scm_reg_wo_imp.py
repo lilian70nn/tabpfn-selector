@@ -52,7 +52,7 @@ PRIOR = {
 
 
 train_dataset = SyntheticTaskDataset(
-    num_tasks=100000,
+    num_tasks=1000,
     task_factory=SCMTask,
     task_kind="regression",
     # min_classes=2,
@@ -61,7 +61,7 @@ train_dataset = SyntheticTaskDataset(
     task_kwargs=PRIOR)
 
 val_dataset = SyntheticTaskDataset(
-    num_tasks=10000,
+    num_tasks=100,
     task_factory=SCMTask,
     task_kind="regression",
     # min_classes=2,
@@ -78,7 +78,7 @@ train_loader = DataLoader(
     num_workers=2,
     pin_memory=True,
     persistent_workers=True,
-    collate_fn=partial(collate_tasks, use_selector=True),
+    collate_fn=partial(collate_tasks, use_selector=False),
 )
 
 val_loader = DataLoader(
@@ -87,7 +87,7 @@ val_loader = DataLoader(
     shuffle=False,
     num_workers=0,
     pin_memory=True,
-    collate_fn=partial(collate_tasks, use_selector=True),
+    collate_fn=partial(collate_tasks, use_selector=False),
 )
 
 
@@ -114,7 +114,7 @@ train_synthetic(
     optimizer=optimizer,
     device=device,
     steps=15000,
-    importance_weight=50,
+    importance_weight=None,
     grad_clip=1.0,
     log_every=50,
     val_loader=val_loader,
@@ -122,7 +122,7 @@ train_synthetic(
     val_batches=50,
     imp_trace=True,
     trace_num_tables=10,
-    save_path=save_path / "scm_reg_w_imp_training_results",
+    save_path=save_path / "scm_reg_wo_imp_training_results",
 
 )
  

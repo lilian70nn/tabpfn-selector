@@ -52,7 +52,7 @@ PRIOR = {
 
 
 train_dataset = SyntheticTaskDataset(
-    num_tasks=100000,
+    num_tasks=1000,
     task_factory=SCMTask,
     task_kind="classification",
     min_classes=2,
@@ -62,7 +62,7 @@ train_dataset = SyntheticTaskDataset(
 )
 
 val_dataset = SyntheticTaskDataset(
-    num_tasks=10000,
+    num_tasks=100,
     task_factory=SCMTask,
     task_kind="classification",
     min_classes=2,
@@ -124,7 +124,7 @@ train_synthetic(
     val_batches=50,
     imp_trace=True,
     trace_num_tables=10,
-    save_path=save_path / "scm_cls_training_results",
+    save_path=save_path / "scm_cls_wo_imp_training_results",
 
 )
  

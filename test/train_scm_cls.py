@@ -124,7 +124,7 @@ train_synthetic(
     val_batches=50,
     imp_trace=True,
     trace_num_tables=10,
-    save_path=save_path / "scm_cls_training_results",
+    save_path=save_path / "scm_cls_w_imp_training_results",
 
 )
  
