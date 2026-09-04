@@ -81,7 +81,7 @@ val_dataset = SyntheticTaskDataset(
     min_classes=2,
     max_classes=4,
     base_seed=100000,
-    task_kwargs=SCM_PRIOR,
+    task_kwargs=LINEAR_PRIOR,
 )
 
 
@@ -144,4 +144,3 @@ train_synthetic(
 
  
 
- 
