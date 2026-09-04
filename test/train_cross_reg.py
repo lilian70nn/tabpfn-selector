@@ -68,9 +68,7 @@ LINEAR_PRIOR = {
 train_dataset = SyntheticTaskDataset(
     num_tasks=100000,
     task_factory=SCMTask,
-    task_kind="classification",
-    min_classes=2,
-    max_classes=4,
+    task_kind="regression",
     base_seed=0,
     task_kwargs=SCM_PRIOR
 )
@@ -78,9 +76,7 @@ train_dataset = SyntheticTaskDataset(
 val_dataset = SyntheticTaskDataset(
     num_tasks=10000,
     task_factory=LinearTask,
-    task_kind="classification",
-    min_classes=2,
-    max_classes=4,
+    task_kind="regression",
     base_seed=100000,
     task_kwargs=LINEAR_PRIOR,
 )
@@ -112,8 +108,8 @@ model = TabularPFNModel(
     n_heads=4,
     depth=16,
     max_cardinality=10,
-    task_kind="classification",
-    max_classes=4,
+    task_kind="regression",
+    num_y_buckets=100,
 )
 
 optimizer = torch.optim.AdamW(
@@ -138,7 +134,7 @@ train_synthetic(
     val_batches=50,
     imp_trace=True,
     trace_num_tables=10,
-    save_path=save_path / "cross_cls_1_w_imp_training_results",
+    save_path=save_path / "cross_reg_1_w_imp_training_results",
 
 )
 
@@ -148,9 +144,7 @@ train_synthetic(
 train_dataset = SyntheticTaskDataset(
     num_tasks=100000,
     task_factory=LinearTask,
-    task_kind="classification",
-    min_classes=2,
-    max_classes=4,
+    task_kind="regression",
     base_seed=0,
     task_kwargs=LINEAR_PRIOR
 )
@@ -158,9 +152,7 @@ train_dataset = SyntheticTaskDataset(
 val_dataset = SyntheticTaskDataset(
     num_tasks=10000,
     task_factory=SCMTask,
-    task_kind="classification",
-    min_classes=2,
-    max_classes=4,
+    task_kind="regression",
     base_seed=100000,
     task_kwargs=SCM_PRIOR,
 )
@@ -192,8 +184,8 @@ model = TabularPFNModel(
     n_heads=4,
     depth=16,
     max_cardinality=10,
-    task_kind="classification",
-    max_classes=4,
+    task_kind="regression",
+    num_y_buckets=100,
 )
 
 optimizer = torch.optim.AdamW(
@@ -218,7 +210,7 @@ train_synthetic(
     val_batches=50,
     imp_trace=True,
     trace_num_tables=10,
-    save_path=save_path / "cross_cls_2_w_imp_training_results",
+    save_path=save_path / "cross_reg_2_w_imp_training_results",
 
 )
 
