@@ -40,7 +40,23 @@ class Feedforward(nn.Module):
 
 
 
-class TransformerBlock(nn.Module):
+class TransformerBlockV1(nn.Module):
+    def __init__(self, k, m, n_heads):
+        super().__init__()
+        self.fAtt = ResidualNorm(k, AxisAttention(k, n_heads))
+        self.forw = ResidualNorm(k, Feedforward(k, m))
+
+    def forward(self, data, cell_mask, meta):
+        data = self.fAtt(data, cell_mask)
+        data = data * cell_mask[:, :, :, None].to(data.dtype)
+
+        data = self.forw(data)
+        data = data * cell_mask[:, :, :, None].to(data.dtype)
+
+        return data
+
+
+class TransformerBlockV2(nn.Module):
     def __init__(self, k, m, n_heads):
         super().__init__()
         self.fAtt = ResidualNorm(k, AxisAttention(k, n_heads))
@@ -70,11 +86,18 @@ class TransformerBlock(nn.Module):
 
 
 class TabularBackbone(nn.Module):
-    def __init__(self, k, m, n_heads, depth):
+    def __init__(self, k, m, n_heads, depth, version="v2"):
         super().__init__()
 
+        if version =="v1":
+            block_cls = TransformerBlockV1
+        elif version == "v2":
+            block_cls = TransformerBlockV2
+        else:
+            raise ValueError(f"Unknown backbone version: {version}")
+
         self.blocks = nn.ModuleList([
-            TransformerBlock(k=k, m=m, n_heads=n_heads)
+            block_cls(k=k, m=m, n_heads=n_heads)
             for _ in range(depth)
         ])
 

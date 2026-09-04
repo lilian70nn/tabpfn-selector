@@ -3,7 +3,7 @@ import torch
 from src.data.datasets import SyntheticTaskDataset
 from src.data.linear_task import LinearTask
 from src.data.collate import collate_tasks
-from src.model.tabpfn_v2 import TabularPFNModel
+from model.tabpfn import TabularPFNModel
 from src.training.train import train_synthetic
 from torch.utils.data import DataLoader
 

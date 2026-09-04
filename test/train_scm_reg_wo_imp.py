@@ -4,7 +4,7 @@ from pathlib import Path
 from src.data.datasets import SyntheticTaskDataset
 from src.data.scm_task_v2.task import SCMTask
 from src.data.collate import collate_tasks
-from src.model.tabpfn_v2 import TabularPFNModel
+from model.tabpfn import TabularPFNModel
 from src.training.train import train_synthetic
 from torch.utils.data import DataLoader
 

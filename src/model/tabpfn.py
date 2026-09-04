@@ -16,6 +16,7 @@ class TabularPFNModel(nn.Module):
         task_kind: str,
         max_classes: int | None = None,
         num_y_buckets: int | None = None,
+        backbone_version="v2"
     ):
         super().__init__()
 
@@ -35,6 +36,7 @@ class TabularPFNModel(nn.Module):
             m=m,
             n_heads=n_heads,
             depth=depth,
+            version=backbone_version,
         )
 
         self.importance_head = nn.Sequential(
