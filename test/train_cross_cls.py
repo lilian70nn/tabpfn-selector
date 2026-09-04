@@ -3,6 +3,7 @@ from pathlib import Path
 
 from src.data.datasets import SyntheticTaskDataset
 from src.data.scm_task_v2.task import SCMTask
+from src.data.linear_task import LinearTask
 from src.data.collate import collate_tasks
 from src.model.tabpfn import TabularPFNModel
 from src.training.train import train_synthetic
@@ -76,7 +77,7 @@ train_dataset = SyntheticTaskDataset(
 
 val_dataset = SyntheticTaskDataset(
     num_tasks=10000,
-    task_factory=SCMTask,
+    task_factory=LinearTask,
     task_kind="classification",
     min_classes=2,
     max_classes=4,
