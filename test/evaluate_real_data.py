@@ -7,7 +7,7 @@ from scipy.stats import spearmanr
 from src.model.tabpfn_v2 import TabularPFNModel
 from src.data.collate_real_data import collate_openml_task
 from src.training.metrics import classification_metrics, regression_metrics
-from .config import CLS_DATASETS, REG_DATASETS
+from test.config import CLS_DATASETS, REG_DATASETS
 
 
 def evaluate_batch(model, batch, out, task_kind):
