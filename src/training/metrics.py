@@ -148,32 +148,68 @@ def regression_metrics(batch, out, borders):
 
 
 
+# @torch.no_grad()
+# def importance_metrics(batch, out):
+
+#     assert bool(batch.use_selector)
+#     assert out["importance_logits"] is not None
+
+#     pred = torch.sigmoid(out["importance_logits"])  # [B, d_max]
+#     target = batch.feature_importance.float()
+
+#     feat_idx = torch.arange(batch.d_max, device=pred.device)[None, :]
+#     feat_mask = feat_idx < batch.d_emb[:, None]
+
+#     p = pred[feat_mask]
+#     t = target[feat_mask]
+
+#     mse = F.mse_loss(p, t)
+
+#     p_center = p - p.mean()
+#     t_center = t - t.mean()
+
+#     pearson = (
+#         (p_center * t_center).mean()
+#         / (p_center.std(unbiased=False) * t_center.std(unbiased=False)).clamp_min(1e-12)
+#     )
+
+#     return {
+#         "importance_mse": float(mse.detach()),
+#         "importance_pearson": float(pearson.detach()),
+#     }
+
 @torch.no_grad()
 def importance_metrics(batch, out):
-
     assert bool(batch.use_selector)
     assert out["importance_logits"] is not None
 
-    pred = torch.sigmoid(out["importance_logits"])  # [B, d_max]
+    logits = out["importance_logits"]  # [B, d_max]
     target = batch.feature_importance.float()
 
-    feat_idx = torch.arange(batch.d_max, device=pred.device)[None, :]
+    feat_idx = torch.arange(batch.d_max, device=logits.device)[None, :]
     feat_mask = feat_idx < batch.d_emb[:, None]
 
-    p = pred[feat_mask]
-    t = target[feat_mask]
+    masked_logits = logits.masked_fill(~feat_mask, float("-inf"))
+    pred = torch.softmax(masked_logits, dim=-1)
 
-    mse = F.mse_loss(p, t)
+    mses, pearsons = [], []
 
-    p_center = p - p.mean()
-    t_center = t - t.mean()
+    for b in range(logits.shape[0]):
+        mask_b = feat_mask[b]
+        p = pred[b, mask_b]
+        t = target[b, mask_b]
 
-    pearson = (
-        (p_center * t_center).mean()
-        / (p_center.std(unbiased=False) * t_center.std(unbiased=False)).clamp_min(1e-12)
-    )
+        mses.append(F.mse_loss(p, t))
+
+        p_center = p - p.mean()
+        t_center = t - t.mean()
+        denom = p_center.std(unbiased=False) * t_center.std(unbiased=False)
+
+        if denom > 1e-12:
+            pearson = (p_center * t_center).mean() / denom
+            pearsons.append(pearson)
 
     return {
-        "importance_mse": float(mse.detach()),
-        "importance_pearson": float(pearson.detach()),
+        "importance_mse": float(torch.stack(mses).mean().detach()) if mses else 0.0,
+        "importance_pearson": float(torch.stack(pearsons).mean().detach()) if pearsons else 0.0,
     }

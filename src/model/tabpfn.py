@@ -116,16 +116,31 @@ class TabularPFNModel(nn.Module):
 
             return F.cross_entropy(logits[test_mask], target_bucket[test_mask])
 
-    def importance_loss(self, batch, out):
+    # def importance_loss(self, batch, out):
 
+    #     assert bool(batch.use_selector)
+    #     assert out["importance_logits"] is not None
+
+    #     logits = out["importance_logits"]  # [B, d_max]
+    #     pred = torch.sigmoid(logits)
+
+    #     feat_idx = torch.arange(batch.d_max, device=pred.device)[None, :]
+    #     feat_mask = feat_idx < batch.d_emb[:, None]
+
+    #     target = batch.feature_importance.float()  # [B, d_max]
+
+    #     return F.mse_loss(pred[feat_mask], target[feat_mask])
+
+    def importance_loss(self, batch, out):
         assert bool(batch.use_selector)
         assert out["importance_logits"] is not None
 
         logits = out["importance_logits"]  # [B, d_max]
-        pred = torch.sigmoid(logits)
-
-        feat_idx = torch.arange(batch.d_max, device=pred.device)[None, :]
+        feat_idx = torch.arange(batch.d_max, device=logits.device)[None, :]
         feat_mask = feat_idx < batch.d_emb[:, None]
+
+        masked_logits = logits.masked_fill(~feat_mask, float("-inf"))
+        pred = torch.softmax(masked_logits, dim=-1)
 
         target = batch.feature_importance.float()  # [B, d_max]
 

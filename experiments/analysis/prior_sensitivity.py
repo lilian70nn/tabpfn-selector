@@ -1,6 +1,6 @@
 import pandas as pd
 import copy
-from src.data.config import SCM_PRIOR
+from experiments.config import SCM_PRIOR
 from src.data.scm_task_v2.analysis import evaluate_prior
 
 SEARCH_PARAMS = {

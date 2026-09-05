@@ -1,13 +1,14 @@
 import torch
 import numpy as np
 import pandas as pd
+from pathlib import Path
 
 from scipy.stats import spearmanr
 
 from src.model.tabpfn import TabularPFNModel
 from src.data.collate_real_data import collate_openml_task
 from src.training.metrics import classification_metrics, regression_metrics
-from test.config import CLS_DATASETS, REG_DATASETS
+from experiments.config import CLS_DATASETS, REG_DATASETS
 
 
 def evaluate_batch(model, batch, out, task_kind):
@@ -438,10 +439,13 @@ def main(model, model_path ,task_kind="classification", datasets=None):
 
     run_name = "real_eval_10seeds"
 
-    metrics_path = f"{run_name}_metrics_each_seed.csv"
-    importance_path = f"{run_name}_importance_each_seed.csv"
-    summary_path = f"{run_name}_summary.csv"
-    intervention_path = f"{run_name}_topk_intervention.csv"
+    save_dir = Path(__file__).resolve().parents[2] / "results" / "evaluation"
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    metrics_path = save_dir / f"{run_name}_metrics_each_seed.csv"
+    importance_path = save_dir / f"{run_name}_importance_each_seed.csv"
+    summary_path = save_dir / f"{run_name}_summary.csv"
+    intervention_path = save_dir / f"{run_name}_topk_intervention.csv"
 
     metrics_df.to_csv(metrics_path, index=False)
     imp_df.to_csv(importance_path, index=False)

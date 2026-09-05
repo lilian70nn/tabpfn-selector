@@ -1,10 +1,12 @@
 import torch
+from pathlib import Path
 
 from src.data.datasets import SyntheticTaskDataset
-from src.data.linear_task import LinearTask
+from src.data.scm_task_v2.task import SCMTask
 from src.data.collate import collate_tasks
 from src.model.tabpfn import TabularPFNModel
 from src.training.train import train_synthetic
+from experiments.config import SCM_PRIOR
 from torch.utils.data import DataLoader
 
 
@@ -15,39 +17,26 @@ torch.backends.cudnn.allow_tf32 = True
 from functools import partial
 
 
-PRIOR = {
-    "n_min": 400,
-    "n_max": 512,
-    "d_min": 8,
-    "d_max": 16,
-    "test_frac": 0.15,
-    "p_categorical": 0.3,
-    "max_cardinality": 10,
-    "p_active": 0.65,
-    "p_missing": 0.05,
-    "noise_level": 0.1,
-    "device":torch.device("cpu")
-}
 
 
 train_dataset = SyntheticTaskDataset(
-    num_tasks=5000,
-    task_factory=LinearTask,
-    task_kind="regression",
-    # min_classes=2,
-    # max_classes=4,
+    num_tasks=100000,
+    task_factory=SCMTask,
+    task_kind="classification",
+    min_classes=2,
+    max_classes=4,
     base_seed=0,
-    task_kwargs=PRIOR
+    task_kwargs=SCM_PRIOR
 )
 
 val_dataset = SyntheticTaskDataset(
-    num_tasks=500,
-    task_factory=LinearTask,
-    task_kind="regression",
-    # min_classes=2,
-    # max_classes=4,
+    num_tasks=10000,
+    task_factory=SCMTask,
+    task_kind="classification",
+    min_classes=2,
+    max_classes=4,
     base_seed=100000,
-    task_kwargs=PRIOR,
+    task_kwargs=SCM_PRIOR,
 )
 
 
@@ -75,11 +64,11 @@ model = TabularPFNModel(
     k=64,
     m=120,
     n_heads=4,
-    depth=12,
+    depth=16,
     max_cardinality=10,
-    task_kind="regression",
-    num_y_buckets=100,
-    # max_classes=4,
+    task_kind="classification",
+    max_classes=4,
+    backbone_version="v1",
 )
 
 optimizer = torch.optim.AdamW(
@@ -88,13 +77,14 @@ optimizer = torch.optim.AdamW(
     weight_decay=1e-2,
 )
 
+save_path = Path(__file__).resolve().parents[2] / "results" / "training"
 
 train_synthetic(
     model=model,
     train_loader=train_loader,
     optimizer=optimizer,
     device=device,
-    steps=1500,
+    steps=15000,
     importance_weight=50,
     grad_clip=1.0,
     log_every=50,
@@ -103,7 +93,7 @@ train_synthetic(
     val_batches=50,
     imp_trace=True,
     trace_num_tables=10,
-    save_path="/content",
+    save_path=save_path / "v1_scm_cls_w_imp_training_results",
 
 )
  

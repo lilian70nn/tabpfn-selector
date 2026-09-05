@@ -99,7 +99,11 @@ def train_synthetic(
         with torch.no_grad():
             trace_out = model(trace_batch, return_selector_layers=True)
             trace_logits_layers = trace_out["importance_logits_layers"]
-            trace_scores_layers = torch.sigmoid(trace_logits_layers)
+            #trace_scores_layers = torch.sigmoid(trace_logits_layers)
+
+            feat_idx = torch.arange(trace_batch.d_max, device=trace_logits_layers.device)[None, None, :]
+            feat_mask = feat_idx < trace_batch.d_emb[:, None, None]
+            trace_scores_layers = torch.softmax(trace_logits_layers.masked_fill(~feat_mask, float("-inf")), dim=-1)
 
         imp_score_layers_list = trace_scores_layers.detach().float().cpu().tolist()
 
@@ -204,7 +208,11 @@ def train_synthetic(
                 with torch.no_grad():
                     trace_out = model(trace_batch, return_selector_layers=True)
                     trace_logits_layers = trace_out["importance_logits_layers"]
-                    trace_scores_layers = torch.sigmoid(trace_logits_layers)
+                    #trace_scores_layers = torch.sigmoid(trace_logits_layers)
+
+                    feat_idx = torch.arange(trace_batch.d_max, device=trace_logits_layers.device)[None, None, :]
+                    feat_mask = feat_idx < trace_batch.d_emb[:, None, None]
+                    trace_scores_layers = torch.softmax(trace_logits_layers.masked_fill(~feat_mask, float("-inf")), dim=-1)
 
                 imp_score_layers_list = trace_scores_layers.detach().float().cpu().tolist()
 
