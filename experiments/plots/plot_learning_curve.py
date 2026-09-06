@@ -32,7 +32,7 @@ def main(w_imp_path, wo_imp_path, save_path=None):
     plt.tight_layout()
 
     if save_path is None:
-        save_path = Path("val_pred_loss_comparison.png")
+        save_path = Path("reg_val_pred_loss_comparison.png")
     plt.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close()
     print(f"saved: {save_path}")
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     # parser.add_argument("wo_imp", type=Path)
     # args = parser.parse_args()
 
-    path1 = "results/training/scm_cls_w_imp_training_results/train_log.txt"
-    path2 = "results/training/scm_cls_wo_imp_training_results/train_log.txt"
-    save_path = "results/figures/val_pred_loss_comparison.png"
+    path1 = "results/training/scm_reg_w_imp_training_results/train_log.txt"
+    path2 = "results/training/scm_reg_wo_imp_training_results/train_log.txt"
+    save_path = "results/figures/reg_val_pred_loss_comparison.png"
     main(path1, path2, save_path)

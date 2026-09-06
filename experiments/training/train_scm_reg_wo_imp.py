@@ -19,14 +19,14 @@ from functools import partial
 
 
 train_dataset = SyntheticTaskDataset(
-    num_tasks=1000,
+    num_tasks=100000,
     task_factory=SCMTask,
     task_kind="regression",
     base_seed=0,
     task_kwargs=SCM_PRIOR)
 
 val_dataset = SyntheticTaskDataset(
-    num_tasks=100,
+    num_tasks=10000,
     task_factory=SCMTask,
     task_kind="regression",
     base_seed=100000,
