@@ -472,6 +472,6 @@ if __name__ == "__main__":
         max_classes=4,
     )
 
-    model_path = "best_ckpt-12.pt"
+    model_path = "best_ckpt.pt"
 
     main(model=model, model_path=model_path, task_kind="classification", datasets=CLS_DATASETS)
