@@ -30,8 +30,9 @@ def plot_importance_trajectory(input_path, save_path):
     if len(available_tables) < 2:
         raise ValueError("Need at least two tables in importance trace.")
 
-    rng = random.Random(0)
-    selected_tables = rng.sample(available_tables, 2)
+    # rng = random.Random(0)
+    # selected_tables = rng.sample(available_tables, 2)
+    selected_tables = [6, 7]
 
     for table in selected_tables:
         final_layer = max(layer for _, layer, _ in records[table])

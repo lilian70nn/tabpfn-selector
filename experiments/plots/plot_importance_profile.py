@@ -74,11 +74,12 @@ def main(trace_path, save_path, num_tables=2, num_steps=6, seed=0):
     if len(available_tables) == 0:
         raise ValueError("No tables found in importance trace.")
 
-    rng = np.random.default_rng(seed)
-    selected_tables = rng.choice(available_tables, size=min(num_tables, len(available_tables)), replace=False)
+    # rng = np.random.default_rng(seed)
+    # selected_tables = rng.choice(available_tables, size=min(num_tables, len(available_tables)), replace=False)
 
-    print(f"selected tables: {selected_tables.tolist()}")
+    # print(f"selected tables: {selected_tables.tolist()}")
 
+    selected_tables = [6, 7]
     for table in selected_tables:
         table = int(table)
         output_path = save_dir / f"importance_profile_table_{table}.png"
