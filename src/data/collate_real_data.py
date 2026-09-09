@@ -56,6 +56,7 @@ def collate_openml_task(
         classification=True,
         shuffle_features=True,
         feature_seed=0,
+        split_seed=0,
         compute_reference_importance=True,
         reference_seed=0,
         selected_features=None
@@ -119,7 +120,7 @@ def collate_openml_task(
         X_df,
         y_ids.cpu(),
         test_size=TEST_FRAC,
-        random_state=RANDOM_STATE,
+        random_state=int(split_seed),
         stratify = stratify,
     )
     x_mean = torch.zeros((X_train_df.shape[1],), dtype=torch.float32, device=device)
