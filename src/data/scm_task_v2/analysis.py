@@ -331,17 +331,17 @@ def evaluate_prior(prior, n_tasks=300, task_kind="classification", min_classes=2
 if __name__ == "__main__":
 
     seed = 17
-    result = evaluate_prior(
-        prior=SCM_PRIOR,
-        n_tasks=500,
-        task_kind="regression",
-        mlp_epochs=500,
-        topk=3,
-        base_seed=seed,
-        prior_name="prior",
-    )
+    # result = evaluate_prior(
+    #     prior=SCM_PRIOR,
+    #     n_tasks=500,
+    #     task_kind="regression",
+    #     mlp_epochs=500,
+    #     topk=3,
+    #     base_seed=seed,
+    #     prior_name="prior",
+    # )
 
-    result.to_csv("analysis1.csv", index=False)
+    # result.to_csv("analysis3.csv", index=False)
 
     result = evaluate_prior(
         prior=SCM_PRIOR,
@@ -354,7 +354,7 @@ if __name__ == "__main__":
         base_seed=seed,
         prior_name="prior",
     )
-    result.to_csv("analysis2.csv", index=False)
+    result.to_csv("analysis4.csv", index=False)
 
 
 

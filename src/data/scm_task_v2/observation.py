@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import torch
+import numpy as np
 from .utils import normalize_probs, randint
 
 @dataclass(frozen=True)
@@ -285,20 +286,58 @@ class ScalarObservationHead:
         if self.sampled_type == self.PROTOTYPE:
             return self._prototype(z, generator)
         return self._dirichlet_binning(z, generator)
+    
 
+    def _target_discretization_baseline(self, latent, k):
+        z = latent.float().reshape(-1)
+        n = z.numel()
 
-    # def observe_categorical(self, latent, generator, k):
-    #     z = latent.float()
-    #     categorical_probs = self.observation_type_probs[1:]
-    #     categorical_probs = categorical_probs / categorical_probs.sum()
-    #     method = int(torch.multinomial(categorical_probs, 1, generator=generator).item())
-    #     if method == 0:
-    #         observed = self._prototype(z, generator, k=k)
-    #         if not observed.is_categorical:
-    #             return self._dirichlet_binning(z, generator, k=k)
-    #         return observed
+        # Random class proportions
+        probs = torch.full((k,), 2.0, dtype=torch.float32, device=z.device)
+        proportions = torch.distributions.Dirichlet(probs).sample()
 
-    #     return self._dirichlet_binning(z, generator, k=k)
+        # Enforce minimum class size
+        min_size = max(self.min_samples_per_category, int(np.ceil(0.1 * n)))
+        remaining = n - k * min_size
+        if remaining < 0:
+            return None
+
+        extra = torch.floor(proportions * remaining).long()
+        sizes = extra + min_size
+        sizes[-1] += n - int(sizes.sum())
+
+        # Sort by latent target and assign contiguous classes
+        order = torch.argsort(z)
+        labels = torch.empty(n, dtype=torch.long, device=z.device)
+
+        start = 0
+        for c in range(k):
+            end = start + int(sizes[c])
+            labels[order[start:end]] = c
+            start = end
+
+        counts = torch.bincount(labels, minlength=k)
+        smallest_fraction = float((counts.float() / counts.sum()).min().item())
+        retention = self._categorical_retention(z, labels)
+
+        thresholds = []
+        for c in range(1, k):
+            cut = int(sizes[:c].sum().item())
+            thresholds.append((z[order[cut - 1]] + z[order[cut]]) * 0.5)
+        thresholds = torch.stack(thresholds)
+
+        return FeatureObservation(
+            values=labels,
+            is_categorical=True,
+            cardinality=k,
+            observation_type_id=-1,
+            observation_type_name="target_discretization_baseline",
+            quality_score=smallest_fraction,
+            retention=retention,
+            prototypes=torch.empty(0, 1, device=z.device, dtype=z.dtype),
+            thresholds=thresholds,
+        )
+    
 
     def _target_discretization(self, z, observed_X, feature_type, feature_importance, k, n_neighbors=10, x_weight=0.7, generator=None):
         scalar = z[:, 0].float()
