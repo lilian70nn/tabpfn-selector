@@ -71,6 +71,7 @@ def eval_feature_subset(
         use_selector=True,
         classification=(task_kind == "classification"),
         feature_seed=seed,
+        split_seed=seed,
         shuffle_features=False,
         compute_reference_importance=False,
         reference_seed=0,
@@ -186,7 +187,7 @@ def main(model, model_path ,task_kind="classification", datasets=None):
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
 
-    num_seeds = 10
+    num_seeds = 30
 
     all_metric_rows = []
     all_imp_rows = []
@@ -210,6 +211,7 @@ def main(model, model_path ,task_kind="classification", datasets=None):
                     use_selector=True,
                     classification=(task_kind == "classification"),
                     feature_seed=seed,
+                    split_seed=seed,
                     shuffle_features=True,
                     compute_reference_importance=True,
                     reference_seed=0,

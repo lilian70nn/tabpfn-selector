@@ -48,17 +48,44 @@ LINEAR_PRIOR = {
 }
 
 CLS_DATASETS = {
+
+
     # 2-class
-    "banknote-authentication": 1462,
-    "diabetes": 37,
+
+    # "banknote-authentication": 1462,
+    # "diabetes": 37,
+    # "breast-w": 15,
+    # "ionosphere": 59,
+    # "spambase": 44,
+    # "credit-g": 31,
+    # "kr-vs-kp": 3,
+    # "qsar-biodeg": 1494,
+    # "blood-transfusion-service-center": 1464,
+    # "breast-cancer": 13,
+
+    "blood-transfusion-service-center": 46913,
+    "diabetes": 46921,
+    "credit-g": 46918,
+    "qsar-biodeg": 46952,
+    "Fitness_Club": 46927,
+    "Is-this-a-good-customer": 46938,
+    "Marketing_Campaign": 46940,
+    "hazelnut-spread-contaminant-detection": 46930,
+    "seismic-bumps": 46956,
+    "churn": 46915,
+    "polish_companies_bankruptcy": 46950,
+    "Bank_Customer_Churn": 46911,
+    "heloc": 46932,
+    "jmlr": 46979,
+    "E-CommereShippingData": 46924,
+    "online_shoppers_intention": 46947,
+    "in_vehicle_coupon_recommendation": 46937,
+
     "breast-w": 15,
+    "breast-cancer": 13,
     "ionosphere": 59,
     "spambase": 44,
-    "credit-g": 31,
     "kr-vs-kp": 3,
-    "qsar-biodeg": 1494,
-    "blood-transfusion-service-center": 1464,
-    "breast-cancer": 13,
 
     # 3-class
     "iris": 61,
