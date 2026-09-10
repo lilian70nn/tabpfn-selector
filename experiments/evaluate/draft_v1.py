@@ -11,6 +11,35 @@ from src.data.collate_real_data import collate_openml_task
 from experiments.config import CLS_DATASETS, REG_DATASETS
 
 
+def slice_task_batch(batch, start, end):
+    from dataclasses import replace
+    B = batch.X_train.shape[0]
+
+    def cut(x):
+        if torch.is_tensor(x) and x.ndim > 0 and x.shape[0] == B:
+            return x[start:end]
+        return x
+
+    return replace(batch, **{name: cut(getattr(batch, name)) for name in batch.__dataclass_fields__})
+
+@torch.no_grad()
+def forward_in_chunks(model, batch, chunk_size=5):
+    outputs = []
+    B = batch.X_train.shape[0]
+
+    for start in range(0, B, chunk_size):
+        end = min(start + chunk_size, B)
+        small_batch = slice_task_batch(batch, start, end)
+        outputs.append(model(small_batch))
+
+    result = {}
+    for key in outputs[0]:
+        values = [out[key] for out in outputs]
+        result[key] = torch.cat(values, dim=0) if torch.is_tensor(values[0]) else values[0]
+
+    return result
+
+
 @torch.no_grad()
 def evaluate_batch_tasks(model, batch, out, task_kind):
     rows = []
@@ -126,7 +155,7 @@ def evaluate_intervention(model, name, openml_id, selected_features, method, mod
         selected_features=selected_features,
     )
 
-    out = model(batch)
+    out = forward_in_chunks(model, batch, chunk_size=5)
     metrics_list = evaluate_batch_tasks(model, batch, out, task_kind)
     rows = []
 
@@ -224,7 +253,7 @@ def main(model, model_path, task_kind="classification", datasets=None, evaluate_
                 reference_seed=0,
             )
 
-            out = model(batch)
+            out = forward_in_chunks(model, batch, chunk_size=5)
             metrics_list = evaluate_batch_tasks(model, batch, out, task_kind)
             rows = []
 
@@ -291,8 +320,7 @@ def main(model, model_path, task_kind="classification", datasets=None, evaluate_
 
                     rng = np.random.default_rng(b)
                     k = max(1, int(np.ceil(k_frac * d)))
-                    random_shuffled = rng.choice(d, size=k, replace=False)
-                    random_original = feature_perm[random_shuffled]
+                    random_original = rng.choice(d, size=k, replace=False)
                     selected_by_method["random"].append(random_original)
                     removed_by_method["random"].append(np.setdiff1d(all_features_original, random_original))
 
