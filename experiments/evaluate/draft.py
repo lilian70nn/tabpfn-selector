@@ -177,7 +177,7 @@ def topk_indices(imp, k_frac=0.2):
 
 
 
-def main(model, model_path ,task_kind="classification", datasets=None):
+def main(model, model_path ,task_kind="classification", datasets=None, evaluate_importance=False):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     ckpt_path = model_path
@@ -213,120 +213,122 @@ def main(model, model_path ,task_kind="classification", datasets=None):
                     feature_seed=seed,
                     split_seed=seed,
                     shuffle_features=True,
-                    compute_reference_importance=True,
+                    compute_reference_importance=evaluate_importance,
                     reference_seed=0,
                 )
                 out = model(batch)
 
                 metrics = evaluate_batch(model, batch, out, task_kind)
 
-                add_full_intervention_row(
-                    rows=all_intervention_rows,
-                    name=name,
-                    openml_id=openml_id,
-                    seed=seed,
-                    batch=batch,
-                    metrics=metrics,
-                )
-                # importance: sigmoid output, normalized, restored to original feature order
-                pfn_imp = get_pfn_importance(batch, out)
+                if evaluate_importance:
 
-                d = int(batch.d_emb.item())
+                    add_full_intervention_row(
+                        rows=all_intervention_rows,
+                        name=name,
+                        openml_id=openml_id,
+                        seed=seed,
+                        batch=batch,
+                        metrics=metrics,
+                    )
+                    # importance: sigmoid output, normalized, restored to original feature order
+                    pfn_imp = get_pfn_importance(batch, out)
 
-                ref_mi = batch.reference_importance_mi[0, :d].detach().cpu().numpy().reshape(-1)
-                ref_rf = batch.reference_importance_rf[0, :d].detach().cpu().numpy().reshape(-1)
-                ref_linear_perm = batch.reference_importance_linear_perm[0, :d].detach().cpu().numpy().reshape(-1)
+                    d = int(batch.d_emb.item())
 
-                pfn_imp_list.append(pfn_imp)
-                ref_mi_list.append(ref_mi)
-                ref_rf_list.append(ref_rf)
-                ref_linear_perm_list.append(ref_linear_perm)
+                    ref_mi = batch.reference_importance_mi[0, :d].detach().cpu().numpy().reshape(-1)
+                    ref_rf = batch.reference_importance_rf[0, :d].detach().cpu().numpy().reshape(-1)
+                    ref_linear_perm = batch.reference_importance_linear_perm[0, :d].detach().cpu().numpy().reshape(-1)
 
-                assert pfn_imp.shape == ref_mi.shape == ref_rf.shape == ref_linear_perm.shape, (
-                    name, seed, pfn_imp.shape, ref_mi.shape, ref_rf.shape, ref_linear_perm.shape,
-                )
+                    pfn_imp_list.append(pfn_imp)
+                    ref_mi_list.append(ref_mi)
+                    ref_rf_list.append(ref_rf)
+                    ref_linear_perm_list.append(ref_linear_perm)
 
-                rho_mi = safe_spearman(pfn_imp, ref_mi)
-                rho_rf = safe_spearman(pfn_imp, ref_rf)
-                rho_linear_perm = safe_spearman(pfn_imp, ref_linear_perm)
+                    assert pfn_imp.shape == ref_mi.shape == ref_rf.shape == ref_linear_perm.shape, (
+                        name, seed, pfn_imp.shape, ref_mi.shape, ref_rf.shape, ref_linear_perm.shape,
+                    )
 
-                imp_sources = {
-                    "pfn_imp": pfn_imp,
-                    "mi": ref_mi,
-                    "rf_perm": ref_rf,
-                    "linear_perm": ref_linear_perm,
-                }
+                    rho_mi = safe_spearman(pfn_imp, ref_mi)
+                    rho_rf = safe_spearman(pfn_imp, ref_rf)
+                    rho_linear_perm = safe_spearman(pfn_imp, ref_linear_perm)
 
-                # ---------- top-k keep/remove intervention ----------
-                k_frac = 0.2
-                all_features = np.arange(d)
-                for method, imp in imp_sources.items():
-                    topk = topk_indices(imp, k_frac=k_frac)
-                    # keep top-k
+                    imp_sources = {
+                        "pfn_imp": pfn_imp,
+                        "mi": ref_mi,
+                        "rf_perm": ref_rf,
+                        "linear_perm": ref_linear_perm,
+                    }
+
+                    # ---------- top-k keep/remove intervention ----------
+                    k_frac = 0.2
+                    all_features = np.arange(d)
+                    for method, imp in imp_sources.items():
+                        topk = topk_indices(imp, k_frac=k_frac)
+                        # keep top-k
+                        all_intervention_rows.append(
+                            eval_feature_subset(
+                                model=model,
+                                name=name,
+                                openml_id=openml_id,
+                                selected_features=topk,
+                                seed=seed,
+                                method=method,
+                                mode="keep",
+                                k_frac=k_frac,
+                                task_kind=task_kind,
+                            )
+                        )
+
+                        # remove top-k
+                        keep_after_remove = np.setdiff1d(all_features, topk)
+                        if len(keep_after_remove) >= 1:
+                            all_intervention_rows.append(
+                                eval_feature_subset(
+                                    model=model,
+                                    name=name,
+                                    openml_id=openml_id,
+                                    selected_features=keep_after_remove,
+                                    seed=seed,
+                                    method=method,
+                                    mode="remove",
+                                    k_frac=k_frac,
+                                    task_kind=task_kind,
+                                )
+                            )
+
+                    # random baseline
+                    rng = np.random.default_rng(seed)
+                    k = max(1, int(np.ceil(k_frac * d)))
+                    random_topk = rng.choice(d, size=k, replace=False)
                     all_intervention_rows.append(
                         eval_feature_subset(
                             model=model,
                             name=name,
                             openml_id=openml_id,
-                            selected_features=topk,
+                            selected_features=random_topk,
                             seed=seed,
-                            method=method,
+                            method="random",
                             mode="keep",
                             k_frac=k_frac,
                             task_kind=task_kind,
                         )
                     )
 
-                    # remove top-k
-                    keep_after_remove = np.setdiff1d(all_features, topk)
-                    if len(keep_after_remove) >= 1:
+                    random_keep_after_remove = np.setdiff1d(all_features, random_topk)
+                    if len(random_keep_after_remove) >= 1:
                         all_intervention_rows.append(
                             eval_feature_subset(
                                 model=model,
                                 name=name,
                                 openml_id=openml_id,
-                                selected_features=keep_after_remove,
+                                selected_features=random_keep_after_remove,
                                 seed=seed,
-                                method=method,
+                                method="random",
                                 mode="remove",
                                 k_frac=k_frac,
                                 task_kind=task_kind,
                             )
                         )
-
-                # random baseline
-                rng = np.random.default_rng(seed)
-                k = max(1, int(np.ceil(k_frac * d)))
-                random_topk = rng.choice(d, size=k, replace=False)
-                all_intervention_rows.append(
-                    eval_feature_subset(
-                        model=model,
-                        name=name,
-                        openml_id=openml_id,
-                        selected_features=random_topk,
-                        seed=seed,
-                        method="random",
-                        mode="keep",
-                        k_frac=k_frac,
-                        task_kind=task_kind,
-                    )
-                )
-
-                random_keep_after_remove = np.setdiff1d(all_features, random_topk)
-                if len(random_keep_after_remove) >= 1:
-                    all_intervention_rows.append(
-                        eval_feature_subset(
-                            model=model,
-                            name=name,
-                            openml_id=openml_id,
-                            selected_features=random_keep_after_remove,
-                            seed=seed,
-                            method="random",
-                            mode="remove",
-                            k_frac=k_frac,
-                            task_kind=task_kind,
-                        )
-                    )
 
                 row = {
                     "dataset": name,
@@ -335,10 +337,15 @@ def main(model, model_path ,task_kind="classification", datasets=None):
                     "n_train": int(batch.n_train.item()),
                     "n_test": int(batch.n_test.item()),
                     "d": int(batch.d_emb.item()),
-                    "imp_spearman_mi": rho_mi,
-                    "imp_spearman_rf": rho_rf,
-                    "imp_spearman_linear_perm": rho_linear_perm,
+                    # "imp_spearman_mi": rho_mi,
+                    # "imp_spearman_rf": rho_rf,
+                    # "imp_spearman_linear_perm": rho_linear_perm,
                 }
+
+                if evaluate_importance:
+                    row["imp_spearman_mi"] = rho_mi
+                    row["imp_spearman_rf"] = rho_rf
+                    row["imp_spearman_linear_perm"] = rho_linear_perm
 
                 if batch.n_classes is not None:
                     row["n_classes"] = int(batch.n_classes.item())
@@ -348,34 +355,38 @@ def main(model, model_path ,task_kind="classification", datasets=None):
                 rows.append(row)
                 all_metric_rows.append(row)
 
+                if evaluate_importance:
+                    for j in range(len(pfn_imp)):
+                        all_imp_rows.append({
+                            "dataset": name,
+                            "openml_id": openml_id,
+                            "seed": seed,
+                            "feature_index_original": j,
+                            "pfn_imp": float(pfn_imp[j]),
+                            "ref_mi": float(ref_mi[j]),
+                            "ref_rf": float(ref_rf[j]),
+                            "ref_linear_perm": float(ref_linear_perm[j]),
 
-                for j in range(len(pfn_imp)):
-                    all_imp_rows.append({
-                        "dataset": name,
-                        "openml_id": openml_id,
-                        "seed": seed,
-                        "feature_index_original": j,
-                        "pfn_imp": float(pfn_imp[j]),
-                        "ref_mi": float(ref_mi[j]),
-                        "ref_rf": float(ref_rf[j]),
-                        "ref_linear_perm": float(ref_linear_perm[j]),
-
-                    })
+                        })
 
                 metric_str = " | ".join(
                     f"{key} {value:.4f}" for key, value in metrics.items()
                 )
 
-                print(
-                    f"seed {seed:02d} | "
-                    f"{metric_str} | "
-                    f"rho_mi {rho_mi:.4f} | "
-                    f"rho_rf {rho_rf:.4f} | "
-                    f"rho_linear_perm {rho_linear_perm:.4f}"
-                )
+                if evaluate_importance:
+                    print(
+                        f"seed {seed:02d} | "
+                        f"{metric_str} | "
+                        f"rho_mi {rho_mi:.4f} | "
+                        f"rho_rf {rho_rf:.4f} | "
+                        f"rho_linear_perm {rho_linear_perm:.4f}"
+                    )
+                else:
+                    print(f"seed {seed:02d} | {metric_str}")
 
             print()
-            print_dataset_keep_remove_diff_tables(all_intervention_rows, name)
+            if evaluate_importance:
+                print_dataset_keep_remove_diff_tables(all_intervention_rows, name)
 
             summary_row = {
                 "dataset": name,
@@ -399,65 +410,73 @@ def main(model, model_path ,task_kind="classification", datasets=None):
             
 
             # importance mean/std, original feature order
-            pfn_imp_arr = np.stack(pfn_imp_list, axis=0)
-            ref_mi_arr = np.stack(ref_mi_list, axis=0)
-            ref_rf_arr = np.stack(ref_rf_list, axis=0)
-            ref_linear_perm_arr = np.stack(ref_linear_perm_list, axis=0)
+            if evaluate_importance:
+                pfn_imp_arr = np.stack(pfn_imp_list, axis=0)
+                ref_mi_arr = np.stack(ref_mi_list, axis=0)
+                ref_rf_arr = np.stack(ref_rf_list, axis=0)
+                ref_linear_perm_arr = np.stack(ref_linear_perm_list, axis=0)
 
-            pfn_imp_mean = pfn_imp_arr.mean(axis=0)
-            pfn_imp_std = pfn_imp_arr.std(axis=0)
+                pfn_imp_mean = pfn_imp_arr.mean(axis=0)
+                pfn_imp_std = pfn_imp_arr.std(axis=0)
 
-            ref_mi_mean = ref_mi_arr.mean(axis=0)
-            ref_mi_std = ref_mi_arr.std(axis=0)
+                ref_mi_mean = ref_mi_arr.mean(axis=0)
+                ref_mi_std = ref_mi_arr.std(axis=0)
 
-            ref_rf_mean = ref_rf_arr.mean(axis=0)
-            ref_rf_std = ref_rf_arr.std(axis=0)
+                ref_rf_mean = ref_rf_arr.mean(axis=0)
+                ref_rf_std = ref_rf_arr.std(axis=0)
 
-            ref_linear_perm_mean = ref_linear_perm_arr.mean(axis=0)
-            ref_linear_perm_std = ref_linear_perm_arr.std(axis=0)
+                ref_linear_perm_mean = ref_linear_perm_arr.mean(axis=0)
+                ref_linear_perm_std = ref_linear_perm_arr.std(axis=0)
 
 
-            for j in range(len(pfn_imp_mean)):
-                summary_row[f"pfn_imp_mean_f{j}"] = float(pfn_imp_mean[j])
-                summary_row[f"pfn_imp_std_f{j}"] = float(pfn_imp_std[j])
+                for j in range(len(pfn_imp_mean)):
+                    summary_row[f"pfn_imp_mean_f{j}"] = float(pfn_imp_mean[j])
+                    summary_row[f"pfn_imp_std_f{j}"] = float(pfn_imp_std[j])
 
-                summary_row[f"ref_mi_mean_f{j}"] = float(ref_mi_mean[j])
-                summary_row[f"ref_mi_std_f{j}"] = float(ref_mi_std[j])
+                    summary_row[f"ref_mi_mean_f{j}"] = float(ref_mi_mean[j])
+                    summary_row[f"ref_mi_std_f{j}"] = float(ref_mi_std[j])
 
-                summary_row[f"ref_rf_mean_f{j}"] = float(ref_rf_mean[j])
-                summary_row[f"ref_rf_std_f{j}"] = float(ref_rf_std[j])
+                    summary_row[f"ref_rf_mean_f{j}"] = float(ref_rf_mean[j])
+                    summary_row[f"ref_rf_std_f{j}"] = float(ref_rf_std[j])
 
-                summary_row[f"ref_linear_perm_mean_f{j}"] = float(ref_linear_perm_mean[j])
-                summary_row[f"ref_linear_perm_std_f{j}"] = float(ref_linear_perm_std[j])
+                    summary_row[f"ref_linear_perm_mean_f{j}"] = float(ref_linear_perm_mean[j])
+                    summary_row[f"ref_linear_perm_std_f{j}"] = float(ref_linear_perm_std[j])
 
             all_summary_rows.append(summary_row)
 
             print()
 
     metrics_df = pd.DataFrame(all_metric_rows)
-    imp_df = pd.DataFrame(all_imp_rows)
     summary_df = pd.DataFrame(all_summary_rows)
-    intervention_df = pd.DataFrame(all_intervention_rows)
 
-    run_name = "real_eval_10seeds"
+    run_name = f"real_eval_{num_seeds}seeds"
 
     save_dir = Path(__file__).resolve().parents[2] / "results" / "evaluation"
     save_dir.mkdir(parents=True, exist_ok=True)
 
     metrics_path = save_dir / f"{run_name}_metrics_each_seed.csv"
-    importance_path = save_dir / f"{run_name}_importance_each_seed.csv"
     summary_path = save_dir / f"{run_name}_summary.csv"
-    intervention_path = save_dir / f"{run_name}_topk_intervention.csv"
 
     metrics_df.to_csv(metrics_path, index=False)
-    imp_df.to_csv(importance_path, index=False)
     summary_df.to_csv(summary_path, index=False)
-    intervention_df.to_csv(intervention_path, index=False)
 
     print(f"saved {metrics_path}")
-    print(f"saved {importance_path}")
     print(f"saved {summary_path}")
-    print(f"saved {intervention_path}")
+    
+
+    if evaluate_importance:
+        imp_df = pd.DataFrame(all_imp_rows)
+        intervention_df = pd.DataFrame(all_intervention_rows)
+        importance_path = save_dir / f"{run_name}_importance_each_seed.csv"
+        intervention_path = save_dir / f"{run_name}_topk_intervention.csv"
+        imp_df.to_csv(importance_path, index=False)
+        intervention_df.to_csv(intervention_path, index=False)
+        print(f"saved {importance_path}")
+        print(f"saved {intervention_path}")
+
+
+
+
 
 
 if __name__ == "__main__":
