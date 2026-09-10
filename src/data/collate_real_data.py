@@ -52,6 +52,7 @@ def _encode_cont_train_test(s_train, s_test):
 
 def collate_openml_task(
         items,
+        n_repeats=30,
         use_selector=True,
         classification=True,
         shuffle_features=True,
@@ -75,6 +76,7 @@ def collate_openml_task(
     """
 
     assert len(items) == 1, "Use DataLoader(..., batch_size=1) for OpenML eval."
+    assert int(n_repeats) >= 1
 
     name, openml_id = items[0]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -86,6 +88,7 @@ def collate_openml_task(
     )
     X_df = X_df.reset_index(drop=True)
     y_raw = pd.Series(y_raw).reset_index(drop=True)
+    x_categorical_indicator = np.asarray(x_categorical_indicator, dtype=bool)
 
     assert len(x_categorical_indicator) == X_df.shape[1], (len(x_categorical_indicator), X_df.shape[1])
 
@@ -99,9 +102,14 @@ def collate_openml_task(
     X_df = X_df.iloc[idx].reset_index(drop=True)
     y_raw = y_raw.iloc[idx].reset_index(drop=True)   
 
+    if selected_features is not None:
+        assert len(selected_features) == n_repeats
+        selected_features = [np.asarray(x, dtype=int) for x in selected_features]
+
     if classification or isinstance(y_raw.dtype, pd.CategoricalDtype) or y_raw.dtype == "object" or y_raw.dtype.name == "category":
         y_cat = y_raw.astype("category")
-        n_classes = torch.tensor([len(y_cat.cat.categories)], dtype=torch.long, device=device)
+        n_classes_value = len(y_cat.cat.categories)
+        n_classes = torch.full((n_repeats,), n_classes_value, dtype=torch.long, device=device)
         y_ids = torch.tensor(y_cat.cat.codes.to_numpy(), dtype=torch.long, device=device)
         stratify = y_ids.cpu().numpy()
 
@@ -109,286 +117,317 @@ def collate_openml_task(
         y_std = None
 
     else:
+        n_classes_value = None
         n_classes = None
         stratify = None
 
         y_ids = torch.tensor(pd.to_numeric(y_raw).astype("float32").to_numpy(), dtype=torch.float32, device=device)
-        y_mean = torch.mean(y_ids).view(1)
-        y_std = torch.std(y_ids, unbiased=False).clamp_min(1e-6).view(1)
+        y_mean = torch.zeros(n_repeats, dtype=torch.float32, device=device)
+        y_std = torch.ones(n_repeats, dtype=torch.float32, device=device)
 
-    X_train_df, X_test_df, y_train, y_test = train_test_split(
-        X_df,
-        y_ids.cpu(),
-        test_size=TEST_FRAC,
-        random_state=int(split_seed),
-        stratify = stratify,
-    )
-    x_mean = torch.zeros((X_train_df.shape[1],), dtype=torch.float32, device=device)
-    x_std = torch.ones((X_train_df.shape[1],), dtype=torch.float32, device=device)
+    X_train_list, X_test_list = [], []
+    y_train_list, y_test_list = [], []
+    feature_type_list, cardinality_list = [], []
+    x_mean_list, x_std_list = [], []
+    feature_perm_list = []
+    reference_mi_list, reference_rf_list, reference_linear_list = [], [], []
 
-    if n_classes is not None:
-        y_train = torch.as_tensor(y_train, device=device, dtype=torch.long)
-        y_test = torch.as_tensor(y_test, device=device, dtype=torch.long)
-    else:
-        y_train = torch.as_tensor(y_train, device=device, dtype=torch.float32)
-        y_test = torch.as_tensor(y_test, device=device, dtype=torch.float32)
+    for rep in range(int(n_repeats)):
 
-    Xtr_cols = []
-    Xte_cols = []
-    feature_type = []
-    cardinality = []
+        cur_split_seed = int(split_seed) + rep
+        cur_feature_seed = int(feature_seed) + rep
 
-    for j, col in enumerate(X_df.columns):
-        s_train = X_train_df[col]
-        s_test = X_test_df[col]
+        X_train_df, X_test_df, y_train, y_test = train_test_split(
+            X_df,
+            y_ids.cpu(),
+            test_size=TEST_FRAC,
+            random_state=cur_split_seed,
+            stratify = stratify,
+        )
 
-        if x_categorical_indicator[j]:
-            x_train, x_test, K = _encode_cat_from_train(s_train, s_test)
-            Xtr_cols.append(x_train)
-            Xte_cols.append(x_test)
-            feature_type.append(1)
-            cardinality.append(K)
+        if selected_features is not None:
+            selected_rep = selected_features[rep]
+            X_train_df = X_train_df.iloc[:, selected_rep]
+            X_test_df = X_test_df.iloc[:, selected_rep]
+            cat_indicator_rep = x_categorical_indicator[selected_rep]
+
         else:
-            xtr, xte = _encode_cont_train_test(s_train, s_test)
-            Xtr_cols.append(xtr)
-            Xte_cols.append(xte)
-            feature_type.append(0)
-            cardinality.append(0)
+            cat_indicator_rep = x_categorical_indicator
 
-            mask = torch.isfinite(xtr)
-            if bool(mask.any()):
-                vals = xtr[mask]
-                x_mean[j] = vals.mean()
-                x_std[j] = vals.std(unbiased=False).clamp_min(1e-6)
+        
+        x_mean = torch.zeros((X_train_df.shape[1],), dtype=torch.float32, device=device)
+        x_std = torch.ones((X_train_df.shape[1],), dtype=torch.float32, device=device)
+
+
+        if n_classes is not None:
+            y_train = torch.as_tensor(y_train, device=device, dtype=torch.long)
+            y_test = torch.as_tensor(y_test, device=device, dtype=torch.long)
+
+        else:
+            y_train = torch.as_tensor(y_train, device=device, dtype=torch.float32)
+            y_test = torch.as_tensor(y_test, device=device, dtype=torch.float32)
+
+            y_mean[rep] = y_train.mean()
+            y_std[rep] = y_train.std(unbiased=False).clamp_min(1e-6)
+
+        Xtr_cols = []
+        Xte_cols = []
+        feature_type = []
+        cardinality = []
+
+        for j, col in enumerate(X_train_df.columns):
+            s_train = X_train_df[col]
+            s_test = X_test_df[col]
+
+            if cat_indicator_rep[j]:
+                x_train, x_test, K = _encode_cat_from_train(s_train, s_test)
+                Xtr_cols.append(x_train)
+                Xte_cols.append(x_test)
+                feature_type.append(1)
+                cardinality.append(K)
+            else:
+                xtr, xte = _encode_cont_train_test(s_train, s_test)
+                Xtr_cols.append(xtr)
+                Xte_cols.append(xte)
+                feature_type.append(0)
+                cardinality.append(0)
+
+                mask = torch.isfinite(xtr)
+                if bool(mask.any()):
+                    vals = xtr[mask]
+                    x_mean[j] = vals.mean()
+                    x_std[j] = vals.std(unbiased=False).clamp_min(1e-6)
 
             
-    X_train = torch.stack(Xtr_cols, dim=1).to(device)
-    X_test = torch.stack(Xte_cols, dim=1).to(device)
+        X_train = torch.stack(Xtr_cols, dim=1).to(device)
+        X_test = torch.stack(Xte_cols, dim=1).to(device)
 
-    feature_type = torch.tensor(feature_type, dtype=torch.long, device=device)
-    cardinality = torch.tensor(cardinality, dtype=torch.long, device=device)
+        feature_type = torch.tensor(feature_type, dtype=torch.long, device=device)
+        cardinality = torch.tensor(cardinality, dtype=torch.long, device=device)
 
-    if selected_features is not None:
-        selected_features = torch.as_tensor(selected_features, dtype=torch.long, device=device)
 
-        X_train = X_train[:, selected_features]
-        X_test = X_test[:, selected_features]
-        feature_type = feature_type[selected_features]
-        cardinality = cardinality[selected_features]
-        x_mean = x_mean[selected_features]
-        x_std = x_std[selected_features]
+        d = X_train.shape[1]
 
-    n_train, d = X_train.shape
-    n_test = X_test.shape[0]
+        if shuffle_features:
+            feat_gen = torch.Generator().manual_seed(cur_feature_seed)
+            feature_perm = torch.randperm(d, generator=feat_gen).to(device)
+        else:
+            feature_perm = torch.arange(d, device=device)
 
-    if shuffle_features:
-        feat_gen = torch.Generator().manual_seed(int(feature_seed))
-        feature_perm = torch.randperm(d, generator=feat_gen).to(device)
-    else:
-        feature_perm = torch.arange(d, device=device)
+        X_train = X_train[:, feature_perm]
+        X_test = X_test[:, feature_perm]
+        feature_type = feature_type[feature_perm]
+        cardinality = cardinality[feature_perm]
+        x_mean = x_mean[feature_perm]
+        x_std = x_std[feature_perm]
 
-    X_train = X_train[:, feature_perm]
-    X_test = X_test[:, feature_perm]
-    feature_type = feature_type[feature_perm]
-    cardinality = cardinality[feature_perm]
-    x_mean = x_mean[feature_perm]
-    x_std = x_std[feature_perm]
+        reference_importance_mi = torch.zeros(d, dtype=torch.float32, device=device)
+        reference_importance_rf = torch.zeros(d, dtype=torch.float32, device=device)
+        reference_importance_linear_perm = torch.zeros(d, dtype=torch.float32, device=device)
 
-    reference_importance_mi = torch.zeros(d, dtype=torch.float32, device=device)
-    reference_importance_rf = torch.zeros(d, dtype=torch.float32, device=device)
-    reference_importance_linear_perm = torch.zeros(d, dtype=torch.float32, device=device)
+        if compute_reference_importance:
+            try:
+                X_ref = X_train.detach().cpu().numpy().copy()
+                y_ref = y_train.detach().cpu().numpy().reshape(-1)
 
-    if compute_reference_importance:
-        try:
-            X_ref = X_train.detach().cpu().numpy().copy()
-            y_ref = y_train.detach().cpu().numpy().reshape(-1)
+                for j in range(d):
+                    col = X_ref[:, j]
+                    ok = np.isfinite(col)
 
-            for j in range(d):
-                col = X_ref[:, j]
-                ok = np.isfinite(col)
+                    if not ok.any():
+                        X_ref[:, j] = 0.0
+                        continue
 
-                if not ok.any():
-                    X_ref[:, j] = 0.0
-                    continue
+                    if int(feature_type[j].item()) == 1:
+                        vals = col[ok].astype(np.int64)
+                        mode = np.bincount(vals).argmax()
+                        col[~ok] = float(mode)
+                    else:
+                        col[~ok] = float(col[ok].mean())
 
-                if int(feature_type[j].item()) == 1:
-                    vals = col[ok].astype(np.int64)
-                    mode = np.bincount(vals).argmax()
-                    col[~ok] = float(mode)
-                else:
-                    col[~ok] = float(col[ok].mean())
+                    X_ref[:, j] = col
 
-                X_ref[:, j] = col
+                discrete_features = feature_type.detach().cpu().numpy().astype(bool)
 
-            discrete_features = feature_type.detach().cpu().numpy().astype(bool)
-
-            if classification:
-                ref_imp_np = mutual_info_classif(
-                    X_ref,
-                    y_ref,
-                    discrete_features=discrete_features,
-                    random_state=int(reference_seed),
-                ).astype("float32")
-            else:
-                ref_imp_np = mutual_info_regression(
-                    X_ref,
-                    y_ref,
-                    discrete_features=discrete_features,
-                    random_state=int(reference_seed),
-                ).astype("float32")
-
-            ref_imp_np = np.maximum(ref_imp_np, 0.0)
-            ref_imp_np = ref_imp_np / (ref_imp_np.sum() + 1e-12)
-
-            reference_importance_mi = torch.tensor(
-                ref_imp_np,
-                dtype=torch.float32,
-                device=device,
-            )
-
-        except Exception as e:
-            print(f"[MI reference failed] {name}: {repr(e)}")
-            reference_importance_mi = torch.zeros(d, dtype=torch.float32, device=device)
-
-    if compute_reference_importance:
-        try:
-            X_ref = X_train.detach().cpu().numpy().copy()
-            y_ref = y_train.detach().cpu().numpy().reshape(-1)
-
-            col_mean = np.nanmean(X_ref, axis=0)
-            col_mean = np.where(np.isfinite(col_mean), col_mean, 0.0)
-
-            inds = np.where(~np.isfinite(X_ref))
-            X_ref[inds] = np.take(col_mean, inds[1])
-
-            if classification:
-                ref_model = RandomForestClassifier(
-                    n_estimators=200,
-                    random_state=int(reference_seed),
-                    n_jobs=-1,
-                    class_weight="balanced_subsample",
-                )
-                scoring = "balanced_accuracy"
-            else:
-                ref_model = RandomForestRegressor(
-                    n_estimators=200,
-                    random_state=int(reference_seed),
-                    n_jobs=-1,
-                )
-                scoring = "r2"
-
-            ref_model.fit(X_ref, y_ref)
-
-            X_ref_test = X_test.detach().cpu().numpy().copy()
-            y_ref_test = y_test.detach().cpu().numpy().reshape(-1)
-
-            inds = np.where(~np.isfinite(X_ref_test))
-            X_ref_test[inds] = np.take(col_mean, inds[1])
-
-            perm_result = permutation_importance(
-                ref_model, X_ref_test, y_ref_test, scoring=scoring,
-                n_repeats=20, random_state=int(reference_seed), n_jobs=-1,
-            )
-
-            ref_imp_np = perm_result.importances_mean.astype("float32")
-            ref_imp_np = np.maximum(ref_imp_np, 0.0)
-            ref_imp_np = ref_imp_np / (ref_imp_np.sum() + 1e-12)
-
-            reference_importance_rf = torch.tensor(
-                ref_imp_np,
-                dtype=torch.float32,
-                device=device,
-            )
-
-        except Exception as e:
-            print(f"[RF permutation reference failed] {name}: {repr(e)}")
-            reference_importance_rf = torch.zeros(d, dtype=torch.float32, device=device)
-
-    if compute_reference_importance:
-        try:
-            X_ref = X_train.detach().cpu().numpy().copy()
-            y_ref = y_train.detach().cpu().numpy().reshape(-1)
-
-            col_mean = np.nanmean(X_ref, axis=0)
-            col_mean = np.where(np.isfinite(col_mean), col_mean, 0.0)
-
-            inds = np.where(~np.isfinite(X_ref))
-            X_ref[inds] = np.take(col_mean, inds[1])
-
-            X_ref_test = X_test.detach().cpu().numpy().copy()
-            y_ref_test = y_test.detach().cpu().numpy().reshape(-1)
-
-            inds = np.where(~np.isfinite(X_ref_test))
-            X_ref_test[inds] = np.take(col_mean, inds[1])
-
-            if classification:
-                ref_model = make_pipeline(
-                    StandardScaler(),
-                    LogisticRegression(
-                        max_iter=2000,
-                        class_weight="balanced",
+                if n_classes is not None:
+                    ref_imp_np = mutual_info_classif(
+                        X_ref,
+                        y_ref,
+                        discrete_features=discrete_features,
                         random_state=int(reference_seed),
-                        solver="lbfgs",
-                    ),
+                    ).astype("float32")
+                else:
+                    ref_imp_np = mutual_info_regression(
+                        X_ref,
+                        y_ref,
+                        discrete_features=discrete_features,
+                        random_state=int(reference_seed),
+                    ).astype("float32")
+
+                ref_imp_np = np.maximum(ref_imp_np, 0.0)
+                ref_imp_np = ref_imp_np / (ref_imp_np.sum() + 1e-12)
+
+                reference_importance_mi = torch.tensor(
+                    ref_imp_np,
+                    dtype=torch.float32,
+                    device=device,
                 )
-                scoring = "roc_auc" if int(n_classes.item()) == 2 else "balanced_accuracy"
-            else:
-                ref_model = make_pipeline(
-                    StandardScaler(),
-                    Ridge(),
+
+            except Exception as e:
+                print(f"[MI reference failed] {name}: {repr(e)}")
+                reference_importance_mi = torch.zeros(d, dtype=torch.float32, device=device)
+
+        if compute_reference_importance:
+            try:
+                X_ref = X_train.detach().cpu().numpy().copy()
+                y_ref = y_train.detach().cpu().numpy().reshape(-1)
+
+                col_mean = np.nanmean(X_ref, axis=0)
+                col_mean = np.where(np.isfinite(col_mean), col_mean, 0.0)
+
+                inds = np.where(~np.isfinite(X_ref))
+                X_ref[inds] = np.take(col_mean, inds[1])
+
+                if n_classes is not None:
+                    ref_model = RandomForestClassifier(
+                        n_estimators=200,
+                        random_state=int(reference_seed),
+                        n_jobs=-1,
+                        class_weight="balanced_subsample",
+                    )
+                    scoring = "balanced_accuracy"
+                else:
+                    ref_model = RandomForestRegressor(
+                        n_estimators=200,
+                        random_state=int(reference_seed),
+                        n_jobs=-1,
+                    )
+                    scoring = "r2"
+
+                ref_model.fit(X_ref, y_ref)
+
+                X_ref_test = X_test.detach().cpu().numpy().copy()
+                y_ref_test = y_test.detach().cpu().numpy().reshape(-1)
+
+                inds = np.where(~np.isfinite(X_ref_test))
+                X_ref_test[inds] = np.take(col_mean, inds[1])
+
+                perm_result = permutation_importance(
+                    ref_model, X_ref_test, y_ref_test, scoring=scoring,
+                    n_repeats=20, random_state=int(reference_seed), n_jobs=-1,
                 )
-                scoring = "r2"
 
-            ref_model.fit(X_ref, y_ref)
+                ref_imp_np = perm_result.importances_mean.astype("float32")
+                ref_imp_np = np.maximum(ref_imp_np, 0.0)
+                ref_imp_np = ref_imp_np / (ref_imp_np.sum() + 1e-12)
 
-            perm_result = permutation_importance(
-                ref_model, X_ref_test, y_ref_test, scoring=scoring,
-                n_repeats=30, random_state=int(reference_seed), n_jobs=-1,
-            )
+                reference_importance_rf = torch.tensor(
+                    ref_imp_np,
+                    dtype=torch.float32,
+                    device=device,
+                )
 
-            ref_imp_np = perm_result.importances_mean.astype("float32")
-            ref_imp_np = np.maximum(ref_imp_np, 0.0)
-            ref_imp_np = ref_imp_np / (ref_imp_np.sum() + 1e-12)
+            except Exception as e:
+                print(f"[RF permutation reference failed] {name}: {repr(e)}")
+                reference_importance_rf = torch.zeros(d, dtype=torch.float32, device=device)
 
-            reference_importance_linear_perm = torch.tensor(
-                ref_imp_np, dtype=torch.float32, device=device
-            )
+        if compute_reference_importance:
+            try:
+                X_ref = X_train.detach().cpu().numpy().copy()
+                y_ref = y_train.detach().cpu().numpy().reshape(-1)
 
-        except Exception as e:
-            print(f"[Linear permutation reference failed] {name}: {repr(e)}")
-            reference_importance_linear_perm = torch.zeros(d, dtype=torch.float32, device=device)
+                col_mean = np.nanmean(X_ref, axis=0)
+                col_mean = np.where(np.isfinite(col_mean), col_mean, 0.0)
 
-    reference_importance_mi_original = torch.empty_like(reference_importance_mi)
-    reference_importance_mi_original[feature_perm] = reference_importance_mi
+                inds = np.where(~np.isfinite(X_ref))
+                X_ref[inds] = np.take(col_mean, inds[1])
 
-    reference_importance_rf_original = torch.empty_like(reference_importance_rf)
-    reference_importance_rf_original[feature_perm] = reference_importance_rf
+                X_ref_test = X_test.detach().cpu().numpy().copy()
+                y_ref_test = y_test.detach().cpu().numpy().reshape(-1)
 
-    reference_importance_linear_perm_original = torch.empty_like(reference_importance_linear_perm)
-    reference_importance_linear_perm_original[feature_perm] = reference_importance_linear_perm
+                inds = np.where(~np.isfinite(X_ref_test))
+                X_ref_test[inds] = np.take(col_mean, inds[1])
 
+                if n_classes is not None:
+                    ref_model = make_pipeline(
+                        StandardScaler(),
+                        LogisticRegression(
+                            max_iter=2000,
+                            class_weight="balanced",
+                            random_state=int(reference_seed),
+                            solver="lbfgs",
+                        ),
+                    )
+                    scoring = "roc_auc" if n_classes_value == 2 else "balanced_accuracy"
+                else:
+                    ref_model = make_pipeline(
+                        StandardScaler(),
+                        Ridge(),
+                    )
+                    scoring = "r2"
 
-    X_train = X_train[None, :, :]
-    X_test = X_test[None, :, :]
-    y_train = y_train[None, :]
-    y_test = y_test[None, :]
-    feature_type = feature_type[None, :]
-    cardinality = cardinality[None, :]
-    feature_perm = feature_perm[None, :]
-    reference_importance_mi_original = reference_importance_mi_original[None, :]
-    reference_importance_rf_original = reference_importance_rf_original[None, :]
-    reference_importance_linear_perm_original = reference_importance_linear_perm_original[None, :]
+                ref_model.fit(X_ref, y_ref)
 
+                perm_result = permutation_importance(
+                    ref_model, X_ref_test, y_ref_test, scoring=scoring,
+                    n_repeats=30, random_state=int(reference_seed), n_jobs=-1,
+                )
+
+                ref_imp_np = perm_result.importances_mean.astype("float32")
+                ref_imp_np = np.maximum(ref_imp_np, 0.0)
+                ref_imp_np = ref_imp_np / (ref_imp_np.sum() + 1e-12)
+
+                reference_importance_linear_perm = torch.tensor(
+                    ref_imp_np, dtype=torch.float32, device=device
+                )
+
+            except Exception as e:
+                print(f"[Linear permutation reference failed] {name}: {repr(e)}")
+                reference_importance_linear_perm = torch.zeros(d, dtype=torch.float32, device=device)
+
+        X_train_list.append(X_train)
+        X_test_list.append(X_test)
+        y_train_list.append(y_train)
+        y_test_list.append(y_test)
+        feature_type_list.append(feature_type)
+        cardinality_list.append(cardinality)
+        x_mean_list.append(x_mean)
+        x_std_list.append(x_std)
+        feature_perm_list.append(feature_perm)
+        reference_mi_list.append(reference_importance_mi)
+        reference_rf_list.append(reference_importance_rf)
+        reference_linear_list.append(reference_importance_linear_perm)
+
+    X_train = torch.stack(X_train_list, dim=0)
+    X_test = torch.stack(X_test_list, dim=0)
+    y_train = torch.stack(y_train_list, dim=0)
+    y_test = torch.stack(y_test_list, dim=0)
+    feature_type = torch.stack(feature_type_list, dim=0)
+    cardinality = torch.stack(cardinality_list, dim=0)
+    x_mean = torch.stack(x_mean_list, dim=0)
+    x_std = torch.stack(x_std_list, dim=0)
+    feature_perm = torch.stack(feature_perm_list, dim=0)
+    reference_importance_mi = torch.stack(reference_mi_list, dim=0)
+    reference_importance_rf = torch.stack(reference_rf_list, dim=0)
+    reference_importance_linear_perm = torch.stack(reference_linear_list, dim=0)
+
+    n_train = torch.full((n_repeats,), X_train.shape[1], dtype=torch.long, device=device)
+    n_test = torch.full((n_repeats,), X_test.shape[1], dtype=torch.long, device=device)
+    d_emb = torch.full((n_repeats,), X_train.shape[2], dtype=torch.long, device=device)
+
+    Ntr_max = X_train.shape[1]
+    Nte_max = X_test.shape[1]
+    d_max = X_train.shape[2]
 
 
     cell_mask = build_cell_mask(
-            B=1,
-            Ntr_max=n_train,
-            Nte_max=n_test,
-            d_max=d,
+            B=n_repeats,
+            Ntr_max=Ntr_max,
+            Nte_max=Nte_max,
+            d_max=d_max,
             n_train=n_train,
             n_test=n_test,
-            d_emb=d,
+            d_emb=d_emb,
             device=device,
             use_selector=use_selector,
         )
@@ -398,27 +437,25 @@ def collate_openml_task(
         X_test=X_test,
         y_train=y_train,
         y_test=y_test,
-        Ntr_max=n_train,
-        Nte_max=n_test,
-        d_max=d,
-        n_train=torch.tensor([n_train], device=device),
-        n_test=torch.tensor([n_test], device=device),
-        d_emb=torch.tensor([d], device=device),
+        Ntr_max=Ntr_max,
+        Nte_max=Nte_max,
+        d_max=d_max,
+        n_train=n_train,
+        n_test=n_test,
+        d_emb=d_emb,
         feature_type=feature_type,
         cardinality=cardinality,
-        #is_active=torch.zeros((1, d), dtype=torch.float32, device=device),
-        #importance_ratio=torch.ones((1, d), dtype=torch.float32, device=device) / d,
-        feature_importance=torch.zeros((1, d), dtype=torch.float32, device=device),
+        feature_importance=torch.zeros((n_repeats, d), dtype=torch.float32, device=device),
         cell_mask=cell_mask,
-        x_mean=x_mean[None, :],
-        x_std=x_std[None, :],
+        x_mean=x_mean,
+        x_std=x_std,
         y_mean=y_mean,
         y_std=y_std,
         n_classes=n_classes,
         use_selector=use_selector,
         feature_perm=feature_perm,
-        reference_importance_mi=reference_importance_mi_original,
-        reference_importance_rf=reference_importance_rf_original,
-        reference_importance_linear_perm=reference_importance_linear_perm_original,
+        reference_importance_mi=reference_importance_mi,
+        reference_importance_rf=reference_importance_rf,
+        reference_importance_linear_perm=reference_importance_linear_perm,
     )
 
