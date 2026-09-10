@@ -419,6 +419,10 @@ def main(model, model_path, task_kind="classification", datasets=None, evaluate_
             all_summary_rows.append(summary_row)
             print()
 
+            del out, batch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
     metrics_df = pd.DataFrame(all_metric_rows)
     summary_df = pd.DataFrame(all_summary_rows)
 
