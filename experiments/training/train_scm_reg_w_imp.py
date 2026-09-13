@@ -76,7 +76,7 @@ train_synthetic(
     optimizer=optimizer,
     device=device,
     steps=7000,
-    importance_weight=50,
+    importance_weight=200,
     grad_clip=1.0,
     log_every=50,
     val_loader=val_loader,
