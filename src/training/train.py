@@ -145,6 +145,11 @@ def train_synthetic(
 
         loss.backward()
 
+        if step % 50 == 0:
+            for name, p in model.importance_head.named_parameters():
+                if p.grad is not None:
+                    print(f"[imp-grad] {name}: {p.grad.norm().item():.8f}")
+
         if grad_clip is not None:
             torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
 
