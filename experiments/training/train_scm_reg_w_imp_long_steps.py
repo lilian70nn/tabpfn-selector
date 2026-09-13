@@ -17,23 +17,17 @@ torch.backends.cudnn.allow_tf32 = True
 from functools import partial
 
 
-
 train_dataset = SyntheticTaskDataset(
     num_tasks=100000,
     task_factory=SCMTask,
-    task_kind="classification",
-    min_classes=2,
-    max_classes=4,
+    task_kind="regression",
     base_seed=0,
-    task_kwargs=SCM_PRIOR
-)
+    task_kwargs=SCM_PRIOR)
 
 val_dataset = SyntheticTaskDataset(
     num_tasks=10000,
     task_factory=SCMTask,
-    task_kind="classification",
-    min_classes=2,
-    max_classes=4,
+    task_kind="regression",
     base_seed=100000,
     task_kwargs=SCM_PRIOR,
 )
@@ -46,7 +40,7 @@ train_loader = DataLoader(
     num_workers=2,
     pin_memory=True,
     persistent_workers=True,
-    collate_fn=partial(collate_tasks, use_selector=False),
+    collate_fn=partial(collate_tasks, use_selector=True),
 )
 
 val_loader = DataLoader(
@@ -55,7 +49,7 @@ val_loader = DataLoader(
     shuffle=False,
     num_workers=0,
     pin_memory=True,
-    collate_fn=partial(collate_tasks, use_selector=False),
+    collate_fn=partial(collate_tasks, use_selector=True),
 )
 
 
@@ -65,8 +59,8 @@ model = TabularPFNModel(
     n_heads=4,
     depth=16,
     max_cardinality=10,
-    task_kind="classification",
-    max_classes=4,
+    task_kind="regression",
+    num_y_buckets=100,
 )
 
 optimizer = torch.optim.AdamW(
@@ -76,22 +70,21 @@ optimizer = torch.optim.AdamW(
 )
 
 save_path = Path(__file__).resolve().parents[2] / "results" / "training"
-
 train_synthetic(
     model=model,
     train_loader=train_loader,
     optimizer=optimizer,
     device=device,
     steps=15000,
-    importance_weight=None,
+    importance_weight=50,
     grad_clip=1.0,
     log_every=50,
     val_loader=val_loader,
     val_every=300,
     val_batches=50,
-    imp_trace=False,
+    imp_trace=True,
     trace_num_tables=10,
-    save_path=save_path / "scm_cls_wo_imp_training_long_results",
+    save_path=save_path / "scm_reg_w_imp_training_long_results",
 
 )
  
