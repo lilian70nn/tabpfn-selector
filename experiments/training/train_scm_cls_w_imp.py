@@ -20,7 +20,7 @@ from functools import partial
 
 
 train_dataset = SyntheticTaskDataset(
-    num_tasks=100000,
+    num_tasks=105500,
     task_factory=SCMTask,
     task_kind="classification",
     min_classes=2,
@@ -83,7 +83,7 @@ train_synthetic(
     train_loader=train_loader,
     optimizer=optimizer,
     device=device,
-    steps=7000,
+    steps=len(train_loader),
     importance_weight=50,
     grad_clip=1.0,
     log_every=50,
