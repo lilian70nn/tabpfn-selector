@@ -354,7 +354,7 @@ if __name__ == "__main__":
         base_seed=seed,
         prior_name="prior",
     )
-    result.to_csv("analysis4.csv", index=False)
+    result.to_csv("analysis5.csv", index=False)
 
 
 
