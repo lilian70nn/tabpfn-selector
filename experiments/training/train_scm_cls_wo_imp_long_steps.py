@@ -91,7 +91,7 @@ train_synthetic(
     val_batches=50,
     imp_trace=False,
     trace_num_tables=10,
-    save_path=save_path / "scm_cls_wo_imp_training_results",
+    save_path=save_path / "scm_cls_wo_imp_training_long_results",
 
 )
  
