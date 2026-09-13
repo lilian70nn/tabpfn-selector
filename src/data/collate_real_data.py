@@ -39,6 +39,20 @@ def _encode_cat_from_train(s_train, s_test):
 
     return x_train, x_test, K
 
+def _encode_high_card_cat_from_train(s_train, s_test):
+    s_train = s_train.astype("object")
+    s_test = s_test.astype("object")
+    freq = s_train.dropna().astype(str).value_counts(normalize=True)
+
+    def enc(v):
+        if pd.isna(v):
+            return float("nan")
+        return float(freq.get(str(v), 0.0))
+
+    x_train = torch.tensor([enc(v) for v in s_train], dtype=torch.float32)
+    x_test = torch.tensor([enc(v) for v in s_test], dtype=torch.float32)
+    return x_train, x_test
+
 
 def _encode_cont_train_test(s_train, s_test):
     xtr = pd.to_numeric(s_train, errors="coerce").astype("float32")
@@ -179,12 +193,34 @@ def collate_openml_task(
             s_train = X_train_df[col]
             s_test = X_test_df[col]
 
-            if cat_indicator_rep[j]:
-                x_train, x_test, K = _encode_cat_from_train(s_train, s_test)
-                Xtr_cols.append(x_train)
-                Xte_cols.append(x_test)
+            distinct = int(s_train.nunique(dropna=True))
+            is_object = s_train.dtype == "object"
+            is_cat = bool(cat_indicator_rep[j])
+
+            if (not is_cat) and is_object and distinct <= 10:
+                is_cat = True
+
+            if is_cat and distinct <= 10:
+                xtr, xte, K = _encode_cat_from_train(s_train, s_test)
+                Xtr_cols.append(xtr)
+                Xte_cols.append(xte)
                 feature_type.append(1)
                 cardinality.append(K)
+
+            elif is_cat and distinct > 10:
+                xtr, xte = _encode_high_card_cat_from_train(s_train, s_test)
+                Xtr_cols.append(xtr)
+                Xte_cols.append(xte)
+                feature_type.append(0)
+                cardinality.append(0)
+
+                mask = torch.isfinite(xtr)
+                if bool(mask.any()):
+                    vals = xtr[mask]
+                    x_mean[j] = vals.mean()
+                    x_std[j] = vals.std(unbiased=False).clamp_min(1e-6)
+
+
             else:
                 xtr, xte = _encode_cont_train_test(s_train, s_test)
                 Xtr_cols.append(xtr)
