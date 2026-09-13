@@ -87,6 +87,9 @@ CLS_DATASETS = {
     "spambase": 44,
     "kr-vs-kp": 3,
 
+    "mushroom": 24,
+    
+
     # 3-class
     "iris": 61,
     "balance-scale": 11,
