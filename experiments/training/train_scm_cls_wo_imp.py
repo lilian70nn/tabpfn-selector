@@ -34,7 +34,7 @@ val_dataset = SyntheticTaskDataset(
     task_kind="classification",
     min_classes=2,
     max_classes=4,
-    base_seed=100000,
+    base_seed=105500,
     task_kwargs=SCM_PRIOR,
 )
 

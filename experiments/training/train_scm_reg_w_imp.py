@@ -28,7 +28,7 @@ val_dataset = SyntheticTaskDataset(
     num_tasks=10000,
     task_factory=SCMTask,
     task_kind="regression",
-    base_seed=100000,
+    base_seed=102500,
     task_kwargs=SCM_PRIOR,
 )
 
