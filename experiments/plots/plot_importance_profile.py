@@ -79,7 +79,7 @@ def main(trace_path, save_path, num_tables=2, num_steps=6, seed=0):
 
     # print(f"selected tables: {selected_tables.tolist()}")
 
-    selected_tables = [6, 7]
+    selected_tables = [4, 5]
     for table in selected_tables:
         table = int(table)
         output_path = save_dir / f"importance_profile_table_{table}.png"

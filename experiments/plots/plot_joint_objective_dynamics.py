@@ -1,7 +1,6 @@
 import re
 import matplotlib.pyplot as plt
 
-
 def plot_joint_objectives(input_path, output_path):
     steps, pred_losses, imp_losses = [], [], []
 
@@ -24,13 +23,13 @@ def plot_joint_objectives(input_path, output_path):
 
     l1 = ax1.plot(
         steps, pred_losses,
-        marker="o", markersize=3,
+        marker="o", markersize=4, linewidth=2,
         label="Prediction Loss"
     )
 
     l2 = ax2.plot(
         steps, imp_losses,
-        marker="s", markersize=3,
+        marker="s", markersize=4, linewidth=2,
         linestyle="--",
         label="Importance Loss"
     )
@@ -39,23 +38,18 @@ def plot_joint_objectives(input_path, output_path):
     ax1.set_ylabel("Validation Prediction Loss")
     ax2.set_ylabel("Validation Importance Loss")
 
-    ax1.grid(alpha=0.3)
+    ax1.grid(True, alpha=0.25)
 
     lines = l1 + l2
-    ax1.legend(
-        lines,
-        [line.get_label() for line in lines],
-        loc="upper right"
-    )
+    ax1.legend(lines, [line.get_label() for line in lines], loc="upper right")
 
     fig.tight_layout()
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-    print(f"saved: {output_path}")
-
 
 if __name__ == "__main__":
+
     path1 = "results/training/scm_cls_w_imp_training_results/train_log.txt"
     path2 = "results/training/scm_reg_w_imp_training_results/train_log.txt"
 
@@ -64,3 +58,4 @@ if __name__ == "__main__":
 
     plot_joint_objectives(path1, out_path1)
     plot_joint_objectives(path2, out_path2)
+
