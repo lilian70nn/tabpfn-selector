@@ -461,4 +461,4 @@ if __name__ == "__main__":
     )
 
     model_path = "/content/best_ckpt.pt"
-    main(model=model, model_path=model_path, task_kind="classification", datasets=CLS_DATASETS, evaluate_importance=True)
+    main(model=model, model_path=model_path, task_kind="classification", datasets=CLS_DATASETS, evaluate_importance=False)
