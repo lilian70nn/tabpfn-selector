@@ -75,7 +75,7 @@ train_synthetic(
     train_loader=train_loader,
     optimizer=optimizer,
     device=device,
-    steps=1.5 * len(train_loader),
+    steps = int(1.5 * len(train_loader)),
     importance_weight=200,
     grad_clip=1.0,
     log_every=50,
