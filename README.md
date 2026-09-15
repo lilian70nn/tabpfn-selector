@@ -2,7 +2,7 @@
 
 This repository contains the implementation and experiments for my thesis project on feature-importance learning in a TabPFN-style model.
 
-The project investigates joint learning of tabular prediction and feature importance from synthetic tasks. Synthetic training tasks are generated from linear and structural causal model (SCM) priors, which provide ground-truth feature importance for supervision. The framework supports both classification and regression.
+The project investigates joint learning of tabular prediction and feature importance from synthetic tasks. Synthetic training tasks are generated from linear and structural causal model priors, which provide ground-truth feature importance for supervision. The framework supports both classification and regression.
 
 ## Project Structure
 
