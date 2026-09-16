@@ -7,7 +7,7 @@ from scipy.stats import spearmanr
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score
 
 from src.model.tabpfn import TabularPFNModel
-from src.data.collate_real_data import collate_openml_task
+from src.data.collate_real_data_test import collate_openml_task
 from experiments.config import CLS_DATASETS, REG_DATASETS
 
 
