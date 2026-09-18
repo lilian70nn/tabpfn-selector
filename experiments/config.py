@@ -105,9 +105,9 @@ CLS_DATASETS = {
 
 
 REG_DATASETS = {
-    "": 189,
+    "kin8nm": 189,
     "elevators": 44009,
-    "": 359952,
+    "house_16H": 43997,
     "miamhouse_16Hi_housing": 43989,
     "house_sales": 44066,
     "Brazilian_houses": 44062,
