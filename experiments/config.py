@@ -102,6 +102,17 @@ CLS_DATASETS = {
 
 }
 
-REG_DATASETS = {
 
+
+REG_DATASETS = {
+    "kin8nm": 361258,
+    "wine_quality": 287,
+    "elevators": 216,
+    "house_16H": 359952,
+    "miami_housing": 361260,
+    "house_sales": 359949,
+    "Brazilian_houses": 359938,
+    "diamonds": 233211,
+    "abalone": 359944,
+    "video_transcoding": 361252,
 }

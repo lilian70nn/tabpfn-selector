@@ -123,7 +123,7 @@ def collate_openml_task(
         assert len(selected_features) == n_repeats
         selected_features = [np.asarray(x, dtype=int) for x in selected_features]
 
-    if classification or isinstance(y_raw.dtype, pd.CategoricalDtype) or y_raw.dtype == "object" or y_raw.dtype.name == "category":
+    if classification:
         y_cat = y_raw.astype("category")
         n_classes_value = len(y_cat.cat.categories)
         n_classes = torch.full((n_repeats,), n_classes_value, dtype=torch.long, device=device)
