@@ -456,8 +456,9 @@ if __name__ == "__main__":
         n_heads=4,
         depth=16,
         max_cardinality=10,
-        task_kind="classification",
-        max_classes=4,
+        task_kind="regression",
+        num_y_buckets=100,
+        
     )
 
     model_path = "/content/best_ckpt.pt"
