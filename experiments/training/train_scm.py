@@ -81,31 +81,42 @@ def main():
     prior["importance_method"] = args.importance_method
 
     if args.task_kind == "classification":
-        min_classes = 2
-        max_classes = 4
+        train_dataset = SyntheticTaskDataset(
+            num_tasks=105500,
+            task_factory=SCMTask,
+            task_kind="classification",
+            min_classes=2,
+            max_classes=4,
+            base_seed=0,
+            task_kwargs=prior,
+        )
+
+        val_dataset = SyntheticTaskDataset(
+            num_tasks=10000,
+            task_factory=SCMTask,
+            task_kind="classification",
+            min_classes=2,
+            max_classes=4,
+            base_seed=105500,
+            task_kwargs=prior,
+        )
+
     else:
-        min_classes = None
-        max_classes = None
+        train_dataset = SyntheticTaskDataset(
+            num_tasks=102500,
+            task_factory=SCMTask,
+            task_kind="regression",
+            base_seed=0,
+            task_kwargs=prior,
+        )
 
-    train_dataset = SyntheticTaskDataset(
-        num_tasks=105500,
-        task_factory=SCMTask,
-        task_kind=args.task_kind,
-        min_classes=min_classes,
-        max_classes=max_classes,
-        base_seed=0,
-        task_kwargs=prior,
-    )
-
-    val_dataset = SyntheticTaskDataset(
-        num_tasks=10000,
-        task_factory=SCMTask,
-        task_kind=args.task_kind,
-        min_classes=min_classes,
-        max_classes=max_classes,
-        base_seed=105500,
-        task_kwargs=prior,
-    )
+        val_dataset = SyntheticTaskDataset(
+            num_tasks=10000,
+            task_factory=SCMTask,
+            task_kind="regression",
+            base_seed=102500,
+            task_kwargs=prior,
+        )
 
     train_loader = DataLoader(
         train_dataset,
@@ -125,6 +136,7 @@ def main():
         pin_memory=True,
         collate_fn=partial(collate_tasks, use_selector=args.use_importance),
     )
+    
 
     model_kwargs = dict(
         k=64,
