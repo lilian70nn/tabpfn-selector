@@ -4,15 +4,15 @@ SCM_PRIOR = {
     "n_min": 400,
     "n_max": 512,
     "d_min": 8,
-    "d_max": 16,
+    "d_max": 12,
     "test_frac": 0.15,
     "p_missing": 0.05,
-    "num_roots": 5,
+    "num_roots": 8,
     "num_layers": 3,
     "final_width": 1,
 
     "connection_probs": (
-        (0.25, 0.40),
+        (0.20, 0.30),
         (0.55, 0.75),
     ),
 

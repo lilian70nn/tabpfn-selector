@@ -573,3 +573,100 @@ class WeightedLayeredScalarSCM:
                     strength = grad_mag * node_std / target_std
             strengths.append(strength)
         return torch.stack(strengths)
+
+    def compute_eigen_importance(self, all_latents, node_indices, target_node_idx=0):
+        """
+        Feature importance from the leading eigenvector of the gradient
+        second-moment matrix M = E[g g^T].
+
+        Returns:
+            importance: normalized squared loadings of the leading eigenvector
+            eigenvalues: eigenvalues of M
+            eigenvector: leading eigenvector
+        """
+        target = all_latents[-1][target_node_idx]
+        nodes = [all_latents[layer_idx][node_idx] for layer_idx, node_idx in node_indices]
+
+        grads = torch.autograd.grad(
+            outputs=target,
+            inputs=nodes,
+            grad_outputs=torch.ones_like(target),
+            retain_graph=False,
+            allow_unused=True
+        )
+
+        N = target.shape[0]
+        grad_cols = []
+
+        for grad in grads:
+            if grad is None:
+                grad_cols.append(torch.zeros(N, device=self.device, dtype=torch.float32))
+            else:
+                grad_cols.append(grad.reshape(N).float())
+
+        G = torch.stack(grad_cols, dim=1)
+        G = torch.nan_to_num(G, nan=0.0, posinf=0.0, neginf=0.0)
+
+        target_std = target.detach().float().std(unbiased=False)
+        node_stds = torch.stack([node.detach().float().std(unbiased=False) for node in nodes])
+
+        if not torch.isfinite(target_std) or target_std <= 1e-8:
+            return torch.zeros(len(nodes), device=self.device, dtype=torch.float32), None, None
+
+        scales = node_stds / target_std
+        scales = torch.nan_to_num(scales, nan=0.0, posinf=0.0, neginf=0.0)
+        G = G * scales[None, :]
+
+        M = (G.T @ G) / N
+        M = (M + M.T) / 2.0
+
+        eigenvalues, eigenvectors = torch.linalg.eigh(M)
+        eigenvector = eigenvectors[:, -1]
+
+        importance = eigenvector.square()
+        importance = importance / importance.sum().clamp_min(1e-12)
+
+        return importance.detach(), eigenvalues.detach(), eigenvector.detach()
+
+    def compute_eigen_importance_90(self, all_latents, node_indices, target_node_idx=0, threshold=0.9):
+        target = all_latents[-1][target_node_idx]
+        nodes = [all_latents[layer_idx][node_idx] for layer_idx, node_idx in node_indices]
+
+        grads = torch.autograd.grad(
+            outputs=target,
+            inputs=nodes,
+            grad_outputs=torch.ones_like(target),
+            retain_graph=False,
+            allow_unused=True
+        )
+
+        grad_columns = []
+        for node, grad in zip(nodes, grads):
+            if grad is None:
+                grad_columns.append(torch.zeros(node.shape[0], device=self.device, dtype=torch.float32))
+            else:
+                grad_columns.append(grad[:, 0].float())
+
+        G = torch.stack(grad_columns, dim=1)
+        M = G.T @ G / G.shape[0]
+
+        eigenvalues, eigenvectors = torch.linalg.eigh(M)
+        order = torch.argsort(eigenvalues, descending=True)
+        eigenvalues = eigenvalues[order].clamp_min(0.0)
+        eigenvectors = eigenvectors[:, order]
+
+        total = eigenvalues.sum()
+        if total <= 1e-12:
+            importance = torch.zeros(len(nodes), device=self.device, dtype=torch.float32)
+            return importance, eigenvalues, eigenvectors, 0
+
+        cumulative = torch.cumsum(eigenvalues, dim=0) / total
+        k = int(torch.searchsorted(cumulative, threshold).item()) + 1
+
+        selected_values = eigenvalues[:k]
+        selected_vectors = eigenvectors[:, :k]
+
+        importance = (selected_vectors.square() * selected_values.unsqueeze(0)).sum(dim=1)
+        importance = importance / importance.sum().clamp_min(1e-12)
+
+        return importance, eigenvalues, eigenvectors, k

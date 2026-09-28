@@ -5,6 +5,7 @@ from .utils import rand, randint
 from .scm import WeightedLayeredScalarSCM
 from .observation import ScalarObservationHead
 from .priors import sample_uniform, sample_dirichlet, sample_connection_probs
+from .importance import mutual_information_importance, marginal_importance, loco_importance
 
 
 class SCMTask(GenerateTask):
@@ -50,7 +51,8 @@ class SCMTask(GenerateTask):
             categorical_cardinality_probs=(0.40, 0.30, 0.18, 0.08, 0.04),
             min_samples_per_category=8, 
             min_component_weight=0.05, 
-            observation_noise_scale=0.03
+            observation_noise_scale=0.03,
+            importance_method="eigen_90",
     ):
 
         self.device = device if device is not None else torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -96,6 +98,10 @@ class SCMTask(GenerateTask):
         self.min_samples_per_category = min_samples_per_category
         self.min_component_weight = min_component_weight
         self.observation_noise_scale = observation_noise_scale
+
+        self.importance_method = str(importance_method)
+        if self.importance_method not in ("gradient", "eigen_top1", "eigen_90", "mi", "marginal", "loco"):
+            raise ValueError(f"Unknown importance_method: {self.importance_method}")
 
         self.importance_eps = 1e-3
 
@@ -203,18 +209,26 @@ class SCMTask(GenerateTask):
 
             selected_node_indices = [flat_index[global_id] for global_id in feature_ids]
 
-            feature_strength = self.scm.compute_node_influence(
-                all_latents=all_latents,
-                node_indices=selected_node_indices,
-                target_node_idx=0,
-            )
+            eigenvalues = None
+
+            if self.importance_method == "gradient":
+                feature_importance = self.scm.compute_node_influence(
+                    all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0
+                )
+
+            elif self.importance_method == "eigen_top1":
+                feature_importance, eigenvalues, _ = self.scm.compute_eigen_importance(
+                    all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0
+                )
+
+            elif self.importance_method == "eigen_90":
+                feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance_90(
+                    all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0
+                )
+
 
         (X_clean, feature_type, cardinality, type_ids, type_names, quality, 
         feature_retention, prototypes, thresholds, heads, categorical_features_ok) = self._observe_features(flat_latents, feature_ids)
-
-        feature_importance = feature_strength * feature_retention
-        importance_ok = bool(feature_importance.max() >= self.importance_eps)
-        feature_importance = feature_importance / feature_importance.sum().clamp_min(1e-12)
 
         target_global_id = sum(self.scm.widths[:-1])
         feature_ids_tensor = torch.tensor(feature_ids, device=self.device, dtype=torch.long)
@@ -240,7 +254,7 @@ class SCMTask(GenerateTask):
                 target_latent,
                 X_clean,
                 feature_type,
-                feature_importance,
+                #feature_importance,
                 k=self.num_classes,
                 generator=self.g_dag
             )
@@ -254,7 +268,6 @@ class SCMTask(GenerateTask):
 
             self.n_classes = self.num_classes
 
-        is_valid = categorical_features_ok and target_ok and importance_ok
 
         if self.num_classes is not None:
             train_idx, test_idx = stratified_classification_split(y=y.long(), test_frac=self.test_frac, generator=self.g_x, device=self.device)
@@ -264,6 +277,32 @@ class SCMTask(GenerateTask):
             order = torch.randperm(self.n, generator=self.g_x, device=self.device)
             train_idx = order[:-n_test]
             test_idx = order[-n_test:]
+
+        if self.importance_method in ("mi", "marginal", "loco"):
+            X_train_imp = X_observed[train_idx]
+            X_test_imp = X_observed[test_idx]
+            y_train_imp = y[train_idx]
+            y_test_imp = y[test_idx]
+
+            if self.importance_method == "mi":
+                feature_importance = mutual_information_importance(
+                    X_train_imp, y_train_imp, feature_type, self.num_classes, seed=self.x_seed
+                )
+            elif self.importance_method == "marginal":
+                feature_importance = marginal_importance(
+                    X_train_imp, y_train_imp, X_test_imp, y_test_imp, feature_type, self.num_classes
+                )
+            else:
+                feature_importance = loco_importance(
+                    X_train_imp, y_train_imp, X_test_imp, y_test_imp, feature_type, self.num_classes
+                )
+
+            feature_importance = torch.tensor(feature_importance, device=self.device, dtype=torch.float32)
+        
+        feature_importance = torch.nan_to_num(feature_importance, nan=0.0, posinf=0.0, neginf=0.0)
+        importance_ok = bool(feature_importance.max() >= self.importance_eps and feature_importance.sum() > 1e-12)
+        feature_importance = feature_importance / feature_importance.sum().clamp_min(1e-12)
+        is_valid = categorical_features_ok and target_ok and importance_ok
 
         info = {
             "sampled_connection_probs": torch.tensor(self.connection_probs, device=self.device, dtype=torch.float32),
@@ -286,6 +325,8 @@ class SCMTask(GenerateTask):
 
             "target_id": torch.tensor(target_global_id, device=self.device, dtype=torch.long),
             "feature_importance": feature_importance,
+            "importance_method": self.importance_method,
+            "importance_eigenvalues": eigenvalues,
 
             "is_valid": is_valid,
             "categorical_features_ok": categorical_features_ok,

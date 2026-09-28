@@ -339,10 +339,9 @@ class ScalarObservationHead:
         )
     
 
-    def _target_discretization(self, z, observed_X, feature_type, feature_importance, k, n_neighbors=10, x_weight=0.7, generator=None):
+    def _target_discretization(self, z, observed_X, feature_type, k, n_neighbors=10, x_weight=0.7, generator=None):
         scalar = z[:, 0].float()
         X = observed_X.float()
-        importance = feature_importance.float().clone()
         n, d = X.shape
 
         balance_factor = 0.5 + 0.25 * torch.distributions.Beta(3.26, 1.44).sample()
@@ -366,7 +365,8 @@ class ScalarObservationHead:
                 x_scaled = (xj - x_mean) / x_std
                 feature_distance_sq = (x_scaled[:, None] - x_scaled[None, :]).square()
 
-            distance_sq += importance[j] * feature_distance_sq
+            # distance_sq += importance[j] * feature_distance_sq
+            distance_sq += feature_distance_sq
 
         distances = torch.sqrt(distance_sq.clamp_min(0.0))
         distances.fill_diagonal_(float("inf"))
