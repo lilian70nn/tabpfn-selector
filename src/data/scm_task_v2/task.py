@@ -217,13 +217,13 @@ class SCMTask(GenerateTask):
                 )
 
             elif self.importance_method == "eigen_top1":
-                feature_importance, eigenvalues, _ = self.scm.compute_eigen_importance(
-                    all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0
+                feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance(
+                    all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0, top_k=1
                 )
 
             elif self.importance_method == "eigen_90":
-                feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance_90(
-                    all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0
+                feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance(
+                    all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0, energy_threshold=0.9,
                 )
 
 

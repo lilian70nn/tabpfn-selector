@@ -4,7 +4,7 @@ SCM_PRIOR = {
     "n_min": 400,
     "n_max": 512,
     "d_min": 8,
-    "d_max": 16,
+    "d_max": 12,
     "test_frac": 0.15,
     "p_missing": 0.05,
     "num_roots": 5,
