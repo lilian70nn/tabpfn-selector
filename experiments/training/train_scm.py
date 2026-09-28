@@ -60,6 +60,11 @@ def parse_args():
         type=str,
         default=None,
     )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=16,
+    )
 
     return parser.parse_args()
 
@@ -104,7 +109,7 @@ def main():
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=16,
+        batch_size=args.batch_size,
         shuffle=True,
         num_workers=2,
         pin_memory=True,
@@ -114,7 +119,7 @@ def main():
 
     val_loader = DataLoader(
         val_dataset,
-        batch_size=16,
+        batch_size=args.batch_size,
         shuffle=False,
         num_workers=0,
         pin_memory=True,
