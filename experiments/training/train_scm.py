@@ -78,6 +78,7 @@ def main():
 
     # Don't modify the global SCM_PRIOR object.
     prior = copy.deepcopy(SCM_PRIOR)
+    prior["generate_importance"] = args.use_importance
     prior["importance_method"] = args.importance_method
 
     if args.task_kind == "classification":

@@ -21,7 +21,7 @@ class TaskBatch:
     feature_type: torch.Tensor
     cardinality: torch.Tensor
 
-    feature_importance: torch.Tensor
+    feature_importance: Optional[torch.Tensor]
 
     cell_mask: torch.Tensor
     x_mean: torch.Tensor
@@ -100,11 +100,10 @@ def collate_tasks(tasks, use_selector=True):
         device=device,
     )
 
-    feature_importance = torch.zeros(
-        (B, d_max),
-        dtype=torch.float32,
-        device=device,
-    )
+    if use_selector:
+        feature_importance = torch.zeros((B, d_max), dtype=torch.float32, device=device)
+    else:
+        feature_importance = None
 
     x_mean = torch.zeros((B, d_max), dtype=torch.float32, device=device)
     x_std = torch.ones((B, d_max), dtype=torch.float32, device=device)
@@ -160,7 +159,12 @@ def collate_tasks(tasks, use_selector=True):
         feature_type[b, :d] = task.info["feature_type"]
         cardinality[b, :d] = task.info["cardinality"]
 
-        feature_importance[b, :d] = task.info["feature_importance"]
+        # feature_importance[b, :d] = task.info["feature_importance"]
+        if use_selector:
+            importance_i = task.info["feature_importance"]
+            if importance_i is None:
+                raise ValueError("feature_importance is required when use_selector=True.")
+            feature_importance[b, :d] = importance_i
 
         # n_classes_list.append(task.n_classes)
         if task.n_classes is None:

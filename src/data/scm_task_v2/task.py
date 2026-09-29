@@ -52,6 +52,7 @@ class SCMTask(GenerateTask):
             min_samples_per_category=8, 
             min_component_weight=0.05, 
             observation_noise_scale=0.03,
+            generate_importance=True,
             importance_method="eigen_90",
     ):
 
@@ -99,6 +100,7 @@ class SCMTask(GenerateTask):
         self.min_component_weight = min_component_weight
         self.observation_noise_scale = observation_noise_scale
 
+        self.generate_importance = bool(generate_importance)
         self.importance_method = str(importance_method)
         if self.importance_method not in ("gradient", "eigen_top1", "eigen_90", "mi", "marginal", "loco"):
             raise ValueError(f"Unknown importance_method: {self.importance_method}")
@@ -210,21 +212,23 @@ class SCMTask(GenerateTask):
             selected_node_indices = [flat_index[global_id] for global_id in feature_ids]
 
             eigenvalues = None
+            feature_importance = None
 
-            if self.importance_method == "gradient":
-                feature_importance = self.scm.compute_node_influence(
-                    all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0
-                )
+            if self.generate_importance:
+                if self.importance_method == "gradient":
+                    feature_importance = self.scm.compute_node_influence(
+                        all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0
+                    )
 
-            elif self.importance_method == "eigen_top1":
-                feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance(
-                    all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0, top_k=1
-                )
+                elif self.importance_method == "eigen_top1":
+                    feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance(
+                        all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0, top_k=1
+                    )
 
-            elif self.importance_method == "eigen_90":
-                feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance(
-                    all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0, energy_threshold=0.9,
-                )
+                elif self.importance_method == "eigen_90":
+                    feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance(
+                        all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0, energy_threshold=0.9,
+                    )
 
 
         (X_clean, feature_type, cardinality, type_ids, type_names, quality, 
@@ -278,7 +282,7 @@ class SCMTask(GenerateTask):
             train_idx = order[:-n_test]
             test_idx = order[-n_test:]
 
-        if self.importance_method in ("mi", "marginal", "loco"):
+        if self.generate_importance and self.importance_method in ("mi", "marginal", "loco"):
             X_train_imp = X_observed[train_idx]
             X_test_imp = X_observed[test_idx]
             y_train_imp = y[train_idx]
@@ -298,10 +302,15 @@ class SCMTask(GenerateTask):
                 )
 
             feature_importance = torch.tensor(feature_importance, device=self.device, dtype=torch.float32)
-        
-        feature_importance = torch.nan_to_num(feature_importance, nan=0.0, posinf=0.0, neginf=0.0)
-        importance_ok = bool(feature_importance.max() >= self.importance_eps and feature_importance.sum() > 1e-12)
-        feature_importance = feature_importance / feature_importance.sum().clamp_min(1e-12)
+
+        if self.generate_importance:
+            feature_importance = torch.nan_to_num(feature_importance, nan=0.0, posinf=0.0, neginf=0.0)
+            importance_ok = bool(feature_importance.max() >= self.importance_eps and feature_importance.sum() > 1e-12)
+            feature_importance = feature_importance / feature_importance.sum().clamp_min(1e-12)
+        else:
+            feature_importance = None
+            importance_ok = True
+
         is_valid = categorical_features_ok and target_ok and importance_ok
 
         info = {
@@ -325,7 +334,7 @@ class SCMTask(GenerateTask):
 
             "target_id": torch.tensor(target_global_id, device=self.device, dtype=torch.long),
             "feature_importance": feature_importance,
-            "importance_method": self.importance_method,
+            "importance_method": self.importance_method if self.generate_importance else None,
             "importance_eigenvalues": eigenvalues,
 
             "is_valid": is_valid,
