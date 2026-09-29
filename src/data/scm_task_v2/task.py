@@ -214,21 +214,21 @@ class SCMTask(GenerateTask):
             eigenvalues = None
             feature_importance = None
 
-            if self.generate_importance:
-                if self.importance_method == "gradient":
-                    feature_importance = self.scm.compute_node_influence(
-                        all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0
-                    )
+            # if self.generate_importance:
+            #     if self.importance_method == "gradient":
+            #         feature_importance = self.scm.compute_node_influence(
+            #             all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0
+            #         )
 
-                elif self.importance_method == "eigen_top1":
-                    feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance(
-                        all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0, top_k=1
-                    )
+            #     elif self.importance_method == "eigen_top1":
+            #         feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance(
+            #             all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0, top_k=1
+            #         )
 
-                elif self.importance_method == "eigen_90":
-                    feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance(
-                        all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0, energy_threshold=0.9,
-                    )
+            #     elif self.importance_method == "eigen_90":
+            #         feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance(
+            #             all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0, energy_threshold=0.9,
+            #         )
 
 
         (X_clean, feature_type, cardinality, type_ids, type_names, quality, 
@@ -282,34 +282,63 @@ class SCMTask(GenerateTask):
             train_idx = order[:-n_test]
             test_idx = order[-n_test:]
 
-        if self.generate_importance and self.importance_method in ("mi", "marginal", "loco"):
-            X_train_imp = X_observed[train_idx]
-            X_test_imp = X_observed[test_idx]
-            y_train_imp = y[train_idx]
-            y_test_imp = y[test_idx]
+        pre_importance_valid = categorical_features_ok and target_ok
 
-            if self.importance_method == "mi":
-                feature_importance = mutual_information_importance(
-                    X_train_imp, y_train_imp, feature_type, self.num_classes, seed=self.x_seed
-                )
-            elif self.importance_method == "marginal":
-                feature_importance = marginal_importance(
-                    X_train_imp, y_train_imp, X_test_imp, y_test_imp, feature_type, self.num_classes
-                )
-            else:
-                feature_importance = loco_importance(
-                    X_train_imp, y_train_imp, X_test_imp, y_test_imp, feature_type, self.num_classes
-                )
+        if self.generate_importance and pre_importance_valid:
 
-            feature_importance = torch.tensor(feature_importance, device=self.device, dtype=torch.float32)
+            if self.importance_method == "gradient":
+                with torch.enable_grad():
+                    feature_importance = self.scm.compute_node_influence(
+                        all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0,
+                    )
 
-        if self.generate_importance:
+            elif self.importance_method == "eigen_top1":
+                with torch.enable_grad():
+                    feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance(
+                        all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0, top_k=1,
+                    )
+
+            elif self.importance_method == "eigen_90":
+                with torch.enable_grad():
+                    feature_importance, eigenvalues, _, _ = self.scm.compute_eigen_importance(
+                        all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0, energy_threshold=0.9,
+                    )
+
+            elif self.importance_method in ("mi", "marginal", "loco"):
+                X_train_imp = X_observed[train_idx]
+                X_test_imp = X_observed[test_idx]
+                y_train_imp = y[train_idx]
+                y_test_imp = y[test_idx]
+
+                if self.importance_method == "mi":
+                    feature_importance = mutual_information_importance(
+                        X_train_imp, y_train_imp, feature_type, self.num_classes, seed=self.x_seed
+                    )
+                elif self.importance_method == "marginal":
+                    feature_importance = marginal_importance(
+                        X_train_imp, y_train_imp, X_test_imp, y_test_imp, feature_type, self.num_classes
+                    )
+                else:
+                    feature_importance = loco_importance(
+                        X_train_imp, y_train_imp, X_test_imp, y_test_imp, feature_type, self.num_classes
+                    )
+
+                feature_importance = torch.tensor(feature_importance, device=self.device, dtype=torch.float32)
+
+
+        if not self.generate_importance:
+            feature_importance = None
+            importance_ok = True
+
+        elif not pre_importance_valid:
+            feature_importance = None
+            importance_ok = False
+
+        else:
             feature_importance = torch.nan_to_num(feature_importance, nan=0.0, posinf=0.0, neginf=0.0)
             importance_ok = bool(feature_importance.max() >= self.importance_eps and feature_importance.sum() > 1e-12)
             feature_importance = feature_importance / feature_importance.sum().clamp_min(1e-12)
-        else:
-            feature_importance = None
-            importance_ok = True
+
 
         is_valid = categorical_features_ok and target_ok and importance_ok
 
