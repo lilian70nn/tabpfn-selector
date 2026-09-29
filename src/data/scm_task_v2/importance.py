@@ -95,58 +95,160 @@ def mutual_information_importance(X_train, y_train, feature_type, num_classes, s
 
 #     return _normalize(importance)
 
+# def marginal_importance(
+#     X_train, y_train, X_test, y_test, feature_type, num_classes
+# ):
+#     X_train = _to_numpy(X_train).astype(np.float64)
+#     X_test = _to_numpy(X_test).astype(np.float64)
+#     y_train = _to_numpy(y_train).reshape(-1)
+#     y_test = _to_numpy(y_test).reshape(-1)
+#     feature_type = _to_numpy(feature_type).astype(np.int64)
+
+#     d = X_train.shape[1]
+#     importance = np.zeros(d, dtype=np.float64)
+
+#     for j in range(d):
+#         xtr = X_train[:, j].copy()
+#         xte = X_test[:, j].copy()
+
+#         if feature_type[j] == 0:
+#             # continuous: median imputation + standardization
+#             observed = xtr[~np.isnan(xtr)]
+#             fill = np.median(observed) if len(observed) else 0.0
+#             xtr[np.isnan(xtr)] = fill
+#             xte[np.isnan(xte)] = fill
+#             mean = xtr.mean()
+#             std = xtr.std()
+#             if std < 1e-12:
+#                 std = 1.0
+#             xtr = ((xtr - mean) / std).reshape(-1, 1)
+#             xte = ((xte - mean) / std).reshape(-1, 1)
+
+#         else:
+#             # categorical: most-frequent imputation + one-hot
+#             observed = xtr[~np.isnan(xtr)]
+#             if len(observed):
+#                 values, counts = np.unique(observed, return_counts=True)
+#                 fill = values[np.argmax(counts)]
+#             else:
+#                 fill = 0.0
+#             xtr[np.isnan(xtr)] = fill
+#             xte[np.isnan(xte)] = fill
+#             encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+#             xtr = encoder.fit_transform(xtr.reshape(-1, 1))
+#             xte = encoder.transform(xte.reshape(-1, 1))
+
+#         if num_classes is None:
+#             model = LinearRegression()
+#             model.fit(xtr, y_train)
+#             score = r2_score(y_test, model.predict(xte))
+
+#         else:
+#             model = LogisticRegression(max_iter=1000)
+#             model.fit(xtr, y_train.astype(np.int64))
+#             score = balanced_accuracy_score(y_test.astype(np.int64), model.predict(xte))
+
+#         importance[j] = score
+
+#     if num_classes is None:
+#         importance = np.maximum(importance, 0.0)
+#     else:
+#         chance = 1.0 / num_classes
+#         importance = np.maximum(importance - chance, 0.0)
+
+#     return _normalize(importance)
+
+
 def marginal_importance(
     X_train, y_train, X_test, y_test, feature_type, num_classes
 ):
+    import time
+
+    t_start = time.perf_counter()
+
+    # GPU tensor -> CPU numpy
     X_train = _to_numpy(X_train).astype(np.float64)
     X_test = _to_numpy(X_test).astype(np.float64)
     y_train = _to_numpy(y_train).reshape(-1)
     y_test = _to_numpy(y_test).reshape(-1)
     feature_type = _to_numpy(feature_type).astype(np.int64)
 
+    t_numpy = time.perf_counter()
+
     d = X_train.shape[1]
     importance = np.zeros(d, dtype=np.float64)
 
+    preprocess_time = 0.0
+    fit_time = 0.0
+
     for j in range(d):
+        # -------------------------
+        # preprocessing
+        # -------------------------
+        t0 = time.perf_counter()
+
         xtr = X_train[:, j].copy()
         xte = X_test[:, j].copy()
 
         if feature_type[j] == 0:
-            # continuous: median imputation + standardization
             observed = xtr[~np.isnan(xtr)]
             fill = np.median(observed) if len(observed) else 0.0
+
             xtr[np.isnan(xtr)] = fill
             xte[np.isnan(xte)] = fill
+
             mean = xtr.mean()
             std = xtr.std()
+
             if std < 1e-12:
                 std = 1.0
+
             xtr = ((xtr - mean) / std).reshape(-1, 1)
             xte = ((xte - mean) / std).reshape(-1, 1)
 
         else:
-            # categorical: most-frequent imputation + one-hot
             observed = xtr[~np.isnan(xtr)]
+
             if len(observed):
                 values, counts = np.unique(observed, return_counts=True)
                 fill = values[np.argmax(counts)]
             else:
                 fill = 0.0
+
             xtr[np.isnan(xtr)] = fill
             xte[np.isnan(xte)] = fill
-            encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+
+            encoder = OneHotEncoder(
+                handle_unknown="ignore",
+                sparse_output=False,
+            )
+
             xtr = encoder.fit_transform(xtr.reshape(-1, 1))
             xte = encoder.transform(xte.reshape(-1, 1))
+
+        preprocess_time += time.perf_counter() - t0
+
+        # -------------------------
+        # model fitting + prediction
+        # -------------------------
+        t0 = time.perf_counter()
 
         if num_classes is None:
             model = LinearRegression()
             model.fit(xtr, y_train)
-            score = r2_score(y_test, model.predict(xte))
+            prediction = model.predict(xte)
+            score = r2_score(y_test, prediction)
 
         else:
             model = LogisticRegression(max_iter=1000)
             model.fit(xtr, y_train.astype(np.int64))
-            score = balanced_accuracy_score(y_test.astype(np.int64), model.predict(xte))
+            prediction = model.predict(xte)
+            score = balanced_accuracy_score(
+                y_test.astype(np.int64),
+                prediction,
+            )
+
+        fit_time += time.perf_counter() - t0
 
         importance[j] = score
 
@@ -156,20 +258,71 @@ def marginal_importance(
         chance = 1.0 / num_classes
         importance = np.maximum(importance - chance, 0.0)
 
+    total_time = time.perf_counter() - t_start
+
+    print(
+        f"[marginal] "
+        f"d={d} | "
+        f"numpy={t_numpy - t_start:.4f}s | "
+        f"preprocess={preprocess_time:.4f}s | "
+        f"fit={fit_time:.4f}s | "
+        f"total={total_time:.4f}s",
+        flush=True,
+    )
+
     return _normalize(importance)
 
 
 def loco_importance(X_train, y_train, X_test, y_test, feature_type, num_classes):
-    X_train, X_test = _to_numpy(X_train), _to_numpy(X_test)
-    y_train, y_test = _to_numpy(y_train).reshape(-1), _to_numpy(y_test).reshape(-1)
+    X_train = _to_numpy(X_train).astype(np.float64)
+    X_test = _to_numpy(X_test).astype(np.float64)
+    y_train = _to_numpy(y_train).reshape(-1)
+    y_test = _to_numpy(y_test).reshape(-1)
     feature_type = _to_numpy(feature_type).astype(np.int64)
 
-    baseline = _fit_score(X_train, y_train, X_test, y_test, feature_type, num_classes)
-    importance = np.zeros(X_train.shape[1])
+    d = X_train.shape[1]
 
-    for j in range(X_train.shape[1]):
-        columns = np.delete(np.arange(X_train.shape[1]), j)
-        reduced_score = _fit_score(X_train, y_train, X_test, y_test, feature_type, num_classes, columns=columns)
+    preprocessor = _build_preprocessor(feature_type)
+    Xtr = preprocessor.fit_transform(X_train)
+    Xte = preprocessor.transform(X_test)
+    feature_columns = {}
+    continuous = np.where(feature_type == 0)[0]
+    categorical = np.where(feature_type != 0)[0]
+    offset = 0
+
+    for j in continuous:
+        feature_columns[j] = np.array([offset], dtype=np.int64)
+        offset += 1
+
+    if len(categorical):
+        cat_pipeline = preprocessor.named_transformers_["categorical"]
+        encoder = cat_pipeline.named_steps["onehot"]
+        for j, categories in zip(categorical, encoder.categories_):
+            width = len(categories)
+            feature_columns[j] = np.arange(offset, offset + width, dtype=np.int64)
+            offset += width
+
+    def fit_score(Xtr_i, Xte_i):
+        if num_classes is None:
+            model = LinearRegression()
+            model.fit(Xtr_i, y_train)
+            prediction = model.predict(Xte_i)
+            return r2_score(y_test, prediction)
+
+        model = LogisticRegression(max_iter=1000)
+        model.fit(Xtr_i, y_train.astype(np.int64))
+        prediction = model.predict(Xte_i)
+
+        return balanced_accuracy_score(y_test.astype(np.int64), prediction)
+
+    baseline = fit_score(Xtr, Xte)
+    importance = np.zeros(d, dtype=np.float64)
+    all_columns = np.arange(Xtr.shape[1])
+
+    for j in range(d):
+        removed = feature_columns[j]
+        keep = np.setdiff1d(all_columns, removed, assume_unique=True)
+        reduced_score = fit_score(Xtr[:, keep], Xte[:, keep])
         importance[j] = baseline - reduced_score
 
     return _normalize(importance)
