@@ -27,6 +27,7 @@ def parse_args():
             "mi",
             "marginal",
             "loco",
+            "permutation"
         ],
     )
 

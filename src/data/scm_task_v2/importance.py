@@ -197,3 +197,62 @@ def loco_importance(X_train, y_train, X_test, y_test, feature_type, num_classes)
         importance[j] = baseline - reduced_score
 
     return _normalize(importance)
+
+
+def permutation_importance(X_train, y_train, X_test, y_test, feature_type, num_classes, seed=0, n_repeats=3):
+    X_train = _to_numpy(X_train).astype(np.float64)
+    X_test = _to_numpy(X_test).astype(np.float64)
+    y_train = _to_numpy(y_train).reshape(-1)
+    y_test = _to_numpy(y_test).reshape(-1)
+    feature_type = _to_numpy(feature_type).astype(np.int64)
+
+    preprocessor = _build_preprocessor(feature_type)
+    Xtr = preprocessor.fit_transform(X_train)
+    Xte = preprocessor.transform(X_test)
+
+    if num_classes is None:
+        model = LinearRegression()
+        model.fit(Xtr, y_train)
+        baseline = r2_score(y_test, model.predict(Xte))
+    else:
+        model = LogisticRegression(max_iter=1000)
+        model.fit(Xtr, y_train.astype(np.int64))
+        baseline = balanced_accuracy_score(y_test.astype(np.int64), model.predict(Xte))
+
+    feature_columns = {}
+    continuous = np.where(feature_type == 0)[0]
+    categorical = np.where(feature_type != 0)[0]
+    offset = 0
+
+    for j in continuous:
+        feature_columns[j] = np.array([offset], dtype=np.int64)
+        offset += 1
+
+    if len(categorical):
+        encoder = preprocessor.named_transformers_["categorical"].named_steps["onehot"]
+        for j, categories in zip(categorical, encoder.categories_):
+            width = len(categories)
+            feature_columns[j] = np.arange(offset, offset + width, dtype=np.int64)
+            offset += width
+
+    rng = np.random.default_rng(seed)
+    importance = np.zeros(X_train.shape[1], dtype=np.float64)
+
+    for j in range(X_train.shape[1]):
+        scores = []
+        columns = feature_columns[j]
+
+        for _ in range(n_repeats):
+            permutation = rng.permutation(Xte.shape[0])
+            Xte_permuted = Xte.copy()
+            Xte_permuted[:, columns] = Xte[permutation][:, columns]
+            prediction = model.predict(Xte_permuted)
+
+            if num_classes is None:
+                scores.append(r2_score(y_test, prediction))
+            else:
+                scores.append(balanced_accuracy_score(y_test.astype(np.int64), prediction))
+
+        importance[j] = baseline - np.mean(scores)
+
+    return _normalize(importance)

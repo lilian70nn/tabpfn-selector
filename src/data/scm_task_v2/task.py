@@ -5,7 +5,7 @@ from .utils import rand, randint
 from .scm import WeightedLayeredScalarSCM
 from .observation import ScalarObservationHead
 from .priors import sample_uniform, sample_dirichlet, sample_connection_probs
-from .importance import mutual_information_importance, marginal_importance, loco_importance
+from .importance import mutual_information_importance, marginal_importance, loco_importance, permutation_importance
 
 
 class SCMTask(GenerateTask):
@@ -102,7 +102,7 @@ class SCMTask(GenerateTask):
 
         self.generate_importance = bool(generate_importance)
         self.importance_method = str(importance_method)
-        if self.importance_method not in ("gradient", "eigen_top1", "eigen_90", "mi", "marginal", "loco"):
+        if self.importance_method not in ("gradient", "eigen_top1", "eigen_90", "mi", "marginal", "loco", "permutation"):
             raise ValueError(f"Unknown importance_method: {self.importance_method}")
 
         self.importance_eps = 1e-3
@@ -304,7 +304,7 @@ class SCMTask(GenerateTask):
                         all_latents=all_latents, node_indices=selected_node_indices, target_node_idx=0, energy_threshold=0.9,
                     )
 
-            elif self.importance_method in ("mi", "marginal", "loco"):
+            elif self.importance_method in ("mi", "marginal", "loco", "permutation"):
                 X_train_imp = X_observed[train_idx]
                 X_test_imp = X_observed[test_idx]
                 y_train_imp = y[train_idx]
@@ -318,10 +318,15 @@ class SCMTask(GenerateTask):
                     feature_importance = marginal_importance(
                         X_train_imp, y_train_imp, X_test_imp, y_test_imp, feature_type, self.num_classes
                     )
-                else:
+                elif self.importance_method == "loco":
                     feature_importance = loco_importance(
                         X_train_imp, y_train_imp, X_test_imp, y_test_imp, feature_type, self.num_classes
                     )
+                elif self.importance_method == "permutation":
+                    feature_importance = permutation_importance(
+                        X_train_imp, y_train_imp, X_test_imp, y_test_imp, feature_type, self.num_classes, seed=self.x_seed
+                    )
+                
 
                 feature_importance = torch.tensor(feature_importance, device=self.device, dtype=torch.float32)
 
