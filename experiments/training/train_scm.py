@@ -163,13 +163,12 @@ def main():
     )
 
     if args.save_path is None:
-        imp_tag = "w_imp" if args.use_importance else "wo_imp"
-        save_path = (
-            Path(__file__).resolve().parents[2]
-            / "results"
-            / "training"
-            / f"scm_{args.task_kind}_{args.importance_method}_{imp_tag}"
-        )
+        if args.use_importance:
+            run_name = f"scm_{args.task_kind}_{args.importance_method}_w_imp"
+        else:
+            run_name = f"scm_{args.task_kind}_wo_imp"
+
+        save_path = Path(__file__).resolve().parents[2] / "results" / "training" / run_name
     else:
         save_path = Path(args.save_path)
 
