@@ -12,6 +12,7 @@ def train_synthetic(
     device,
     steps=5000,
     importance_weight: float | None = None,
+    importance_start_frac: float = 0.0,
     grad_clip=1.0,
     log_every=50,
     val_loader=None,
@@ -122,6 +123,7 @@ def train_synthetic(
     running_n = 0
     running_imp_n = 0
     best_pred_loss = float("inf")
+    importance_start_step = int(steps * importance_start_frac)
 
     for step in range(1, steps + 1):
 
@@ -137,7 +139,19 @@ def train_synthetic(
         optimizer.zero_grad(set_to_none=True)
         out = model(batch)
 
-        loss_dict = model.total_loss(batch, out, importance_weight=importance_weight)
+        if loader_use_selector and step <= importance_start_step:
+            current_importance_weight = 0.0
+        else:
+            current_importance_weight = importance_weight
+
+        if loader_use_selector and step == importance_start_step + 1:
+            log_line(
+                f"[importance supervision ON] step={step} | "
+                f"start_frac={importance_start_frac:.3f} | "
+                f"weight={importance_weight}"
+            )
+
+        loss_dict = model.total_loss(batch, out, importance_weight=current_importance_weight)
         loss = loss_dict["loss"]
 
         if not torch.isfinite(loss):
@@ -163,7 +177,8 @@ def train_synthetic(
                     f"step {step:06d} | "
                     f"total_loss {running_loss / running_n:.4f} | "
                     f"pred_loss {running_pred / running_n:.4f} | "
-                    f"imp_loss {running_imp / max(running_imp_n, 1):.6f}"
+                    f"imp_loss {running_imp / max(running_imp_n, 1):.6f} | "
+                    f"imp_weight {current_importance_weight:.1f}"
                 )
             else:
                 log_line(

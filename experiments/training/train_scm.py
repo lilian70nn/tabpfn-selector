@@ -57,6 +57,13 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--importance-start-frac",
+        type=float,
+        default=0.0,
+        help="Fraction of training steps before importance supervision starts.",
+    )
+
+    parser.add_argument(
         "--save-path",
         type=str,
         default=None,
@@ -181,6 +188,7 @@ def main():
         device=device,
         steps=steps,
         importance_weight=args.importance_weight if args.use_importance else None,
+        importance_start_frac=args.importance_start_frac,
         grad_clip=1.0,
         log_every=50,
         val_loader=val_loader,

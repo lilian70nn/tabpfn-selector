@@ -155,7 +155,7 @@ class TabularPFNModel(nn.Module):
 
         if bool(batch.use_selector):
             assert importance_weight is not None
-            assert importance_weight > 0
+            assert importance_weight >= 0
 
             importance_loss = self.importance_loss(batch, out)
             loss = pred_loss + importance_weight * importance_loss
