@@ -39,15 +39,18 @@ def _encode_cat_from_train(s_train, s_test):
 
     return x_train, x_test, K
 
+
 def _encode_high_card_cat_from_train(s_train, s_test):
     s_train = s_train.astype("object")
     s_test = s_test.astype("object")
-    freq = s_train.dropna().astype(str).value_counts(normalize=True)
+
+    cats = s_train.dropna().astype(str).unique().tolist()
+    mapping = {c: i for i, c in enumerate(cats)}
 
     def enc(v):
         if pd.isna(v):
             return float("nan")
-        return float(freq.get(str(v), 0.0))
+        return float(mapping.get(str(v), float("nan")))
 
     x_train = torch.tensor([enc(v) for v in s_train], dtype=torch.float32)
     x_test = torch.tensor([enc(v) for v in s_test], dtype=torch.float32)
@@ -120,7 +123,7 @@ def collate_openml_task(
         assert len(selected_features) == n_repeats
         selected_features = [np.asarray(x, dtype=int) for x in selected_features]
 
-    if classification or isinstance(y_raw.dtype, pd.CategoricalDtype) or y_raw.dtype == "object" or y_raw.dtype.name == "category":
+    if classification:
         y_cat = y_raw.astype("category")
         n_classes_value = len(y_cat.cat.categories)
         n_classes = torch.full((n_repeats,), n_classes_value, dtype=torch.long, device=device)
@@ -194,20 +197,20 @@ def collate_openml_task(
             s_test = X_test_df[col]
 
             distinct = int(s_train.nunique(dropna=True))
-            is_object = s_train.dtype == "object"
+            is_object = s_train.dtype == "object" or isinstance(s_train.dtype, pd.CategoricalDtype)
             is_cat = bool(cat_indicator_rep[j])
 
-            if (not is_cat) and is_object and distinct <= 10:
+            if (not is_cat) and is_object:
                 is_cat = True
 
-            if is_cat and distinct <= 10:
+            if is_cat and distinct <= 6:
                 xtr, xte, K = _encode_cat_from_train(s_train, s_test)
                 Xtr_cols.append(xtr)
                 Xte_cols.append(xte)
                 feature_type.append(1)
                 cardinality.append(K)
 
-            elif is_cat and distinct > 10:
+            elif is_cat and distinct > 6:
                 xtr, xte = _encode_high_card_cat_from_train(s_train, s_test)
                 Xtr_cols.append(xtr)
                 Xte_cols.append(xte)
