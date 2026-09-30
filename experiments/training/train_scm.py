@@ -7,29 +7,15 @@ from torch.utils.data import DataLoader
 
 from src.data.datasets import SyntheticTaskDataset
 from src.data.scm_task_v2.task import SCMTask
+from src.data.linear_task import LinearTask
 from src.data.collate import collate_tasks
 from src.model.tabpfn import TabularPFNModel
 from src.training.train import train_synthetic
-from experiments.config import SCM_PRIOR
+from experiments.config import SCM_PRIOR, LINEAR_PRIOR
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--importance-method",
-        type=str,
-        default="eigen_90",
-        choices=[
-            "gradient",
-            "eigen_top1",
-            "eigen_90",
-            "mi",
-            "marginal",
-            "loco",
-            "permutation"
-        ],
-    )
 
     parser.add_argument(
         "--epochs",
@@ -46,8 +32,30 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--prior",
+        type=str,
+        default="scm",
+        choices=["scm", "linear"],
+    )
+
+    parser.add_argument(
         "--use-importance",
         action="store_true",
+    )
+
+    parser.add_argument(
+        "--importance-method",
+        type=str,
+        default="eigen_90",
+        choices=[
+            "gradient",
+            "eigen_top1",
+            "eigen_90",
+            "mi",
+            "marginal",
+            "loco",
+            "permutation"
+        ],
     )
 
     parser.add_argument(
@@ -84,15 +92,21 @@ def main():
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
-    # Don't modify the global SCM_PRIOR object.
-    prior = copy.deepcopy(SCM_PRIOR)
-    prior["generate_importance"] = args.use_importance
-    prior["importance_method"] = args.importance_method
+    if args.prior == "scm":
+        prior = copy.deepcopy(SCM_PRIOR)
+        prior["generate_importance"] = args.use_importance
+        prior["importance_method"] = args.importance_method
+        task_factory = SCMTask
+    else:
+        prior = copy.deepcopy(LINEAR_PRIOR)
+        prior["generate_importance"] = args.use_importance
+        task_factory = LinearTask
+
 
     if args.task_kind == "classification":
         train_dataset = SyntheticTaskDataset(
             num_tasks=105500,
-            task_factory=SCMTask,
+            task_factory=task_factory,
             task_kind="classification",
             min_classes=2,
             max_classes=4,
@@ -102,7 +116,7 @@ def main():
 
         val_dataset = SyntheticTaskDataset(
             num_tasks=10000,
-            task_factory=SCMTask,
+            task_factory=task_factory,
             task_kind="classification",
             min_classes=2,
             max_classes=4,
@@ -113,7 +127,7 @@ def main():
     else:
         train_dataset = SyntheticTaskDataset(
             num_tasks=102500,
-            task_factory=SCMTask,
+            task_factory=task_factory,
             task_kind="regression",
             base_seed=0,
             task_kwargs=prior,
@@ -121,7 +135,7 @@ def main():
 
         val_dataset = SyntheticTaskDataset(
             num_tasks=10000,
-            task_factory=SCMTask,
+            task_factory=task_factory,
             task_kind="regression",
             base_seed=102500,
             task_kwargs=prior,
@@ -171,9 +185,12 @@ def main():
 
     if args.save_path is None:
         if args.use_importance:
-            run_name = f"scm_{args.task_kind}_{args.importance_method}_w_imp"
+            if args.prior == "scm":
+                run_name = f"scm_{args.task_kind}_{args.importance_method}_w_imp"
+            else:
+                run_name = f"linear_{args.task_kind}_w_imp"
         else:
-            run_name = f"scm_{args.task_kind}_wo_imp"
+            run_name = f"{args.prior}_{args.task_kind}_wo_imp"
 
         save_path = Path(__file__).resolve().parents[2] / "results" / "training" / run_name
     else:
