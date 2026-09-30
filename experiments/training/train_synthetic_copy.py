@@ -104,7 +104,7 @@ def main():
 
     if args.task_kind == "classification":
         train_dataset = SyntheticTaskDataset(
-            num_tasks=500,
+            num_tasks=8000,
             task_factory=task_factory,
             task_kind="classification",
             min_classes=2,
@@ -114,7 +114,7 @@ def main():
         )
 
         val_dataset = SyntheticTaskDataset(
-            num_tasks=500,
+            num_tasks=8000,
             task_factory=task_factory,
             task_kind="classification",
             min_classes=2,
@@ -125,7 +125,7 @@ def main():
 
     else:
         train_dataset = SyntheticTaskDataset(
-            num_tasks=500,
+            num_tasks=8000,
             task_factory=task_factory,
             task_kind="regression",
             base_seed=0,
@@ -133,7 +133,7 @@ def main():
         )
 
         val_dataset = SyntheticTaskDataset(
-            num_tasks=500,
+            num_tasks=8000,
             task_factory=task_factory,
             task_kind="regression",
             base_seed=102500,
