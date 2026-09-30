@@ -83,6 +83,7 @@ train_synthetic(
     device=device,
     steps=4500,
     importance_weight=50,
+    importance_start_frac=0,
     grad_clip=1.0,
     log_every=50,
     val_loader=val_loader,
