@@ -99,7 +99,6 @@ def main():
         task_factory = SCMTask
     else:
         prior = copy.deepcopy(LINEAR_PRIOR)
-        prior["generate_importance"] = args.use_importance
         task_factory = LinearTask
 
 
