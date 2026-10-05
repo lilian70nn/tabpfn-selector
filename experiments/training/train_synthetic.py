@@ -88,6 +88,13 @@ def parse_args():
 def main():
     args = parse_args()
 
+    seed = 0
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    train_generator = torch.Generator()
+    train_generator.manual_seed(seed)
+
     device = torch.device("cuda")
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
@@ -144,6 +151,7 @@ def main():
         train_dataset,
         batch_size=args.batch_size,
         shuffle=True,
+        generator=train_generator,
         num_workers=2,
         pin_memory=True,
         persistent_workers=True,
