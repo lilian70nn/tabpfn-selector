@@ -57,7 +57,7 @@ def train_synthetic(
 
     if loader_use_selector:
         assert importance_weight is not None
-        assert importance_weight > 0
+        assert importance_weight >= 0
     else:
         assert importance_weight is None
 
