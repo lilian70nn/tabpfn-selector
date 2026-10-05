@@ -1,2 +1,0 @@
-priors,valid_rate,num_classes,task_ratio,cat_ratio,class_balance,mlp_score,nonlinearity_ratio,gt_top1,gt_top3,gt_nonzero,gt_nonzero_ratio,importance_spearman,importance_topk,top_eigenvalue_ratio
-prior,0.976,,1.0,0.3336846953137937,,0.6693202744497627,0.04687887268348158,0.39953872674434887,0.8047486107608808,6.288934426229508,0.6349990685543964,0.5862417109487639,0.6584699453551912,0.7087672470862786
