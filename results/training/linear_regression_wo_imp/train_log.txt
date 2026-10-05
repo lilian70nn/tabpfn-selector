@@ -1,0 +1,332 @@
+step 000050 | pred_loss 4.6735
+step 000100 | pred_loss 4.6348
+step 000150 | pred_loss 4.6261
+step 000200 | pred_loss 4.6195
+step 000250 | pred_loss 4.6122
+step 000300 | pred_loss 4.6026
+[best] step 000300 | val_pred_loss 4.592787
+[val] step 000300 | loss 4.5928 | pred_loss 4.5928 | r2 -0.0187 | mae 2.3774 | rmse 2.9641
+step 000350 | pred_loss 4.5973
+step 000400 | pred_loss 4.5921
+step 000450 | pred_loss 4.5876
+step 000500 | pred_loss 4.5869
+step 000550 | pred_loss 4.5875
+step 000600 | pred_loss 4.5860
+[best] step 000600 | val_pred_loss 4.577440
+[val] step 000600 | loss 4.5774 | pred_loss 4.5774 | r2 -0.0184 | mae 2.3769 | rmse 2.9634
+step 000650 | pred_loss 4.5812
+step 000700 | pred_loss 4.5822
+step 000750 | pred_loss 4.5818
+step 000800 | pred_loss 4.5814
+step 000850 | pred_loss 4.5790
+step 000900 | pred_loss 4.5790
+[val] step 000900 | loss 4.5779 | pred_loss 4.5779 | r2 -0.0183 | mae 2.3769 | rmse 2.9634
+step 000950 | pred_loss 4.5776
+step 001000 | pred_loss 4.5802
+step 001050 | pred_loss 4.5787
+step 001100 | pred_loss 4.5766
+step 001150 | pred_loss 4.5780
+step 001200 | pred_loss 4.5779
+[val] step 001200 | loss 4.5777 | pred_loss 4.5777 | r2 -0.0183 | mae 2.3768 | rmse 2.9635
+step 001250 | pred_loss 4.5789
+step 001300 | pred_loss 4.5744
+step 001350 | pred_loss 4.5766
+step 001400 | pred_loss 4.5762
+step 001450 | pred_loss 4.5744
+step 001500 | pred_loss 4.5775
+[best] step 001500 | val_pred_loss 4.574455
+[val] step 001500 | loss 4.5745 | pred_loss 4.5745 | r2 -0.0183 | mae 2.3768 | rmse 2.9635
+step 001550 | pred_loss 4.5759
+step 001600 | pred_loss 4.5746
+step 001650 | pred_loss 4.5747
+step 001700 | pred_loss 4.5752
+step 001750 | pred_loss 4.5753
+step 001800 | pred_loss 4.5736
+[best] step 001800 | val_pred_loss 4.573445
+[val] step 001800 | loss 4.5734 | pred_loss 4.5734 | r2 -0.0184 | mae 2.3769 | rmse 2.9636
+step 001850 | pred_loss 4.5728
+step 001900 | pred_loss 4.5732
+step 001950 | pred_loss 4.5755
+step 002000 | pred_loss 4.5747
+step 002050 | pred_loss 4.5774
+step 002100 | pred_loss 4.5733
+[best] step 002100 | val_pred_loss 4.573322
+[val] step 002100 | loss 4.5733 | pred_loss 4.5733 | r2 -0.0183 | mae 2.3768 | rmse 2.9635
+step 002150 | pred_loss 4.5741
+step 002200 | pred_loss 4.5725
+step 002250 | pred_loss 4.5747
+step 002300 | pred_loss 4.5743
+step 002350 | pred_loss 4.5727
+step 002400 | pred_loss 4.5723
+[best] step 002400 | val_pred_loss 4.572040
+[val] step 002400 | loss 4.5720 | pred_loss 4.5720 | r2 -0.0183 | mae 2.3769 | rmse 2.9636
+step 002450 | pred_loss 4.5720
+step 002500 | pred_loss 4.5729
+step 002550 | pred_loss 4.5717
+step 002600 | pred_loss 4.5740
+step 002650 | pred_loss 4.5707
+step 002700 | pred_loss 4.5736
+[val] step 002700 | loss 4.5725 | pred_loss 4.5725 | r2 -0.0182 | mae 2.3768 | rmse 2.9634
+step 002750 | pred_loss 4.5724
+step 002800 | pred_loss 4.5712
+step 002850 | pred_loss 4.5718
+step 002900 | pred_loss 4.5707
+step 002950 | pred_loss 4.5721
+step 003000 | pred_loss 4.5700
+[best] step 003000 | val_pred_loss 4.571903
+[val] step 003000 | loss 4.5719 | pred_loss 4.5719 | r2 -0.0182 | mae 2.3767 | rmse 2.9634
+step 003050 | pred_loss 4.5726
+step 003100 | pred_loss 4.5720
+step 003150 | pred_loss 4.5691
+step 003200 | pred_loss 4.5717
+step 003250 | pred_loss 4.5717
+step 003300 | pred_loss 4.5734
+[best] step 003300 | val_pred_loss 4.571495
+[val] step 003300 | loss 4.5715 | pred_loss 4.5715 | r2 -0.0183 | mae 2.3768 | rmse 2.9635
+step 003350 | pred_loss 4.5716
+step 003400 | pred_loss 4.5723
+step 003450 | pred_loss 4.5715
+step 003500 | pred_loss 4.5717
+step 003550 | pred_loss 4.5721
+step 003600 | pred_loss 4.5732
+[best] step 003600 | val_pred_loss 4.570787
+[val] step 003600 | loss 4.5708 | pred_loss 4.5708 | r2 -0.0182 | mae 2.3767 | rmse 2.9633
+step 003650 | pred_loss 4.5744
+step 003700 | pred_loss 4.5727
+step 003750 | pred_loss 4.5702
+step 003800 | pred_loss 4.5699
+step 003850 | pred_loss 4.5707
+step 003900 | pred_loss 4.5713
+[best] step 003900 | val_pred_loss 4.570783
+[val] step 003900 | loss 4.5708 | pred_loss 4.5708 | r2 -0.0182 | mae 2.3767 | rmse 2.9634
+step 003950 | pred_loss 4.5704
+step 004000 | pred_loss 4.5688
+step 004050 | pred_loss 4.5704
+step 004100 | pred_loss 4.5689
+step 004150 | pred_loss 4.5715
+step 004200 | pred_loss 4.5714
+[best] step 004200 | val_pred_loss 4.570605
+[val] step 004200 | loss 4.5706 | pred_loss 4.5706 | r2 -0.0182 | mae 2.3767 | rmse 2.9634
+step 004250 | pred_loss 4.5701
+step 004300 | pred_loss 4.5681
+step 004350 | pred_loss 4.5689
+step 004400 | pred_loss 4.5682
+step 004450 | pred_loss 4.5724
+step 004500 | pred_loss 4.5704
+[val] step 004500 | loss 4.5719 | pred_loss 4.5719 | r2 -0.0183 | mae 2.3768 | rmse 2.9635
+step 004550 | pred_loss 4.5727
+step 004600 | pred_loss 4.5709
+step 004650 | pred_loss 4.5688
+step 004700 | pred_loss 4.5719
+step 004750 | pred_loss 4.5690
+step 004800 | pred_loss 4.5692
+[best] step 004800 | val_pred_loss 4.569715
+[val] step 004800 | loss 4.5697 | pred_loss 4.5697 | r2 -0.0183 | mae 2.3768 | rmse 2.9635
+step 004850 | pred_loss 4.5683
+step 004900 | pred_loss 4.5688
+step 004950 | pred_loss 4.5692
+step 005000 | pred_loss 4.5691
+step 005050 | pred_loss 4.5669
+step 005100 | pred_loss 4.5706
+[best] step 005100 | val_pred_loss 4.568917
+[val] step 005100 | loss 4.5689 | pred_loss 4.5689 | r2 -0.0182 | mae 2.3768 | rmse 2.9634
+step 005150 | pred_loss 4.5669
+step 005200 | pred_loss 4.5688
+step 005250 | pred_loss 4.5673
+step 005300 | pred_loss 4.5656
+step 005350 | pred_loss 4.5685
+step 005400 | pred_loss 4.5687
+[val] step 005400 | loss 4.5692 | pred_loss 4.5692 | r2 -0.0182 | mae 2.3767 | rmse 2.9633
+step 005450 | pred_loss 4.5700
+step 005500 | pred_loss 4.5664
+step 005550 | pred_loss 4.5675
+step 005600 | pred_loss 4.5678
+step 005650 | pred_loss 4.5652
+step 005700 | pred_loss 4.5689
+[best] step 005700 | val_pred_loss 4.568160
+[val] step 005700 | loss 4.5682 | pred_loss 4.5682 | r2 -0.0182 | mae 2.3767 | rmse 2.9633
+step 005750 | pred_loss 4.5691
+step 005800 | pred_loss 4.5694
+step 005850 | pred_loss 4.5670
+step 005900 | pred_loss 4.5671
+step 005950 | pred_loss 4.5682
+step 006000 | pred_loss 4.5699
+[val] step 006000 | loss 4.5691 | pred_loss 4.5691 | r2 -0.0183 | mae 2.3768 | rmse 2.9635
+step 006050 | pred_loss 4.5677
+step 006100 | pred_loss 4.5653
+step 006150 | pred_loss 4.5676
+step 006200 | pred_loss 4.5661
+step 006250 | pred_loss 4.5665
+step 006300 | pred_loss 4.5688
+[best] step 006300 | val_pred_loss 4.567628
+[val] step 006300 | loss 4.5676 | pred_loss 4.5676 | r2 -0.0182 | mae 2.3767 | rmse 2.9633
+step 006350 | pred_loss 4.5690
+step 006400 | pred_loss 4.5651
+step 006450 | pred_loss 4.5681
+step 006500 | pred_loss 4.5665
+step 006550 | pred_loss 4.5671
+step 006600 | pred_loss 4.5695
+[best] step 006600 | val_pred_loss 4.567111
+[val] step 006600 | loss 4.5671 | pred_loss 4.5671 | r2 -0.0182 | mae 2.3768 | rmse 2.9634
+step 006650 | pred_loss 4.5679
+step 006700 | pred_loss 4.5658
+step 006750 | pred_loss 4.5685
+step 006800 | pred_loss 4.5667
+step 006850 | pred_loss 4.5640
+step 006900 | pred_loss 4.5689
+[val] step 006900 | loss 4.5671 | pred_loss 4.5671 | r2 -0.0182 | mae 2.3768 | rmse 2.9634
+step 006950 | pred_loss 4.5667
+step 007000 | pred_loss 4.5647
+step 007050 | pred_loss 4.5655
+step 007100 | pred_loss 4.5641
+step 007150 | pred_loss 4.5674
+step 007200 | pred_loss 4.5677
+[best] step 007200 | val_pred_loss 4.566722
+[val] step 007200 | loss 4.5667 | pred_loss 4.5667 | r2 -0.0181 | mae 2.3766 | rmse 2.9632
+step 007250 | pred_loss 4.5661
+step 007300 | pred_loss 4.5672
+step 007350 | pred_loss 4.5656
+step 007400 | pred_loss 4.5644
+step 007450 | pred_loss 4.5655
+step 007500 | pred_loss 4.5647
+[val] step 007500 | loss 4.5668 | pred_loss 4.5668 | r2 -0.0182 | mae 2.3768 | rmse 2.9634
+step 007550 | pred_loss 4.5678
+step 007600 | pred_loss 4.5669
+step 007650 | pred_loss 4.5675
+step 007700 | pred_loss 4.5658
+step 007750 | pred_loss 4.5661
+step 007800 | pred_loss 4.5658
+[best] step 007800 | val_pred_loss 4.563963
+[val] step 007800 | loss 4.5640 | pred_loss 4.5640 | r2 -0.0116 | mae 2.3697 | rmse 2.9537
+step 007850 | pred_loss 4.5585
+step 007900 | pred_loss 4.5508
+step 007950 | pred_loss 4.5399
+step 008000 | pred_loss 4.5333
+step 008050 | pred_loss 4.5284
+step 008100 | pred_loss 4.5333
+[best] step 008100 | val_pred_loss 4.529306
+[val] step 008100 | loss 4.5293 | pred_loss 4.5293 | r2 0.0520 | mae 2.2837 | rmse 2.8492
+step 008150 | pred_loss 4.5284
+step 008200 | pred_loss 4.5269
+step 008250 | pred_loss 4.5276
+step 008300 | pred_loss 4.5258
+step 008350 | pred_loss 4.5236
+step 008400 | pred_loss 4.5221
+[best] step 008400 | val_pred_loss 4.525084
+[val] step 008400 | loss 4.5251 | pred_loss 4.5251 | r2 0.0579 | mae 2.2747 | rmse 2.8384
+step 008450 | pred_loss 4.5236
+step 008500 | pred_loss 4.5251
+step 008550 | pred_loss 4.5242
+step 008600 | pred_loss 4.5227
+step 008650 | pred_loss 4.5219
+step 008700 | pred_loss 4.5060
+[best] step 008700 | val_pred_loss 4.517431
+[val] step 008700 | loss 4.5174 | pred_loss 4.5174 | r2 0.0713 | mae 2.2624 | rmse 2.8223
+step 008750 | pred_loss 4.5110
+step 008800 | pred_loss 4.5157
+step 008850 | pred_loss 4.5146
+step 008900 | pred_loss 4.5071
+step 008950 | pred_loss 4.5137
+step 009000 | pred_loss 4.5150
+[best] step 009000 | val_pred_loss 4.509965
+[val] step 009000 | loss 4.5100 | pred_loss 4.5100 | r2 0.0794 | mae 2.2524 | rmse 2.8116
+step 009050 | pred_loss 4.5099
+step 009100 | pred_loss 4.5070
+step 009150 | pred_loss 4.5057
+step 009200 | pred_loss 4.5076
+step 009250 | pred_loss 4.5062
+step 009300 | pred_loss 4.5092
+[best] step 009300 | val_pred_loss 4.509198
+[val] step 009300 | loss 4.5092 | pred_loss 4.5092 | r2 0.0821 | mae 2.2521 | rmse 2.8092
+step 009350 | pred_loss 4.5071
+step 009400 | pred_loss 4.4390
+step 009450 | pred_loss 4.0614
+step 009500 | pred_loss 3.9770
+step 009550 | pred_loss 3.9403
+step 009600 | pred_loss 3.9387
+[best] step 009600 | val_pred_loss 3.938155
+[val] step 009600 | loss 3.9382 | pred_loss 3.9382 | r2 0.6804 | mae 1.1557 | rmse 1.4697
+step 009650 | pred_loss 3.9307
+step 009700 | pred_loss 3.8982
+step 009750 | pred_loss 3.8887
+step 009800 | pred_loss 3.8690
+step 009850 | pred_loss 3.8831
+step 009900 | pred_loss 3.8680
+[best] step 009900 | val_pred_loss 3.853226
+[val] step 009900 | loss 3.8532 | pred_loss 3.8532 | r2 0.7100 | mae 1.0905 | rmse 1.3917
+step 009950 | pred_loss 3.8264
+step 010000 | pred_loss 3.8354
+step 010050 | pred_loss 3.8168
+step 010100 | pred_loss 3.7748
+step 010150 | pred_loss 3.7888
+step 010200 | pred_loss 3.7799
+[best] step 010200 | val_pred_loss 3.760734
+[val] step 010200 | loss 3.7607 | pred_loss 3.7607 | r2 0.7503 | mae 1.0052 | rmse 1.3008
+step 010250 | pred_loss 3.7582
+step 010300 | pred_loss 3.7418
+step 010350 | pred_loss 3.7406
+step 010400 | pred_loss 3.7036
+step 010450 | pred_loss 3.6896
+step 010500 | pred_loss 3.6854
+[best] step 010500 | val_pred_loss 3.681254
+[val] step 010500 | loss 3.6813 | pred_loss 3.6813 | r2 0.7780 | mae 0.9418 | rmse 1.2303
+step 010550 | pred_loss 3.6645
+step 010600 | pred_loss 3.6240
+step 010650 | pred_loss 3.6425
+step 010700 | pred_loss 3.6428
+step 010750 | pred_loss 3.6347
+step 010800 | pred_loss 3.6009
+[best] step 010800 | val_pred_loss 3.608934
+[val] step 010800 | loss 3.6089 | pred_loss 3.6089 | r2 0.7986 | mae 0.8863 | rmse 1.1719
+step 010850 | pred_loss 3.5922
+step 010900 | pred_loss 3.5887
+step 010950 | pred_loss 3.5999
+step 011000 | pred_loss 3.5468
+step 011050 | pred_loss 3.5574
+step 011100 | pred_loss 3.5436
+[best] step 011100 | val_pred_loss 3.532388
+[val] step 011100 | loss 3.5324 | pred_loss 3.5324 | r2 0.8163 | mae 0.8318 | rmse 1.1126
+step 011150 | pred_loss 3.5317
+step 011200 | pred_loss 3.5031
+step 011250 | pred_loss 3.4969
+step 011300 | pred_loss 3.4984
+step 011350 | pred_loss 3.5003
+step 011400 | pred_loss 3.5103
+[best] step 011400 | val_pred_loss 3.496031
+[val] step 011400 | loss 3.4960 | pred_loss 3.4960 | r2 0.8218 | mae 0.8144 | rmse 1.0958
+step 011450 | pred_loss 3.4856
+step 011500 | pred_loss 3.4745
+step 011550 | pred_loss 3.4766
+step 011600 | pred_loss 3.4474
+step 011650 | pred_loss 3.4321
+step 011700 | pred_loss 3.4366
+[best] step 011700 | val_pred_loss 3.445827
+[val] step 011700 | loss 3.4458 | pred_loss 3.4458 | r2 0.8261 | mae 0.7999 | rmse 1.0842
+step 011750 | pred_loss 3.4340
+step 011800 | pred_loss 3.4338
+step 011850 | pred_loss 3.4231
+step 011900 | pred_loss 3.3966
+step 011950 | pred_loss 3.3925
+step 012000 | pred_loss 3.3942
+[best] step 012000 | val_pred_loss 3.414004
+[val] step 012000 | loss 3.4140 | pred_loss 3.4140 | r2 0.8335 | mae 0.7799 | rmse 1.0644
+step 012050 | pred_loss 3.4114
+step 012100 | pred_loss 3.3841
+step 012150 | pred_loss 3.4083
+step 012200 | pred_loss 3.3726
+step 012250 | pred_loss 3.3647
+step 012300 | pred_loss 3.3488
+[best] step 012300 | val_pred_loss 3.363049
+[val] step 012300 | loss 3.3630 | pred_loss 3.3630 | r2 0.8430 | mae 0.7539 | rmse 1.0388
+step 012350 | pred_loss 3.3291
+step 012400 | pred_loss 3.3492
+step 012450 | pred_loss 3.3451
+step 012500 | pred_loss 3.3051
+step 012550 | pred_loss 3.3372
+step 012600 | pred_loss 3.3057
+[best] step 012600 | val_pred_loss 3.326539
+[val] step 012600 | loss 3.3265 | pred_loss 3.3265 | r2 0.8508 | mae 0.7311 | rmse 1.0149
+step 012650 | pred_loss 3.3087
+step 012700 | pred_loss 3.3183
+step 012750 | pred_loss 3.3091
+step 012800 | pred_loss 3.3029
