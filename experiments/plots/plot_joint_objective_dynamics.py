@@ -48,14 +48,23 @@ def plot_joint_objectives(input_path, output_path):
     plt.close(fig)
 
 
+# if __name__ == "__main__":
+
+#     path1 = "results/training/scm_cls_w_imp_training_results/train_log.txt"
+#     path2 = "results/training/scm_reg_w_imp_training_results/train_log.txt"
+
+#     out_path1 = "results/figures/cls_joint_objectives.png"
+#     out_path2 = "results/figures/reg_joint_objectives.png"
+
+#     plot_joint_objectives(path1, out_path1)
+#     plot_joint_objectives(path2, out_path2)
+
 if __name__ == "__main__":
+    methods = ["gradient", "eigen_top1", "eigen_90", "mi", "marginal", "permutation"]
 
-    path1 = "results/training/scm_cls_w_imp_training_results/train_log.txt"
-    path2 = "results/training/scm_reg_w_imp_training_results/train_log.txt"
-
-    out_path1 = "results/figures/cls_joint_objectives.png"
-    out_path2 = "results/figures/reg_joint_objectives.png"
-
-    plot_joint_objectives(path1, out_path1)
-    plot_joint_objectives(path2, out_path2)
+    for task in ["classification", "regression"]:
+        for method in methods:
+            input_path = f"results/training/scm_{task}_{method}_w_imp_start0/train_log.txt"
+            output_path = f"results/figures/scm_{task}_{method}_start0_joint_objectives.png"
+            plot_joint_objectives(input_path, output_path)
 

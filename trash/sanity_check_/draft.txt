@@ -1,0 +1,43 @@
+old weights method
+num_tables,mean_rf_balanced_accuracy,median_rf_balanced_accuracy,mean_spearman_gt_single,median_spearman_gt_single,mean_spearman_gt_permutation,median_spearman_gt_permutation,mean_spearman_gt_drop_column,median_spearman_gt_drop_column,mean_topk_gt_single,mean_topk_gt_permutation,mean_topk_gt_drop_column
+100,0.8705784644049723,0.8831772738237269,0.5512565225079513,0.5866633366633367,0.4630734125203199,0.46117445152633224,0.2533008404469201,0.2963362141958096,0.6899999999999997,0.6599999999999998,0.5379999999999999
+
+
+new weights method
+
+(0.20, 0.20, 0.30, 0.85). concentration=0.3
+num_tables,mean_rf_balanced_accuracy,median_rf_balanced_accuracy,mean_spearman_gt_single,median_spearman_gt_single,mean_spearman_gt_permutation,median_spearman_gt_permutation,mean_spearman_gt_drop_column,median_spearman_gt_drop_column,mean_topk_gt_single,mean_topk_gt_permutation,mean_topk_gt_drop_column
+100,0.7990655818800977,0.8166279182408215,0.38888978515725803,0.3919273290746796,0.42357630140064745,0.43023812394466726,0.28740705960103463,0.3298343027392569,0.606,0.63,0.56
+
+
+(0.15, 0.15, 0.25, 0.75). concentration=0.3
+num_tables,mean_rf_balanced_accuracy,median_rf_balanced_accuracy,mean_spearman_gt_single,median_spearman_gt_single,mean_spearman_gt_permutation,median_spearman_gt_permutation,mean_spearman_gt_drop_column,median_spearman_gt_drop_column,mean_topk_gt_single,mean_topk_gt_permutation,mean_topk_gt_drop_column
+100,0.8128029722271667,0.8224862637362638,0.40102112922124333,0.43488369262082527,0.4738218754837724,0.5148459383753502,0.25021618881069463,0.2791615070617472,0.632,0.6579999999999999,0.54
+
+
+(0.15, 0.15, 0.25, 0.65). concentration=0.3
+num_tables,mean_rf_balanced_accuracy,median_rf_balanced_accuracy,mean_spearman_gt_single,median_spearman_gt_single,mean_spearman_gt_permutation,median_spearman_gt_permutation,mean_spearman_gt_drop_column,median_spearman_gt_drop_column,mean_topk_gt_single,mean_topk_gt_permutation,mean_topk_gt_drop_column
+100,0.8150579760054371,0.833958380329348,0.49305246244081663,0.5274725274725275,0.42987680926115635,0.4521102622295929,0.24688570840067556,0.2685812662861299,0.6719999999999997,0.6419999999999999,0.536
+
+(0.15, 0.15, 0.25, 0.50). concentration=0.3
+num_tables,mean_rf_balanced_accuracy,median_rf_balanced_accuracy,mean_spearman_gt_single,median_spearman_gt_single,mean_spearman_gt_permutation,median_spearman_gt_permutation,mean_spearman_gt_drop_column,median_spearman_gt_drop_column,mean_topk_gt_single,mean_topk_gt_permutation,mean_topk_gt_drop_column
+100,0.824294191474576,0.8437973484848484,0.45091849562495206,0.48051750790330994,0.46167273763321043,0.5325092308048479,0.30897833896522153,0.3305797667903452,0.6099999999999999,0.6399999999999999,0.574
+
+
+(0.15, 0.20, 0.25, 0.65). concentration=0.3
+num_tables,mean_rf_balanced_accuracy,median_rf_balanced_accuracy,mean_spearman_gt_single,median_spearman_gt_single,mean_spearman_gt_permutation,median_spearman_gt_permutation,mean_spearman_gt_drop_column,median_spearman_gt_drop_column,mean_topk_gt_single,mean_topk_gt_permutation,mean_topk_gt_drop_column
+100,0.8052594940915959,0.824823811665917,0.44870863709264003,0.5165750915750915,0.46386451743401297,0.4723609723609724,0.28074656345019955,0.33150183150183155,0.6359999999999999,0.648,0.536
+
+(0.15, 0.15, 0.25, 0.65) concentration=0.4
+num_tables,mean_rf_balanced_accuracy,median_rf_balanced_accuracy,mean_spearman_gt_single,median_spearman_gt_single,mean_spearman_gt_permutation,median_spearman_gt_permutation,mean_spearman_gt_drop_column,median_spearman_gt_drop_column,mean_topk_gt_single,mean_topk_gt_permutation,mean_topk_gt_drop_column
+100,0.820211114750563,0.8341537267080745,0.4794686413367377,0.4784049284049284,0.455850037479395,0.4940843311606503,0.24265452192843318,0.2682498151586408,0.6519999999999999,0.6599999999999998,0.5319999999999999
+
+
+
+
+
+
+num_tables,mean_rf_balanced_accuracy,median_rf_balanced_accuracy,mean_spearman_gt_single,median_spearman_gt_single,mean_spearman_gt_permutation,median_spearman_gt_permutation,mean_spearman_gt_drop_column,median_spearman_gt_drop_column,mean_topk_gt_single,mean_topk_gt_permutation,mean_topk_gt_drop_column
+100,0.8705784644049723,0.8831772738237269,0.5512565225079513,0.5866633366633367,0.4630734125203199,0.46117445152633224,0.2533008404469201,0.2963362141958096,0.6899999999999997,0.6599999999999998,0.5379999999999999
+num_tables,mean_rf_balanced_accuracy,median_rf_balanced_accuracy,mean_spearman_gt_single,median_spearman_gt_single,mean_spearman_gt_permutation,median_spearman_gt_permutation,mean_spearman_gt_drop_column,median_spearman_gt_drop_column,mean_topk_gt_single,mean_topk_gt_permutation,mean_topk_gt_drop_column
+100,0.867609427190067,0.8818151858993281,0.5317735677780735,0.5236090992600082,0.48849030750711037,0.527727186874416,0.28240281193465366,0.3236085181116648,0.688,0.6579999999999998,0.54
