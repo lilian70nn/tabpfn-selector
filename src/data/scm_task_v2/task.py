@@ -330,6 +330,9 @@ class SCMTask(GenerateTask):
 
                 feature_importance = torch.tensor(feature_importance, device=self.device, dtype=torch.float32)
 
+            if self.importance_method in ("gradient", "eigen_top1", "eigen_90"):
+                feature_importance = feature_importance * feature_retention
+
 
         if not self.generate_importance:
             feature_importance = None
