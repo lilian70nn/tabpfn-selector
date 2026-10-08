@@ -1,0 +1,340 @@
+[importance supervision ON] step=1 | start_frac=0.000 | weight=200.0
+step 000050 | total_loss 7.7581 | pred_loss 4.6797 | imp_loss 0.015392 | imp_weight 200.0
+step 000100 | total_loss 7.3256 | pred_loss 4.6161 | imp_loss 0.013548 | imp_weight 200.0
+step 000150 | total_loss 7.5535 | pred_loss 4.5804 | imp_loss 0.014866 | imp_weight 200.0
+step 000200 | total_loss 7.4596 | pred_loss 4.5382 | imp_loss 0.014607 | imp_weight 200.0
+step 000250 | total_loss 7.3040 | pred_loss 4.5196 | imp_loss 0.013922 | imp_weight 200.0
+step 000300 | total_loss 7.5239 | pred_loss 4.4923 | imp_loss 0.015158 | imp_weight 200.0
+[best] step 000300 | val_pred_loss 4.469277
+[val] step 000300 | loss 7.3388 | pred_loss 4.4693 | importance_loss 0.0143 | gt_topk_pred_loss 4.4626 | pred_topk_pred_loss 4.5210 | r2 0.0121 | mae 0.7276 | rmse 0.9682 | importance_mse 0.0148 | importance_pearson 0.1832 | importance_topk_overlap 0.3370
+step 000350 | total_loss 7.3567 | pred_loss 4.4746 | imp_loss 0.014411 | imp_weight 200.0
+step 000400 | total_loss 7.3530 | pred_loss 4.4557 | imp_loss 0.014486 | imp_weight 200.0
+step 000450 | total_loss 7.1316 | pred_loss 4.4464 | imp_loss 0.013426 | imp_weight 200.0
+step 000500 | total_loss 7.3665 | pred_loss 4.4528 | imp_loss 0.014568 | imp_weight 200.0
+step 000550 | total_loss 7.1787 | pred_loss 4.4356 | imp_loss 0.013715 | imp_weight 200.0
+step 000600 | total_loss 7.3729 | pred_loss 4.4356 | imp_loss 0.014686 | imp_weight 200.0
+[best] step 000600 | val_pred_loss 4.414281
+[val] step 000600 | loss 7.2900 | pred_loss 4.4143 | importance_loss 0.0144 | gt_topk_pred_loss 4.4069 | pred_topk_pred_loss 4.4951 | r2 0.0232 | mae 0.7224 | rmse 0.9631 | importance_mse 0.0149 | importance_pearson 0.1893 | importance_topk_overlap 0.3602
+step 000650 | total_loss 7.4046 | pred_loss 4.4304 | imp_loss 0.014871 | imp_weight 200.0
+step 000700 | total_loss 7.2833 | pred_loss 4.4341 | imp_loss 0.014246 | imp_weight 200.0
+step 000750 | total_loss 7.4904 | pred_loss 4.4354 | imp_loss 0.015275 | imp_weight 200.0
+step 000800 | total_loss 7.2678 | pred_loss 4.4330 | imp_loss 0.014174 | imp_weight 200.0
+step 000850 | total_loss 6.8728 | pred_loss 4.4006 | imp_loss 0.012361 | imp_weight 200.0
+step 000900 | total_loss 6.5809 | pred_loss 4.4185 | imp_loss 0.010812 | imp_weight 200.0
+[val] step 000900 | loss 6.6678 | pred_loss 4.4169 | importance_loss 0.0113 | gt_topk_pred_loss 4.4303 | pred_topk_pred_loss 4.4534 | r2 0.0106 | mae 0.7214 | rmse 0.9601 | importance_mse 0.0117 | importance_pearson 0.4696 | importance_topk_overlap 0.5252
+step 000950 | total_loss 6.4840 | pred_loss 4.4329 | imp_loss 0.010255 | imp_weight 200.0
+step 001000 | total_loss 6.3167 | pred_loss 4.4248 | imp_loss 0.009459 | imp_weight 200.0
+step 001050 | total_loss 6.2163 | pred_loss 4.4098 | imp_loss 0.009032 | imp_weight 200.0
+step 001100 | total_loss 6.0115 | pred_loss 4.4204 | imp_loss 0.007955 | imp_weight 200.0
+step 001150 | total_loss 6.0257 | pred_loss 4.4152 | imp_loss 0.008053 | imp_weight 200.0
+step 001200 | total_loss 5.8010 | pred_loss 4.4167 | imp_loss 0.006921 | imp_weight 200.0
+[best] step 001200 | val_pred_loss 4.396704
+[val] step 001200 | loss 5.9554 | pred_loss 4.3967 | importance_loss 0.0078 | gt_topk_pred_loss 4.3990 | pred_topk_pred_loss 4.3953 | r2 0.0249 | mae 0.7166 | rmse 0.9582 | importance_mse 0.0081 | importance_pearson 0.6214 | importance_topk_overlap 0.5857
+step 001250 | total_loss 5.8515 | pred_loss 4.3962 | imp_loss 0.007277 | imp_weight 200.0
+step 001300 | total_loss 5.8799 | pred_loss 4.4021 | imp_loss 0.007389 | imp_weight 200.0
+step 001350 | total_loss 5.8157 | pred_loss 4.3888 | imp_loss 0.007135 | imp_weight 200.0
+step 001400 | total_loss 5.8648 | pred_loss 4.4007 | imp_loss 0.007321 | imp_weight 200.0
+step 001450 | total_loss 5.7482 | pred_loss 4.4022 | imp_loss 0.006730 | imp_weight 200.0
+step 001500 | total_loss 5.6677 | pred_loss 4.3545 | imp_loss 0.006566 | imp_weight 200.0
+[best] step 001500 | val_pred_loss 4.345435
+[val] step 001500 | loss 5.6385 | pred_loss 4.3454 | importance_loss 0.0065 | gt_topk_pred_loss 4.3751 | pred_topk_pred_loss 4.3625 | r2 0.0660 | mae 0.6987 | rmse 0.9357 | importance_mse 0.0067 | importance_pearson 0.7030 | importance_topk_overlap 0.6474
+step 001550 | total_loss 5.6726 | pred_loss 4.3380 | imp_loss 0.006673 | imp_weight 200.0
+step 001600 | total_loss 5.6318 | pred_loss 4.3158 | imp_loss 0.006580 | imp_weight 200.0
+step 001650 | total_loss 5.3724 | pred_loss 4.2842 | imp_loss 0.005441 | imp_weight 200.0
+step 001700 | total_loss 5.1414 | pred_loss 4.2235 | imp_loss 0.004589 | imp_weight 200.0
+step 001750 | total_loss 4.9495 | pred_loss 4.1658 | imp_loss 0.003919 | imp_weight 200.0
+step 001800 | total_loss 4.8904 | pred_loss 4.1447 | imp_loss 0.003728 | imp_weight 200.0
+[best] step 001800 | val_pred_loss 4.097487
+[val] step 001800 | loss 4.8910 | pred_loss 4.0975 | importance_loss 0.0040 | gt_topk_pred_loss 4.2126 | pred_topk_pred_loss 4.1953 | r2 0.3991 | mae 0.5104 | rmse 0.7196 | importance_mse 0.0041 | importance_pearson 0.8304 | importance_topk_overlap 0.7422
+step 001850 | total_loss 4.7909 | pred_loss 4.0925 | imp_loss 0.003492 | imp_weight 200.0
+step 001900 | total_loss 4.8361 | pred_loss 4.0951 | imp_loss 0.003705 | imp_weight 200.0
+step 001950 | total_loss 4.7916 | pred_loss 4.0825 | imp_loss 0.003546 | imp_weight 200.0
+step 002000 | total_loss 4.7341 | pred_loss 4.0762 | imp_loss 0.003289 | imp_weight 200.0
+step 002050 | total_loss 4.7033 | pred_loss 4.0425 | imp_loss 0.003304 | imp_weight 200.0
+step 002100 | total_loss 4.6112 | pred_loss 4.0398 | imp_loss 0.002857 | imp_weight 200.0
+[best] step 002100 | val_pred_loss 4.003404
+[val] step 002100 | loss 4.5847 | pred_loss 4.0034 | importance_loss 0.0029 | gt_topk_pred_loss 4.1540 | pred_topk_pred_loss 4.1404 | r2 0.4832 | mae 0.4663 | rmse 0.6700 | importance_mse 0.0030 | importance_pearson 0.8718 | importance_topk_overlap 0.7704
+step 002150 | total_loss 4.5544 | pred_loss 3.9816 | imp_loss 0.002864 | imp_weight 200.0
+step 002200 | total_loss 4.5062 | pred_loss 3.9821 | imp_loss 0.002621 | imp_weight 200.0
+step 002250 | total_loss 4.4753 | pred_loss 3.9808 | imp_loss 0.002472 | imp_weight 200.0
+step 002300 | total_loss 4.4848 | pred_loss 3.9911 | imp_loss 0.002468 | imp_weight 200.0
+step 002350 | total_loss 4.4636 | pred_loss 3.9739 | imp_loss 0.002448 | imp_weight 200.0
+step 002400 | total_loss 4.4287 | pred_loss 3.9599 | imp_loss 0.002344 | imp_weight 200.0
+[best] step 002400 | val_pred_loss 3.945525
+[val] step 002400 | loss 4.4250 | pred_loss 3.9455 | importance_loss 0.0024 | gt_topk_pred_loss 4.1346 | pred_topk_pred_loss 4.1218 | r2 0.5270 | mae 0.4411 | rmse 0.6336 | importance_mse 0.0024 | importance_pearson 0.8990 | importance_topk_overlap 0.8027
+step 002450 | total_loss 4.4479 | pred_loss 3.9340 | imp_loss 0.002569 | imp_weight 200.0
+step 002500 | total_loss 4.3948 | pred_loss 3.9324 | imp_loss 0.002312 | imp_weight 200.0
+step 002550 | total_loss 4.4014 | pred_loss 3.9385 | imp_loss 0.002314 | imp_weight 200.0
+step 002600 | total_loss 4.4153 | pred_loss 3.9352 | imp_loss 0.002400 | imp_weight 200.0
+step 002650 | total_loss 4.4262 | pred_loss 3.9713 | imp_loss 0.002275 | imp_weight 200.0
+step 002700 | total_loss 4.3548 | pred_loss 3.9315 | imp_loss 0.002117 | imp_weight 200.0
+[best] step 002700 | val_pred_loss 3.905757
+[val] step 002700 | loss 4.3777 | pred_loss 3.9058 | importance_loss 0.0024 | gt_topk_pred_loss 4.1248 | pred_topk_pred_loss 4.1073 | r2 0.5560 | mae 0.4276 | rmse 0.6194 | importance_mse 0.0024 | importance_pearson 0.9033 | importance_topk_overlap 0.8070
+step 002750 | total_loss 4.3577 | pred_loss 3.9114 | imp_loss 0.002231 | imp_weight 200.0
+step 002800 | total_loss 4.3328 | pred_loss 3.9021 | imp_loss 0.002153 | imp_weight 200.0
+step 002850 | total_loss 4.3137 | pred_loss 3.8943 | imp_loss 0.002097 | imp_weight 200.0
+step 002900 | total_loss 4.2804 | pred_loss 3.8811 | imp_loss 0.001997 | imp_weight 200.0
+step 002950 | total_loss 4.3152 | pred_loss 3.8917 | imp_loss 0.002118 | imp_weight 200.0
+step 003000 | total_loss 4.2788 | pred_loss 3.8752 | imp_loss 0.002018 | imp_weight 200.0
+[best] step 003000 | val_pred_loss 3.867075
+[val] step 003000 | loss 4.3102 | pred_loss 3.8671 | importance_loss 0.0022 | gt_topk_pred_loss 4.1207 | pred_topk_pred_loss 4.1071 | r2 0.5689 | mae 0.4131 | rmse 0.6044 | importance_mse 0.0023 | importance_pearson 0.9064 | importance_topk_overlap 0.8093
+step 003050 | total_loss 4.2862 | pred_loss 3.8810 | imp_loss 0.002026 | imp_weight 200.0
+step 003100 | total_loss 4.3392 | pred_loss 3.8933 | imp_loss 0.002230 | imp_weight 200.0
+step 003150 | total_loss 4.2815 | pred_loss 3.8673 | imp_loss 0.002071 | imp_weight 200.0
+step 003200 | total_loss 4.2670 | pred_loss 3.8515 | imp_loss 0.002078 | imp_weight 200.0
+step 003250 | total_loss 4.2097 | pred_loss 3.8384 | imp_loss 0.001857 | imp_weight 200.0
+step 003300 | total_loss 4.2279 | pred_loss 3.8466 | imp_loss 0.001906 | imp_weight 200.0
+[best] step 003300 | val_pred_loss 3.839828
+[val] step 003300 | loss 4.2632 | pred_loss 3.8398 | importance_loss 0.0021 | gt_topk_pred_loss 4.0954 | pred_topk_pred_loss 4.0831 | r2 0.5880 | mae 0.4058 | rmse 0.5957 | importance_mse 0.0021 | importance_pearson 0.9115 | importance_topk_overlap 0.8136
+step 003350 | total_loss 4.2502 | pred_loss 3.8497 | imp_loss 0.002003 | imp_weight 200.0
+step 003400 | total_loss 4.2055 | pred_loss 3.8356 | imp_loss 0.001850 | imp_weight 200.0
+step 003450 | total_loss 4.2196 | pred_loss 3.8216 | imp_loss 0.001990 | imp_weight 200.0
+step 003500 | total_loss 4.1854 | pred_loss 3.8139 | imp_loss 0.001858 | imp_weight 200.0
+step 003550 | total_loss 4.1981 | pred_loss 3.8113 | imp_loss 0.001934 | imp_weight 200.0
+step 003600 | total_loss 4.1802 | pred_loss 3.8054 | imp_loss 0.001874 | imp_weight 200.0
+[best] step 003600 | val_pred_loss 3.800343
+[val] step 003600 | loss 4.2082 | pred_loss 3.8003 | importance_loss 0.0020 | gt_topk_pred_loss 4.0584 | pred_topk_pred_loss 4.0483 | r2 0.5863 | mae 0.3927 | rmse 0.5802 | importance_mse 0.0021 | importance_pearson 0.9166 | importance_topk_overlap 0.8170
+step 003650 | total_loss 4.1900 | pred_loss 3.8063 | imp_loss 0.001919 | imp_weight 200.0
+step 003700 | total_loss 4.2180 | pred_loss 3.8116 | imp_loss 0.002032 | imp_weight 200.0
+step 003750 | total_loss 4.1570 | pred_loss 3.8024 | imp_loss 0.001773 | imp_weight 200.0
+step 003800 | total_loss 4.1472 | pred_loss 3.7777 | imp_loss 0.001847 | imp_weight 200.0
+step 003850 | total_loss 4.0728 | pred_loss 3.7605 | imp_loss 0.001562 | imp_weight 200.0
+step 003900 | total_loss 4.0663 | pred_loss 3.7280 | imp_loss 0.001692 | imp_weight 200.0
+[best] step 003900 | val_pred_loss 3.772737
+[val] step 003900 | loss 4.1479 | pred_loss 3.7727 | importance_loss 0.0019 | gt_topk_pred_loss 4.0559 | pred_topk_pred_loss 4.0465 | r2 0.6113 | mae 0.3879 | rmse 0.5738 | importance_mse 0.0019 | importance_pearson 0.9197 | importance_topk_overlap 0.8163
+step 003950 | total_loss 4.1602 | pred_loss 3.7870 | imp_loss 0.001866 | imp_weight 200.0
+step 004000 | total_loss 4.1352 | pred_loss 3.7650 | imp_loss 0.001851 | imp_weight 200.0
+step 004050 | total_loss 4.1290 | pred_loss 3.7762 | imp_loss 0.001764 | imp_weight 200.0
+step 004100 | total_loss 4.1273 | pred_loss 3.7635 | imp_loss 0.001819 | imp_weight 200.0
+step 004150 | total_loss 4.0349 | pred_loss 3.7307 | imp_loss 0.001521 | imp_weight 200.0
+step 004200 | total_loss 4.1364 | pred_loss 3.7549 | imp_loss 0.001908 | imp_weight 200.0
+[best] step 004200 | val_pred_loss 3.723850
+[val] step 004200 | loss 4.0821 | pred_loss 3.7238 | importance_loss 0.0018 | gt_topk_pred_loss 3.9971 | pred_topk_pred_loss 3.9880 | r2 0.6148 | mae 0.3735 | rmse 0.5550 | importance_mse 0.0018 | importance_pearson 0.9249 | importance_topk_overlap 0.8248
+step 004250 | total_loss 4.0931 | pred_loss 3.7380 | imp_loss 0.001775 | imp_weight 200.0
+step 004300 | total_loss 4.0560 | pred_loss 3.7111 | imp_loss 0.001724 | imp_weight 200.0
+step 004350 | total_loss 4.0592 | pred_loss 3.7330 | imp_loss 0.001631 | imp_weight 200.0
+step 004400 | total_loss 4.0297 | pred_loss 3.6935 | imp_loss 0.001681 | imp_weight 200.0
+step 004450 | total_loss 4.0250 | pred_loss 3.6872 | imp_loss 0.001689 | imp_weight 200.0
+step 004500 | total_loss 4.0665 | pred_loss 3.6795 | imp_loss 0.001935 | imp_weight 200.0
+[best] step 004500 | val_pred_loss 3.688734
+[val] step 004500 | loss 4.0505 | pred_loss 3.6887 | importance_loss 0.0018 | gt_topk_pred_loss 3.9804 | pred_topk_pred_loss 3.9706 | r2 0.6399 | mae 0.3644 | rmse 0.5452 | importance_mse 0.0018 | importance_pearson 0.9260 | importance_topk_overlap 0.8176
+step 004550 | total_loss 4.0677 | pred_loss 3.7008 | imp_loss 0.001835 | imp_weight 200.0
+step 004600 | total_loss 4.0213 | pred_loss 3.6857 | imp_loss 0.001678 | imp_weight 200.0
+step 004650 | total_loss 4.0425 | pred_loss 3.7014 | imp_loss 0.001706 | imp_weight 200.0
+step 004700 | total_loss 4.0077 | pred_loss 3.6900 | imp_loss 0.001589 | imp_weight 200.0
+step 004750 | total_loss 4.0223 | pred_loss 3.6987 | imp_loss 0.001618 | imp_weight 200.0
+step 004800 | total_loss 4.0069 | pred_loss 3.6708 | imp_loss 0.001681 | imp_weight 200.0
+[best] step 004800 | val_pred_loss 3.661479
+[val] step 004800 | loss 4.0242 | pred_loss 3.6615 | importance_loss 0.0018 | gt_topk_pred_loss 3.9658 | pred_topk_pred_loss 3.9483 | r2 0.6119 | mae 0.3590 | rmse 0.5391 | importance_mse 0.0018 | importance_pearson 0.9244 | importance_topk_overlap 0.8185
+step 004850 | total_loss 4.0136 | pred_loss 3.6712 | imp_loss 0.001712 | imp_weight 200.0
+step 004900 | total_loss 3.9922 | pred_loss 3.6657 | imp_loss 0.001632 | imp_weight 200.0
+step 004950 | total_loss 4.0427 | pred_loss 3.6791 | imp_loss 0.001818 | imp_weight 200.0
+step 005000 | total_loss 4.0308 | pred_loss 3.6515 | imp_loss 0.001896 | imp_weight 200.0
+step 005050 | total_loss 3.9233 | pred_loss 3.6142 | imp_loss 0.001546 | imp_weight 200.0
+step 005100 | total_loss 3.9907 | pred_loss 3.6298 | imp_loss 0.001804 | imp_weight 200.0
+[best] step 005100 | val_pred_loss 3.633407
+[val] step 005100 | loss 4.0210 | pred_loss 3.6334 | importance_loss 0.0019 | gt_topk_pred_loss 3.9888 | pred_topk_pred_loss 3.9878 | r2 0.6421 | mae 0.3490 | rmse 0.5268 | importance_mse 0.0020 | importance_pearson 0.9200 | importance_topk_overlap 0.8103
+step 005150 | total_loss 3.9476 | pred_loss 3.6240 | imp_loss 0.001618 | imp_weight 200.0
+step 005200 | total_loss 4.0175 | pred_loss 3.6688 | imp_loss 0.001743 | imp_weight 200.0
+step 005250 | total_loss 3.9367 | pred_loss 3.6190 | imp_loss 0.001589 | imp_weight 200.0
+step 005300 | total_loss 3.9539 | pred_loss 3.6334 | imp_loss 0.001602 | imp_weight 200.0
+step 005350 | total_loss 3.9620 | pred_loss 3.6285 | imp_loss 0.001667 | imp_weight 200.0
+step 005400 | total_loss 3.9059 | pred_loss 3.5972 | imp_loss 0.001544 | imp_weight 200.0
+[best] step 005400 | val_pred_loss 3.599494
+[val] step 005400 | loss 3.9375 | pred_loss 3.5995 | importance_loss 0.0017 | gt_topk_pred_loss 3.9515 | pred_topk_pred_loss 3.9408 | r2 0.6654 | mae 0.3403 | rmse 0.5161 | importance_mse 0.0017 | importance_pearson 0.9330 | importance_topk_overlap 0.8308
+step 005450 | total_loss 3.9408 | pred_loss 3.5970 | imp_loss 0.001719 | imp_weight 200.0
+step 005500 | total_loss 3.8954 | pred_loss 3.5882 | imp_loss 0.001536 | imp_weight 200.0
+step 005550 | total_loss 3.9018 | pred_loss 3.5946 | imp_loss 0.001536 | imp_weight 200.0
+step 005600 | total_loss 3.8523 | pred_loss 3.5643 | imp_loss 0.001440 | imp_weight 200.0
+step 005650 | total_loss 3.9418 | pred_loss 3.5759 | imp_loss 0.001829 | imp_weight 200.0
+step 005700 | total_loss 3.8894 | pred_loss 3.5572 | imp_loss 0.001661 | imp_weight 200.0
+[best] step 005700 | val_pred_loss 3.559187
+[val] step 005700 | loss 3.8858 | pred_loss 3.5592 | importance_loss 0.0016 | gt_topk_pred_loss 3.9332 | pred_topk_pred_loss 3.9161 | r2 0.6813 | mae 0.3299 | rmse 0.5044 | importance_mse 0.0017 | importance_pearson 0.9326 | importance_topk_overlap 0.8329
+step 005750 | total_loss 3.8732 | pred_loss 3.5507 | imp_loss 0.001612 | imp_weight 200.0
+step 005800 | total_loss 3.8742 | pred_loss 3.5650 | imp_loss 0.001546 | imp_weight 200.0
+step 005850 | total_loss 3.8105 | pred_loss 3.5416 | imp_loss 0.001345 | imp_weight 200.0
+step 005900 | total_loss 3.8640 | pred_loss 3.5373 | imp_loss 0.001634 | imp_weight 200.0
+step 005950 | total_loss 3.8682 | pred_loss 3.5507 | imp_loss 0.001588 | imp_weight 200.0
+step 006000 | total_loss 3.8590 | pred_loss 3.5562 | imp_loss 0.001514 | imp_weight 200.0
+[best] step 006000 | val_pred_loss 3.534393
+[val] step 006000 | loss 3.8686 | pred_loss 3.5344 | importance_loss 0.0017 | gt_topk_pred_loss 3.9303 | pred_topk_pred_loss 3.9204 | r2 0.7059 | mae 0.3216 | rmse 0.4942 | importance_mse 0.0017 | importance_pearson 0.9317 | importance_topk_overlap 0.8394
+step 006050 | total_loss 3.9141 | pred_loss 3.5719 | imp_loss 0.001711 | imp_weight 200.0
+step 006100 | total_loss 3.8441 | pred_loss 3.5437 | imp_loss 0.001502 | imp_weight 200.0
+step 006150 | total_loss 3.8398 | pred_loss 3.5522 | imp_loss 0.001438 | imp_weight 200.0
+step 006200 | total_loss 3.8693 | pred_loss 3.5364 | imp_loss 0.001664 | imp_weight 200.0
+step 006250 | total_loss 3.8043 | pred_loss 3.5080 | imp_loss 0.001482 | imp_weight 200.0
+step 006300 | total_loss 3.8059 | pred_loss 3.5210 | imp_loss 0.001425 | imp_weight 200.0
+[best] step 006300 | val_pred_loss 3.509268
+[val] step 006300 | loss 3.8351 | pred_loss 3.5093 | importance_loss 0.0016 | gt_topk_pred_loss 3.9266 | pred_topk_pred_loss 3.9118 | r2 0.7136 | mae 0.3153 | rmse 0.4848 | importance_mse 0.0017 | importance_pearson 0.9323 | importance_topk_overlap 0.8288
+step 006350 | total_loss 3.8219 | pred_loss 3.5099 | imp_loss 0.001560 | imp_weight 200.0
+step 006400 | total_loss 3.8608 | pred_loss 3.5113 | imp_loss 0.001748 | imp_weight 200.0
+step 006450 | total_loss 3.7742 | pred_loss 3.4902 | imp_loss 0.001420 | imp_weight 200.0
+step 006500 | total_loss 3.7993 | pred_loss 3.4895 | imp_loss 0.001549 | imp_weight 200.0
+step 006550 | total_loss 3.8446 | pred_loss 3.5178 | imp_loss 0.001634 | imp_weight 200.0
+step 006600 | total_loss 3.7572 | pred_loss 3.4843 | imp_loss 0.001365 | imp_weight 200.0
+[best] step 006600 | val_pred_loss 3.474427
+[val] step 006600 | loss 3.7927 | pred_loss 3.4744 | importance_loss 0.0016 | gt_topk_pred_loss 3.9482 | pred_topk_pred_loss 3.9309 | r2 0.7272 | mae 0.3046 | rmse 0.4743 | importance_mse 0.0016 | importance_pearson 0.9351 | importance_topk_overlap 0.8399
+step 006650 | total_loss 3.8259 | pred_loss 3.5067 | imp_loss 0.001596 | imp_weight 200.0
+step 006700 | total_loss 3.7627 | pred_loss 3.4765 | imp_loss 0.001431 | imp_weight 200.0
+step 006750 | total_loss 3.7831 | pred_loss 3.4994 | imp_loss 0.001419 | imp_weight 200.0
+step 006800 | total_loss 3.7675 | pred_loss 3.4700 | imp_loss 0.001487 | imp_weight 200.0
+step 006850 | total_loss 3.8053 | pred_loss 3.4548 | imp_loss 0.001753 | imp_weight 200.0
+step 006900 | total_loss 3.7222 | pred_loss 3.4416 | imp_loss 0.001403 | imp_weight 200.0
+[best] step 006900 | val_pred_loss 3.455100
+[val] step 006900 | loss 3.7862 | pred_loss 3.4551 | importance_loss 0.0017 | gt_topk_pred_loss 3.9260 | pred_topk_pred_loss 3.9163 | r2 0.7335 | mae 0.3019 | rmse 0.4702 | importance_mse 0.0017 | importance_pearson 0.9322 | importance_topk_overlap 0.8368
+step 006950 | total_loss 3.7373 | pred_loss 3.4337 | imp_loss 0.001518 | imp_weight 200.0
+step 007000 | total_loss 3.7486 | pred_loss 3.4490 | imp_loss 0.001498 | imp_weight 200.0
+step 007050 | total_loss 3.7477 | pred_loss 3.4464 | imp_loss 0.001507 | imp_weight 200.0
+step 007100 | total_loss 3.7621 | pred_loss 3.4534 | imp_loss 0.001543 | imp_weight 200.0
+step 007150 | total_loss 3.7371 | pred_loss 3.4598 | imp_loss 0.001387 | imp_weight 200.0
+step 007200 | total_loss 3.6992 | pred_loss 3.4455 | imp_loss 0.001269 | imp_weight 200.0
+[best] step 007200 | val_pred_loss 3.436394
+[val] step 007200 | loss 3.7515 | pred_loss 3.4364 | importance_loss 0.0016 | gt_topk_pred_loss 3.9212 | pred_topk_pred_loss 3.9122 | r2 0.7387 | mae 0.2973 | rmse 0.4646 | importance_mse 0.0016 | importance_pearson 0.9360 | importance_topk_overlap 0.8398
+step 007250 | total_loss 3.7672 | pred_loss 3.4753 | imp_loss 0.001460 | imp_weight 200.0
+step 007300 | total_loss 3.7690 | pred_loss 3.4592 | imp_loss 0.001549 | imp_weight 200.0
+step 007350 | total_loss 3.7969 | pred_loss 3.4684 | imp_loss 0.001642 | imp_weight 200.0
+step 007400 | total_loss 3.7506 | pred_loss 3.4291 | imp_loss 0.001608 | imp_weight 200.0
+step 007450 | total_loss 3.7251 | pred_loss 3.4367 | imp_loss 0.001442 | imp_weight 200.0
+step 007500 | total_loss 3.7326 | pred_loss 3.4264 | imp_loss 0.001531 | imp_weight 200.0
+[best] step 007500 | val_pred_loss 3.422120
+[val] step 007500 | loss 3.7446 | pred_loss 3.4221 | importance_loss 0.0016 | gt_topk_pred_loss 3.8906 | pred_topk_pred_loss 3.8773 | r2 0.7436 | mae 0.2964 | rmse 0.4602 | importance_mse 0.0016 | importance_pearson 0.9346 | importance_topk_overlap 0.8400
+step 007550 | total_loss 3.7135 | pred_loss 3.4312 | imp_loss 0.001412 | imp_weight 200.0
+step 007600 | total_loss 3.6986 | pred_loss 3.4106 | imp_loss 0.001440 | imp_weight 200.0
+step 007650 | total_loss 3.6817 | pred_loss 3.4117 | imp_loss 0.001350 | imp_weight 200.0
+step 007700 | total_loss 3.7341 | pred_loss 3.4075 | imp_loss 0.001633 | imp_weight 200.0
+step 007750 | total_loss 3.7343 | pred_loss 3.4194 | imp_loss 0.001575 | imp_weight 200.0
+step 007800 | total_loss 3.7281 | pred_loss 3.4173 | imp_loss 0.001554 | imp_weight 200.0
+[best] step 007800 | val_pred_loss 3.398011
+[val] step 007800 | loss 3.7135 | pred_loss 3.3980 | importance_loss 0.0016 | gt_topk_pred_loss 3.8975 | pred_topk_pred_loss 3.8869 | r2 0.7538 | mae 0.2872 | rmse 0.4514 | importance_mse 0.0016 | importance_pearson 0.9366 | importance_topk_overlap 0.8320
+step 007850 | total_loss 3.6633 | pred_loss 3.3860 | imp_loss 0.001386 | imp_weight 200.0
+step 007900 | total_loss 3.6732 | pred_loss 3.3880 | imp_loss 0.001426 | imp_weight 200.0
+step 007950 | total_loss 3.7010 | pred_loss 3.3974 | imp_loss 0.001518 | imp_weight 200.0
+step 008000 | total_loss 3.6459 | pred_loss 3.3791 | imp_loss 0.001334 | imp_weight 200.0
+step 008050 | total_loss 3.7577 | pred_loss 3.4273 | imp_loss 0.001652 | imp_weight 200.0
+step 008100 | total_loss 3.6023 | pred_loss 3.3466 | imp_loss 0.001279 | imp_weight 200.0
+[best] step 008100 | val_pred_loss 3.373309
+[val] step 008100 | loss 3.6854 | pred_loss 3.3733 | importance_loss 0.0016 | gt_topk_pred_loss 3.8923 | pred_topk_pred_loss 3.8765 | r2 0.7539 | mae 0.2860 | rmse 0.4505 | importance_mse 0.0016 | importance_pearson 0.9376 | importance_topk_overlap 0.8383
+step 008150 | total_loss 3.6503 | pred_loss 3.3834 | imp_loss 0.001335 | imp_weight 200.0
+step 008200 | total_loss 3.6527 | pred_loss 3.3665 | imp_loss 0.001431 | imp_weight 200.0
+step 008250 | total_loss 3.7244 | pred_loss 3.3934 | imp_loss 0.001655 | imp_weight 200.0
+step 008300 | total_loss 3.6715 | pred_loss 3.4037 | imp_loss 0.001339 | imp_weight 200.0
+step 008350 | total_loss 3.6729 | pred_loss 3.3605 | imp_loss 0.001562 | imp_weight 200.0
+step 008400 | total_loss 3.6724 | pred_loss 3.3938 | imp_loss 0.001393 | imp_weight 200.0
+[best] step 008400 | val_pred_loss 3.360125
+[val] step 008400 | loss 3.6678 | pred_loss 3.3601 | importance_loss 0.0015 | gt_topk_pred_loss 3.8835 | pred_topk_pred_loss 3.8624 | r2 0.7616 | mae 0.2808 | rmse 0.4425 | importance_mse 0.0016 | importance_pearson 0.9359 | importance_topk_overlap 0.8333
+step 008450 | total_loss 3.5871 | pred_loss 3.3345 | imp_loss 0.001263 | imp_weight 200.0
+step 008500 | total_loss 3.7493 | pred_loss 3.3997 | imp_loss 0.001748 | imp_weight 200.0
+step 008550 | total_loss 3.6685 | pred_loss 3.3728 | imp_loss 0.001479 | imp_weight 200.0
+step 008600 | total_loss 3.6909 | pred_loss 3.3870 | imp_loss 0.001520 | imp_weight 200.0
+step 008650 | total_loss 3.6711 | pred_loss 3.3658 | imp_loss 0.001527 | imp_weight 200.0
+step 008700 | total_loss 3.6188 | pred_loss 3.3512 | imp_loss 0.001338 | imp_weight 200.0
+[best] step 008700 | val_pred_loss 3.340920
+[val] step 008700 | loss 3.6482 | pred_loss 3.3409 | importance_loss 0.0015 | gt_topk_pred_loss 3.8864 | pred_topk_pred_loss 3.8724 | r2 0.7686 | mae 0.2774 | rmse 0.4383 | importance_mse 0.0016 | importance_pearson 0.9392 | importance_topk_overlap 0.8401
+step 008750 | total_loss 3.6437 | pred_loss 3.3483 | imp_loss 0.001477 | imp_weight 200.0
+step 008800 | total_loss 3.6821 | pred_loss 3.3743 | imp_loss 0.001539 | imp_weight 200.0
+step 008850 | total_loss 3.6627 | pred_loss 3.3517 | imp_loss 0.001555 | imp_weight 200.0
+step 008900 | total_loss 3.6187 | pred_loss 3.2976 | imp_loss 0.001605 | imp_weight 200.0
+step 008950 | total_loss 3.6232 | pred_loss 3.3527 | imp_loss 0.001352 | imp_weight 200.0
+step 009000 | total_loss 3.6087 | pred_loss 3.3329 | imp_loss 0.001379 | imp_weight 200.0
+[best] step 009000 | val_pred_loss 3.327876
+[val] step 009000 | loss 3.6268 | pred_loss 3.3279 | importance_loss 0.0015 | gt_topk_pred_loss 3.8850 | pred_topk_pred_loss 3.8688 | r2 0.7745 | mae 0.2746 | rmse 0.4322 | importance_mse 0.0015 | importance_pearson 0.9391 | importance_topk_overlap 0.8356
+step 009050 | total_loss 3.6851 | pred_loss 3.3692 | imp_loss 0.001579 | imp_weight 200.0
+step 009100 | total_loss 3.6026 | pred_loss 3.3348 | imp_loss 0.001339 | imp_weight 200.0
+step 009150 | total_loss 3.6446 | pred_loss 3.3575 | imp_loss 0.001435 | imp_weight 200.0
+step 009200 | total_loss 3.5892 | pred_loss 3.3449 | imp_loss 0.001222 | imp_weight 200.0
+step 009250 | total_loss 3.6109 | pred_loss 3.3128 | imp_loss 0.001490 | imp_weight 200.0
+step 009300 | total_loss 3.5839 | pred_loss 3.3285 | imp_loss 0.001277 | imp_weight 200.0
+[best] step 009300 | val_pred_loss 3.290010
+[val] step 009300 | loss 3.5987 | pred_loss 3.2900 | importance_loss 0.0015 | gt_topk_pred_loss 3.8926 | pred_topk_pred_loss 3.8746 | r2 0.7823 | mae 0.2660 | rmse 0.4235 | importance_mse 0.0016 | importance_pearson 0.9383 | importance_topk_overlap 0.8357
+step 009350 | total_loss 3.6733 | pred_loss 3.3382 | imp_loss 0.001676 | imp_weight 200.0
+step 009400 | total_loss 3.5942 | pred_loss 3.3303 | imp_loss 0.001320 | imp_weight 200.0
+step 009450 | total_loss 3.6149 | pred_loss 3.3035 | imp_loss 0.001557 | imp_weight 200.0
+step 009500 | total_loss 3.5838 | pred_loss 3.2997 | imp_loss 0.001421 | imp_weight 200.0
+step 009550 | total_loss 3.6004 | pred_loss 3.3017 | imp_loss 0.001494 | imp_weight 200.0
+step 009600 | total_loss 3.5833 | pred_loss 3.3103 | imp_loss 0.001365 | imp_weight 200.0
+[best] step 009600 | val_pred_loss 3.278076
+[val] step 009600 | loss 3.5715 | pred_loss 3.2781 | importance_loss 0.0015 | gt_topk_pred_loss 3.8769 | pred_topk_pred_loss 3.8598 | r2 0.7853 | mae 0.2629 | rmse 0.4194 | importance_mse 0.0015 | importance_pearson 0.9407 | importance_topk_overlap 0.8409
+step 009650 | total_loss 3.5476 | pred_loss 3.2938 | imp_loss 0.001269 | imp_weight 200.0
+step 009700 | total_loss 3.6079 | pred_loss 3.3161 | imp_loss 0.001459 | imp_weight 200.0
+step 009750 | total_loss 3.6052 | pred_loss 3.2916 | imp_loss 0.001568 | imp_weight 200.0
+step 009800 | total_loss 3.5490 | pred_loss 3.2766 | imp_loss 0.001362 | imp_weight 200.0
+step 009850 | total_loss 3.5781 | pred_loss 3.2891 | imp_loss 0.001445 | imp_weight 200.0
+step 009900 | total_loss 3.6579 | pred_loss 3.3210 | imp_loss 0.001684 | imp_weight 200.0
+[best] step 009900 | val_pred_loss 3.262705
+[val] step 009900 | loss 3.5717 | pred_loss 3.2627 | importance_loss 0.0015 | gt_topk_pred_loss 3.8832 | pred_topk_pred_loss 3.8708 | r2 0.7880 | mae 0.2611 | rmse 0.4175 | importance_mse 0.0016 | importance_pearson 0.9366 | importance_topk_overlap 0.8343
+step 009950 | total_loss 3.5855 | pred_loss 3.3062 | imp_loss 0.001397 | imp_weight 200.0
+step 010000 | total_loss 3.5504 | pred_loss 3.2805 | imp_loss 0.001349 | imp_weight 200.0
+step 010050 | total_loss 3.5858 | pred_loss 3.3039 | imp_loss 0.001409 | imp_weight 200.0
+step 010100 | total_loss 3.5215 | pred_loss 3.2611 | imp_loss 0.001302 | imp_weight 200.0
+step 010150 | total_loss 3.5453 | pred_loss 3.2755 | imp_loss 0.001349 | imp_weight 200.0
+step 010200 | total_loss 3.4972 | pred_loss 3.2376 | imp_loss 0.001298 | imp_weight 200.0
+[best] step 010200 | val_pred_loss 3.255444
+[val] step 010200 | loss 3.5524 | pred_loss 3.2554 | importance_loss 0.0015 | gt_topk_pred_loss 3.8514 | pred_topk_pred_loss 3.8404 | r2 0.7905 | mae 0.2595 | rmse 0.4144 | importance_mse 0.0015 | importance_pearson 0.9410 | importance_topk_overlap 0.8442
+step 010250 | total_loss 3.6085 | pred_loss 3.2893 | imp_loss 0.001596 | imp_weight 200.0
+step 010300 | total_loss 3.5589 | pred_loss 3.2807 | imp_loss 0.001391 | imp_weight 200.0
+step 010350 | total_loss 3.5194 | pred_loss 3.2451 | imp_loss 0.001371 | imp_weight 200.0
+step 010400 | total_loss 3.5540 | pred_loss 3.2713 | imp_loss 0.001414 | imp_weight 200.0
+step 010450 | total_loss 3.5641 | pred_loss 3.2576 | imp_loss 0.001532 | imp_weight 200.0
+step 010500 | total_loss 3.5784 | pred_loss 3.2661 | imp_loss 0.001562 | imp_weight 200.0
+[best] step 010500 | val_pred_loss 3.235406
+[val] step 010500 | loss 3.5275 | pred_loss 3.2354 | importance_loss 0.0015 | gt_topk_pred_loss 3.8862 | pred_topk_pred_loss 3.8680 | r2 0.7928 | mae 0.2561 | rmse 0.4123 | importance_mse 0.0015 | importance_pearson 0.9413 | importance_topk_overlap 0.8391
+step 010550 | total_loss 3.5431 | pred_loss 3.2602 | imp_loss 0.001415 | imp_weight 200.0
+step 010600 | total_loss 3.5217 | pred_loss 3.2694 | imp_loss 0.001262 | imp_weight 200.0
+step 010650 | total_loss 3.5089 | pred_loss 3.2508 | imp_loss 0.001291 | imp_weight 200.0
+step 010700 | total_loss 3.5498 | pred_loss 3.2861 | imp_loss 0.001319 | imp_weight 200.0
+step 010750 | total_loss 3.4954 | pred_loss 3.2420 | imp_loss 0.001267 | imp_weight 200.0
+step 010800 | total_loss 3.5179 | pred_loss 3.2574 | imp_loss 0.001303 | imp_weight 200.0
+[best] step 010800 | val_pred_loss 3.222578
+[val] step 010800 | loss 3.5187 | pred_loss 3.2226 | importance_loss 0.0015 | gt_topk_pred_loss 3.8370 | pred_topk_pred_loss 3.8254 | r2 0.7978 | mae 0.2533 | rmse 0.4071 | importance_mse 0.0015 | importance_pearson 0.9398 | importance_topk_overlap 0.8454
+step 010850 | total_loss 3.5830 | pred_loss 3.2855 | imp_loss 0.001487 | imp_weight 200.0
+step 010900 | total_loss 3.5210 | pred_loss 3.2489 | imp_loss 0.001360 | imp_weight 200.0
+step 010950 | total_loss 3.5855 | pred_loss 3.2585 | imp_loss 0.001635 | imp_weight 200.0
+step 011000 | total_loss 3.5332 | pred_loss 3.2383 | imp_loss 0.001475 | imp_weight 200.0
+step 011050 | total_loss 3.5193 | pred_loss 3.2469 | imp_loss 0.001362 | imp_weight 200.0
+step 011100 | total_loss 3.5382 | pred_loss 3.2671 | imp_loss 0.001356 | imp_weight 200.0
+[best] step 011100 | val_pred_loss 3.207441
+[val] step 011100 | loss 3.4985 | pred_loss 3.2074 | importance_loss 0.0015 | gt_topk_pred_loss 3.8738 | pred_topk_pred_loss 3.8556 | r2 0.7992 | mae 0.2524 | rmse 0.4058 | importance_mse 0.0015 | importance_pearson 0.9407 | importance_topk_overlap 0.8428
+step 011150 | total_loss 3.5207 | pred_loss 3.2488 | imp_loss 0.001359 | imp_weight 200.0
+step 011200 | total_loss 3.5085 | pred_loss 3.2337 | imp_loss 0.001374 | imp_weight 200.0
+step 011250 | total_loss 3.5377 | pred_loss 3.2428 | imp_loss 0.001475 | imp_weight 200.0
+step 011300 | total_loss 3.5027 | pred_loss 3.2239 | imp_loss 0.001394 | imp_weight 200.0
+step 011350 | total_loss 3.5100 | pred_loss 3.2346 | imp_loss 0.001377 | imp_weight 200.0
+step 011400 | total_loss 3.4930 | pred_loss 3.2519 | imp_loss 0.001206 | imp_weight 200.0
+[best] step 011400 | val_pred_loss 3.197698
+[val] step 011400 | loss 3.4841 | pred_loss 3.1977 | importance_loss 0.0014 | gt_topk_pred_loss 3.8299 | pred_topk_pred_loss 3.8093 | r2 0.8003 | mae 0.2501 | rmse 0.4038 | importance_mse 0.0014 | importance_pearson 0.9421 | importance_topk_overlap 0.8482
+step 011450 | total_loss 3.5126 | pred_loss 3.2344 | imp_loss 0.001391 | imp_weight 200.0
+step 011500 | total_loss 3.5378 | pred_loss 3.2538 | imp_loss 0.001420 | imp_weight 200.0
+step 011550 | total_loss 3.5081 | pred_loss 3.2354 | imp_loss 0.001364 | imp_weight 200.0
+step 011600 | total_loss 3.4960 | pred_loss 3.2040 | imp_loss 0.001460 | imp_weight 200.0
+step 011650 | total_loss 3.4809 | pred_loss 3.2156 | imp_loss 0.001327 | imp_weight 200.0
+step 011700 | total_loss 3.4866 | pred_loss 3.2109 | imp_loss 0.001379 | imp_weight 200.0
+[best] step 011700 | val_pred_loss 3.193420
+[val] step 011700 | loss 3.4829 | pred_loss 3.1934 | importance_loss 0.0014 | gt_topk_pred_loss 3.8494 | pred_topk_pred_loss 3.8344 | r2 0.8031 | mae 0.2484 | rmse 0.4014 | importance_mse 0.0015 | importance_pearson 0.9413 | importance_topk_overlap 0.8442
+step 011750 | total_loss 3.4941 | pred_loss 3.2148 | imp_loss 0.001397 | imp_weight 200.0
+step 011800 | total_loss 3.4008 | pred_loss 3.1597 | imp_loss 0.001205 | imp_weight 200.0
+step 011850 | total_loss 3.5106 | pred_loss 3.2219 | imp_loss 0.001443 | imp_weight 200.0
+step 011900 | total_loss 3.4446 | pred_loss 3.1888 | imp_loss 0.001279 | imp_weight 200.0
+step 011950 | total_loss 3.5206 | pred_loss 3.2538 | imp_loss 0.001334 | imp_weight 200.0
+step 012000 | total_loss 3.5115 | pred_loss 3.2255 | imp_loss 0.001430 | imp_weight 200.0
+[best] step 012000 | val_pred_loss 3.187789
+[val] step 012000 | loss 3.4892 | pred_loss 3.1878 | importance_loss 0.0015 | gt_topk_pred_loss 3.8541 | pred_topk_pred_loss 3.8339 | r2 0.8032 | mae 0.2493 | rmse 0.4007 | importance_mse 0.0015 | importance_pearson 0.9406 | importance_topk_overlap 0.8412
+step 012050 | total_loss 3.4482 | pred_loss 3.1886 | imp_loss 0.001298 | imp_weight 200.0
+step 012100 | total_loss 3.4602 | pred_loss 3.1805 | imp_loss 0.001399 | imp_weight 200.0
+step 012150 | total_loss 3.5080 | pred_loss 3.2105 | imp_loss 0.001488 | imp_weight 200.0
+step 012200 | total_loss 3.5055 | pred_loss 3.2100 | imp_loss 0.001477 | imp_weight 200.0
+step 012250 | total_loss 3.4800 | pred_loss 3.1950 | imp_loss 0.001425 | imp_weight 200.0
+step 012300 | total_loss 3.4918 | pred_loss 3.2326 | imp_loss 0.001296 | imp_weight 200.0
+[best] step 012300 | val_pred_loss 3.179434
+[val] step 012300 | loss 3.4778 | pred_loss 3.1794 | importance_loss 0.0015 | gt_topk_pred_loss 3.8364 | pred_topk_pred_loss 3.8174 | r2 0.8059 | mae 0.2461 | rmse 0.3978 | importance_mse 0.0015 | importance_pearson 0.9428 | importance_topk_overlap 0.8490
+step 012350 | total_loss 3.4296 | pred_loss 3.1896 | imp_loss 0.001200 | imp_weight 200.0
+step 012400 | total_loss 3.4604 | pred_loss 3.1894 | imp_loss 0.001355 | imp_weight 200.0
+step 012450 | total_loss 3.4979 | pred_loss 3.2032 | imp_loss 0.001473 | imp_weight 200.0
+step 012500 | total_loss 3.4375 | pred_loss 3.1822 | imp_loss 0.001276 | imp_weight 200.0
+step 012550 | total_loss 3.4792 | pred_loss 3.2225 | imp_loss 0.001284 | imp_weight 200.0
+step 012600 | total_loss 3.4808 | pred_loss 3.2114 | imp_loss 0.001347 | imp_weight 200.0
+[best] step 012600 | val_pred_loss 3.174570
+[val] step 012600 | loss 3.4698 | pred_loss 3.1746 | importance_loss 0.0015 | gt_topk_pred_loss 3.8213 | pred_topk_pred_loss 3.8098 | r2 0.8044 | mae 0.2478 | rmse 0.3989 | importance_mse 0.0015 | importance_pearson 0.9422 | importance_topk_overlap 0.8420
+step 012650 | total_loss 3.4889 | pred_loss 3.2219 | imp_loss 0.001335 | imp_weight 200.0
+step 012700 | total_loss 3.4895 | pred_loss 3.1945 | imp_loss 0.001475 | imp_weight 200.0
+step 012750 | total_loss 3.4992 | pred_loss 3.2090 | imp_loss 0.001451 | imp_weight 200.0
+step 012800 | total_loss 3.4719 | pred_loss 3.1818 | imp_loss 0.001451 | imp_weight 200.0
