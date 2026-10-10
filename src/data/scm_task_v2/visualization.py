@@ -24,15 +24,15 @@ def build_node_id_maps(scm):
 
 def plot_scm_graph(task, save_path="scm_graph.png"):
     """
-    Visualize the sampled SCM.
+    Visualize the sampled latent SCM.
 
     Style:
-    - ordinary latent node: white circle
-    - selected continuous feature: gray circle
-    - selected categorical feature: hatched circle
-    - target: gray star
+    - upstream latent node: white circle
+    - latent feature observed as continuous: gray circle
+    - latent feature observed as categorical: hatched circle
+    - latent target: gray star
     - edges: structural parent -> child connections
-    - selected feature annotation: normalized feature importance
+    - feature annotation: normalized ground-truth importance
     """
 
     scm = task.scm
@@ -44,11 +44,7 @@ def plot_scm_graph(task, save_path="scm_graph.png"):
     target_id = int(info["target_id"].detach().cpu().item())
 
     pair_to_gid, gid_to_pair = build_node_id_maps(scm)
-
-    feature_gid_to_column = {
-        int(gid): column
-        for column, gid in enumerate(feature_ids)
-    }
+    feature_gid_to_column = {int(gid): column for column, gid in enumerate(feature_ids)}
 
     graph = nx.DiGraph()
 
@@ -68,7 +64,6 @@ def plot_scm_graph(task, save_path="scm_graph.png"):
                 graph.add_edge(parent_gid, child_gid)
 
     positions = {}
-
     x_gap = 2.8
     y_gap = 1.25
 
@@ -79,10 +74,7 @@ def plot_scm_graph(task, save_path="scm_graph.png"):
             y = ((width - 1) / 2 - node_idx) * y_gap
             positions[gid] = (x, y)
 
-    ordinary_nodes = [
-        gid for gid in graph.nodes
-        if gid not in feature_gid_to_column and gid != target_id
-    ]
+    ordinary_nodes = [gid for gid in graph.nodes if gid not in feature_gid_to_column and gid != target_id]
 
     continuous_nodes = [
         int(gid) for gid in feature_ids
@@ -97,113 +89,71 @@ def plot_scm_graph(task, save_path="scm_graph.png"):
     fig, ax = plt.subplots(figsize=(11, 9))
 
     nx.draw_networkx_edges(
-        graph,
-        positions,
-        ax=ax,
-        arrows=True,
-        arrowstyle="-|>",
-        arrowsize=15,
-        width=1.0,
-        alpha=0.45,
-        node_size=900,
+        graph, positions, ax=ax, arrows=True, arrowstyle="-|>",
+        arrowsize=15, width=1.0, alpha=0.45, node_size=900
     )
 
     nx.draw_networkx_nodes(
-        graph,
-        positions,
-        nodelist=ordinary_nodes,
-        node_size=900,
-        node_shape="o",
-        node_color="white",
-        edgecolors="black",
-        linewidths=1.3,
-        ax=ax,
+        graph, positions, nodelist=ordinary_nodes, node_size=900, node_shape="o",
+        node_color="white", edgecolors="black", linewidths=1.3, ax=ax
     )
 
     nx.draw_networkx_nodes(
-        graph,
-        positions,
-        nodelist=continuous_nodes,
-        node_size=1050,
-        node_shape="o",
-        node_color="0.55",
-        edgecolors="black",
-        linewidths=1.5,
-        ax=ax,
+        graph, positions, nodelist=continuous_nodes, node_size=1050, node_shape="o",
+        node_color="0.55", edgecolors="black", linewidths=1.5, ax=ax
     )
 
     categorical_collection = nx.draw_networkx_nodes(
-        graph,
-        positions,
-        nodelist=categorical_nodes,
-        node_size=1050,
-        node_shape="o",
-        node_color="white",
-        edgecolors="black",
-        linewidths=1.5,
-        ax=ax,
+        graph, positions, nodelist=categorical_nodes, node_size=1050, node_shape="o",
+        node_color="white", edgecolors="black", linewidths=1.5, ax=ax
     )
 
     if categorical_collection is not None:
         categorical_collection.set_hatch("///")
 
     nx.draw_networkx_nodes(
-        graph,
-        positions,
-        nodelist=[target_id],
-        node_size=1700,
-        node_shape="*",
-        node_color="0.75",
-        edgecolors="black",
-        linewidths=1.5,
-        ax=ax,
+        graph, positions, nodelist=[target_id], node_size=1700, node_shape="*",
+        node_color="0.75", edgecolors="black", linewidths=1.5, ax=ax
     )
 
+    # Feature nodes are latent variables z_j, not observed variables x_j.
     node_labels = {}
 
     for gid in graph.nodes:
         if gid == target_id:
-            node_labels[gid] = f"{gid}\nTARGET"
+            node_labels[gid] = r"$z_y$"
         elif gid in feature_gid_to_column:
             column = feature_gid_to_column[gid]
-            node_labels[gid] = f"{gid}\nF{column}"
+            node_labels[gid] = rf"$z_{{{column + 1}}}$"
         else:
-            node_labels[gid] = str(gid)
+            _, node_idx = gid_to_pair[gid]
+            node_labels[gid] = str(node_idx + 1)
 
     nx.draw_networkx_labels(
-        graph,
-        positions,
-        labels=node_labels,
-        font_size=8,
-        font_weight="bold",
-        ax=ax,
+        graph, positions, labels=node_labels, font_size=9,
+        font_weight="bold", ax=ax
     )
 
+    # Layer labels.
     for layer_idx, width in enumerate(scm.widths):
-        layer_y = [
-            positions[pair_to_gid[(layer_idx, node_idx)]][1]
-            for node_idx in range(width)
-        ]
-
+        layer_y = [positions[pair_to_gid[(layer_idx, node_idx)]][1] for node_idx in range(width)]
         top_y = max(layer_y) + 1.5
 
-        if layer_idx == len(scm.widths) - 1:
-            layer_name = "Target"
-        elif layer_idx == 0:
-            layer_name = "Root"
+        if layer_idx == 0:
+            layer_name = "Upstream latent layer"
+        elif layer_idx == len(scm.widths) - 1:
+            layer_name = "Latent target"
+        elif layer_idx == len(scm.widths) - 2:
+            layer_name = "Latent feature layer"
         else:
-            layer_name = f"Layer {layer_idx}"
+            layer_name = f"Latent layer {layer_idx}"
 
         ax.text(
-            layer_idx * x_gap,
-            top_y,
-            layer_name,
-            ha="center",
-            va="bottom",
-            fontsize=12,
-            fontweight="bold",
+            layer_idx * x_gap, top_y, layer_name,
+            ha="center", va="bottom", fontsize=12, fontweight="bold"
         )
 
+    # Normalized ground-truth importance of the corresponding observed feature.
     for gid in feature_ids:
         gid = int(gid)
         column = feature_gid_to_column[gid]
@@ -211,65 +161,32 @@ def plot_scm_graph(task, save_path="scm_graph.png"):
         x, y = positions[gid]
 
         ax.text(
-            x,
-            y - 0.75,
-            f"I={importance:.3f}",
-            ha="center",
-            va="top",
-            fontsize=7,
+            x + 0.32, y, rf"$I_{{{column + 1}}}={importance:.3f}$",
+            ha="left", va="center", fontsize=7
         )
 
     legend_handles = [
         Line2D(
-            [0],
-            [0],
-            marker="o",
-            linestyle="None",
-            markerfacecolor="white",
-            markeredgecolor="black",
-            markersize=11,
-            label="Latent node",
+            [0], [0], marker="o", linestyle="None", markerfacecolor="white",
+            markeredgecolor="black", markersize=11, label="Upstream latent variable"
         ),
         Line2D(
-            [0],
-            [0],
-            marker="o",
-            linestyle="None",
-            markerfacecolor="0.55",
-            markeredgecolor="black",
-            markersize=11,
-            label="Selected continuous",
+            [0], [0], marker="o", linestyle="None", markerfacecolor="0.55",
+            markeredgecolor="black", markersize=11, label="Latent feature — continuous observation"
         ),
         Patch(
-            facecolor="white",
-            edgecolor="black",
-            hatch="///",
-            label="Selected categorical",
+            facecolor="white", edgecolor="black", hatch="///",
+            label="Latent feature — categorical observation"
         ),
         Line2D(
-            [0],
-            [0],
-            marker="*",
-            linestyle="None",
-            markerfacecolor="0.75",
-            markeredgecolor="black",
-            markersize=16,
-            label="Target",
+            [0], [0], marker="*", linestyle="None", markerfacecolor="0.75",
+            markeredgecolor="black", markersize=16, label="Latent target"
         ),
     ]
 
-    ax.legend(
-        handles=legend_handles,
-        loc="upper right",
-        frameon=True,
-    )
+    ax.legend(handles=legend_handles, loc="upper right", frameon=True)
 
-    ax.set_title(
-        "Scalar Structural Causal Model",
-        fontsize=15,
-        fontweight="bold",
-    )
-
+    # ax.set_title("Latent Structural Causal Model", fontsize=15, fontweight="bold")
     ax.axis("off")
 
     plt.tight_layout()
