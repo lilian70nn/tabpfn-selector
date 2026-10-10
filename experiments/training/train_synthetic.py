@@ -193,11 +193,11 @@ def main():
     if args.save_path is None:
         if args.use_importance:
             if args.prior == "scm":
-                run_name = f"scm_{args.task_kind}_{args.importance_method}_w_imp_start{args.importance_start_frac:g}"
+                run_name = f"scm_{args.task_kind}_{args.importance_method}_w_imp_start{args.importance_start_frac:g}_epoch{args.epochs:g}"
             else:
-                run_name = f"linear_{args.task_kind}_w_imp_start{args.importance_start_frac:g}"
+                run_name = f"linear_{args.task_kind}_w_imp_start{args.importance_start_frac:g}_epoch{args.epochs:g}"
         else:
-            run_name = f"{args.prior}_{args.task_kind}_wo_imp"
+            run_name = f"{args.prior}_{args.task_kind}_wo_imp_epoch{args.epochs:g}"
 
         save_path = Path(__file__).resolve().parents[2] / "results" / "training" / run_name
     else:
