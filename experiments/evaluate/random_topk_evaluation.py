@@ -6,6 +6,7 @@ from pathlib import Path
 from functools import partial
 from torch.utils.data import DataLoader
 from dataclasses import replace
+from tqdm import tqdm
 
 from experiments.config import SCM_PRIOR
 from src.data.datasets import SyntheticTaskDataset
@@ -36,7 +37,7 @@ def evaluate_random_topk(model, loader, device, max_batches=50, topk_frac=0.25, 
     model.eval()
     repeat_losses = []
 
-    for _ in range(n_repeats):
+    for _ in tqdm(range(n_repeats), desc="Random Top-k", leave=False):
         pred_loss_sum = 0.0
         n_batches = 0
 
