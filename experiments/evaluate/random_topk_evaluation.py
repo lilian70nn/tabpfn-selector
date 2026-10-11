@@ -152,7 +152,7 @@ if __name__ == "__main__":
                     device=device,
                     max_batches=50,
                     topk_frac=0.25,
-                    n_repeats=1,
+                    n_repeats=20,
                 )
 
                 rows.append({
