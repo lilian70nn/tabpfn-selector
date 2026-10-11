@@ -141,7 +141,7 @@ if __name__ == "__main__":
                 checkpoint_path = results_root / run_name / "best_ckpt.pt"
 
                 checkpoint = torch.load(checkpoint_path, map_location=device)
-                model.load_state_dict(checkpoint)
+                model.load_state_dict(checkpoint["model_state_dict"])
                 model.to(device)
 
                 result = evaluate_random_topk(
