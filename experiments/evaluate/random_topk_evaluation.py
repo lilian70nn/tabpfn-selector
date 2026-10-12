@@ -113,10 +113,13 @@ def build_model(task_kind):
 if __name__ == "__main__":
     device = torch.device("cuda")
 
-    methods = ["gradient", "eigen_top1", "eigen_90", "mi", "marginal", "permutation"]
-    starts = [0.0, 0.3]
+    #methods = ["gradient", "eigen_top1", "eigen_90", "mi", "marginal", "permutation"]
+    methods = ["permutation"]
+
+    #starts = [0.0, 0.3]
+    starts = [0.3]
     #task_kinds = ["classification", "regression"]
-    task_kinds = ["regression", "classification"]
+    task_kinds = ["classification"]
 
     project_root = Path(__file__).resolve().parents[2]
     results_root = project_root / "results" / "training"
