@@ -79,3 +79,5 @@ if __name__ == "__main__":
         device=torch.device("cuda"),
         max_batches=50,
     )
+
+    print(results)
