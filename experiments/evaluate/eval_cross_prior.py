@@ -51,7 +51,7 @@ if __name__ == "__main__":
     )
 
     val_dataset = SyntheticTaskDataset(
-        num_tasks=10000,
+        num_tasks=512,
         task_factory=SCMTask,
         task_kind="classification",
         min_classes=2,
@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
     val_loader = DataLoader(
         val_dataset,
-        batch_size=100,
+        batch_size=32,
         shuffle=False,
         num_workers=0,
         pin_memory=True,
