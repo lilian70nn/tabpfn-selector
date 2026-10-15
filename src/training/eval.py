@@ -52,7 +52,7 @@ def evaluate_synthetic(
     metric_sums = {}
     metric_counts = {}
 
-    for i, batch in enumerate(tqdm(loader, total=max_batches, desc="Extended eval")):
+    for i, batch in enumerate(loader):
         if i >= max_batches:
             break
 
@@ -126,7 +126,7 @@ def evaluate_synthetic_extended(
     metric_counts = {}
     n_batches = 0
 
-    for i, batch in enumerate(loader):
+    for i, batch in enumerate(tqdm(loader, total=max_batches, desc="Extended eval")):
         if i >= max_batches:
             break
 
