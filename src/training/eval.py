@@ -28,7 +28,6 @@ def evaluate_synthetic(
     model,
     loader,
     device,
-    max_batches=50,
     importance_weight=None,
     topk_frac=0.25,
 ):
@@ -52,20 +51,13 @@ def evaluate_synthetic(
     metric_sums = {}
     metric_counts = {}
 
-    for i, batch in enumerate(loader):
-        if i >= max_batches:
-            break
+    for batch in loader:
 
         assert bool(batch.use_selector) == loader_use_selector
 
         batch = move_batch_to_device(batch, device)
-
         out = model(batch)
-        loss_dict = model.total_loss(
-            batch,
-            out,
-            importance_weight=importance_weight,
-        )
+        loss_dict = model.total_loss(batch, out, importance_weight=importance_weight)
 
         total_loss_sum += float(loss_dict["loss"].detach())
         pred_loss_sum += float(loss_dict["pred_loss"].detach())
@@ -110,7 +102,6 @@ def evaluate_synthetic_extended(
     model,
     loader,
     device,
-    max_batches=50,
     topk_fracs=(0.25, 0.50, 0.75),
     random_repeats=20,
 ):
@@ -126,10 +117,7 @@ def evaluate_synthetic_extended(
     metric_counts = {}
     n_batches = 0
 
-    for i, batch in enumerate(tqdm(loader, total=max_batches, desc="Extended eval")):
-        if i >= max_batches:
-            break
-
+    for batch in tqdm(loader, desc="Extended eval"):
         assert bool(batch.use_selector)
 
         batch = move_batch_to_device(batch, device)
