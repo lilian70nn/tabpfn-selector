@@ -45,8 +45,9 @@ def evaluate_synthetic(
     pred_loss_sum = 0.0
     imp_loss_sum = 0.0
 
-    gt_topk_pred_loss_sum = 0.0
-    pred_topk_pred_loss_sum = 0.0
+    topk_fracs = [0.25, 0.50, 0.75]
+    gt_topk_pred_loss_sums = {frac: 0.0 for frac in topk_fracs}
+    pred_topk_pred_loss_sums = {frac: 0.0 for frac in topk_fracs}
 
     n_batches = 0
     n_imp_batches = 0
@@ -93,21 +94,23 @@ def evaluate_synthetic(
 
         if loader_use_selector:
             gt_scores = batch.feature_importance.float()
-            gt_topk_mask = make_topk_cell_mask(batch, gt_scores, topk_frac)
-            gt_topk_batch = replace(batch, cell_mask=gt_topk_mask)
-            gt_topk_out = model(gt_topk_batch)
-            gt_topk_loss = model.prediction_loss(gt_topk_batch, gt_topk_out)
-            gt_topk_pred_loss_sum += float(gt_topk_loss.detach())
-
             importance_logits = out["importance_logits"]
             feat_idx = torch.arange(batch.d_max, device=importance_logits.device)[None, :]
             feat_mask = feat_idx < batch.d_emb[:, None]
             pred_scores = torch.softmax(importance_logits.masked_fill(~feat_mask, float("-inf")), dim=-1)
-            pred_topk_mask = make_topk_cell_mask(batch, pred_scores, topk_frac)
-            pred_topk_batch = replace(batch, cell_mask=pred_topk_mask)
-            pred_topk_out = model(pred_topk_batch)
-            pred_topk_loss = model.prediction_loss(pred_topk_batch, pred_topk_out)
-            pred_topk_pred_loss_sum += float(pred_topk_loss.detach())
+
+            for frac in topk_fracs:
+                gt_topk_mask = make_topk_cell_mask(batch, gt_scores, frac)
+                gt_topk_batch = replace(batch, cell_mask=gt_topk_mask)
+                gt_topk_out = model(gt_topk_batch)
+                gt_topk_loss = model.prediction_loss(gt_topk_batch, gt_topk_out)
+                gt_topk_pred_loss_sums[frac] += float(gt_topk_loss.detach())
+
+                pred_topk_mask = make_topk_cell_mask(batch, pred_scores, frac)
+                pred_topk_batch = replace(batch, cell_mask=pred_topk_mask)
+                pred_topk_out = model(pred_topk_batch)
+                pred_topk_loss = model.prediction_loss(pred_topk_batch, pred_topk_out)
+                pred_topk_pred_loss_sums[frac] += float(pred_topk_loss.detach())
 
 
     result = {
@@ -117,8 +120,11 @@ def evaluate_synthetic(
 
     if loader_use_selector:
         result["importance_loss"] = imp_loss_sum / max(n_imp_batches, 1)
-        result["gt_topk_pred_loss"] = gt_topk_pred_loss_sum / max(n_batches, 1)
-        result["pred_topk_pred_loss"] = pred_topk_pred_loss_sum / max(n_batches, 1)
+
+        for frac in topk_fracs:
+            pct = int(frac * 100)
+            result[f"gt_topk_pred_loss_{pct}"] = gt_topk_pred_loss_sums[frac] / max(n_batches, 1)
+            result[f"pred_topk_pred_loss_{pct}"] = pred_topk_pred_loss_sums[frac] / max(n_batches, 1)
 
     for k, v in metric_sums.items():
         result[k] = v / max(metric_counts[k], 1)
