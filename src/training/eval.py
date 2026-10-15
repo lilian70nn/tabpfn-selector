@@ -122,10 +122,19 @@ def evaluate_synthetic_extended(
 
         batch = move_batch_to_device(batch, device)
         out = model(batch)
-        metrics = importance_metrics(batch, out, topk_frac=0.25)
+        pred_loss = model.prediction_loss(batch, out)
+        if model.task_kind == "classification":
+            metrics = classification_metrics(batch, out)
+        else:
+            metrics = regression_metrics(batch, out, model.encoder.regression_borders)
 
-        for key in ("importance_pearson", "importance_topk_overlap"):
-            value = float(metrics[key])
+        metrics["pred_loss"] = float(pred_loss.detach())
+        imp_loss = model.total_loss(batch, out, importance_weight=0)["importance_loss"]
+        metrics["importance_loss"] = float(imp_loss.detach())
+        metrics.update(importance_metrics(batch, out, topk_frac=0.25))
+
+        for key, value in metrics.items():
+            value = float(value)
 
             if not math.isnan(value):
                 metric_sums[key] = metric_sums.get(key, 0.0) + value
