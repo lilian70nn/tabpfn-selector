@@ -36,9 +36,52 @@ def run_extended_eval(
     return metrics
 
 
+# if __name__ == "__main__":
+
+#     ckpt_path = "results/training/scm_classification_gradient_w_imp_start0/best_ckpt.pt"
+
+#     model = TabularPFNModel(
+#         k=64,
+#         m=120,
+#         n_heads=4,
+#         depth=16,
+#         max_cardinality=10,
+#         task_kind="classification",
+#         max_classes=4,
+#     )
+
+#     val_dataset = SyntheticTaskDataset(
+#         num_tasks=512,
+#         task_factory=SCMTask,
+#         task_kind="classification",
+#         min_classes=2,
+#         max_classes=4,
+#         base_seed=105500,
+#         task_kwargs=SCM_PRIOR,
+#     )
+
+#     val_loader = DataLoader(
+#         val_dataset,
+#         batch_size=32,
+#         shuffle=False,
+#         num_workers=0,
+#         pin_memory=True,
+#         collate_fn=partial(collate_tasks, use_selector=True),
+#     )
+
+
+#     results = run_extended_eval(
+#         model=model,
+#         val_loader=val_loader,
+#         checkpoint_path=ckpt_path,
+#         device=torch.device("cuda"),
+#     )
+
+#     print(results)
+
 if __name__ == "__main__":
 
-    ckpt_path = "results/training/scm_classification_gradient_w_imp_start0/best_ckpt.pt"
+    ckpt_path = "results/training/scm_regression_gradient_w_imp_start0/best_ckpt.pt"
 
     model = TabularPFNModel(
         k=64,
@@ -46,17 +89,17 @@ if __name__ == "__main__":
         n_heads=4,
         depth=16,
         max_cardinality=10,
-        task_kind="classification",
-        max_classes=4,
+        task_kind="regression",
+        num_y_buckets=100,
     )
 
     val_dataset = SyntheticTaskDataset(
         num_tasks=512,
         task_factory=SCMTask,
-        task_kind="classification",
+        task_kind="regression",
         min_classes=2,
         max_classes=4,
-        base_seed=105500,
+        base_seed=102500,
         task_kwargs=SCM_PRIOR,
     )
 
