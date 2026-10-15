@@ -1,5 +1,6 @@
 import torch
 import math
+from tqdm.auto import tqdm
 from dataclasses import replace
 from src.training.helper import move_batch_to_device, infer_loader_use_selector
 from src.training.metrics import classification_metrics, importance_metrics, regression_metrics
@@ -51,7 +52,7 @@ def evaluate_synthetic(
     metric_sums = {}
     metric_counts = {}
 
-    for i, batch in enumerate(loader):
+    for i, batch in enumerate(tqdm(loader, total=max_batches, desc="Extended eval")):
         if i >= max_batches:
             break
 
