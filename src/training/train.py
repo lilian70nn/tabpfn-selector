@@ -17,7 +17,6 @@ def train_synthetic(
     log_every=50,
     val_loader=None,
     val_every=500,
-    val_batches=50,
     imp_trace=True,
     trace_num_tables=10,
     save_path=None,
@@ -197,7 +196,6 @@ def train_synthetic(
                 model=model,
                 loader=val_loader,
                 device=device,
-                max_batches=val_batches,
                 importance_weight=importance_weight,
             )
 

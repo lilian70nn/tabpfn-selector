@@ -14,7 +14,6 @@ def run_extended_eval(
     val_loader,
     checkpoint_path,
     device,
-    max_batches=50,
 ):
     checkpoint = torch.load(
         checkpoint_path,
@@ -30,7 +29,6 @@ def run_extended_eval(
         model=model,
         loader=val_loader,
         device=device,
-        max_batches=max_batches,
         topk_fracs=(0.25, 0.50, 0.75),
         random_repeats=20,
     )
@@ -77,7 +75,6 @@ if __name__ == "__main__":
         val_loader=val_loader,
         checkpoint_path=ckpt_path,
         device=torch.device("cuda"),
-        max_batches=50,
     )
 
     print(results)
