@@ -1,3 +1,7 @@
+import copy
+import csv
+from pathlib import Path
+import argparse
 import torch
 from torch.utils.data import DataLoader
 from functools import partial
@@ -36,88 +40,106 @@ def run_extended_eval(
     return metrics
 
 
-# if __name__ == "__main__":
-
-#     ckpt_path = "results/training/scm_classification_gradient_w_imp_start0/best_ckpt.pt"
-
-#     model = TabularPFNModel(
-#         k=64,
-#         m=120,
-#         n_heads=4,
-#         depth=16,
-#         max_cardinality=10,
-#         task_kind="classification",
-#         max_classes=4,
-#     )
-
-#     val_dataset = SyntheticTaskDataset(
-#         num_tasks=512,
-#         task_factory=SCMTask,
-#         task_kind="classification",
-#         min_classes=2,
-#         max_classes=4,
-#         base_seed=105500,
-#         task_kwargs=SCM_PRIOR,
-#     )
-
-#     val_loader = DataLoader(
-#         val_dataset,
-#         batch_size=32,
-#         shuffle=False,
-#         num_workers=0,
-#         pin_memory=True,
-#         collate_fn=partial(collate_tasks, use_selector=True),
-#     )
-
-
-#     results = run_extended_eval(
-#         model=model,
-#         val_loader=val_loader,
-#         checkpoint_path=ckpt_path,
-#         device=torch.device("cuda"),
-#     )
-
-#     print(results)
-
 if __name__ == "__main__":
 
-    ckpt_path = "results/training/scm_regression_gradient_w_imp_start0/best_ckpt.pt"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--batch", type=int, required=True, choices=[1, 2, 3])
+    args = parser.parse_args()
 
-    model = TabularPFNModel(
-        k=64,
-        m=120,
-        n_heads=4,
-        depth=16,
-        max_cardinality=10,
-        task_kind="regression",
-        num_y_buckets=100,
-    )
+    device = torch.device("cuda")
 
-    val_dataset = SyntheticTaskDataset(
-        num_tasks=512,
-        task_factory=SCMTask,
-        task_kind="regression",
-        min_classes=2,
-        max_classes=4,
-        base_seed=102500,
-        task_kwargs=SCM_PRIOR,
-    )
+    task_kinds = ("classification", "regression")
+    methods = ("gradient", "eigen_90", "mi", "permutation")
+    batch_to_start_frac = {1: 0.0, 2: 0.15, 3: 0.3}
+    start_fracs = (batch_to_start_frac[args.batch],)
 
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=32,
-        shuffle=False,
-        num_workers=2,
-        pin_memory=True,
-        collate_fn=partial(collate_tasks, use_selector=True),
-    )
+    output_path = Path(f"results/evaluation/extended_eval_batch{args.batch}.csv")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    results = []
 
-    results = run_extended_eval(
-        model=model,
-        val_loader=val_loader,
-        checkpoint_path=ckpt_path,
-        device=torch.device("cuda"),
-    )
+    for task_kind in task_kinds:
+        for method in methods:
 
-    print(results)
+            prior = copy.deepcopy(SCM_PRIOR)
+            prior["generate_importance"] = True
+            prior["importance_method"] = method
+
+            dataset_kwargs = dict(
+                num_tasks=10000,
+                task_factory=SCMTask,
+                task_kind=task_kind,
+                task_kwargs=prior,
+            )
+
+            if task_kind == "classification":
+                dataset_kwargs.update(
+                    min_classes=2,
+                    max_classes=4,
+                    base_seed=105500,
+                )
+            else:
+                dataset_kwargs["base_seed"] = 102500
+
+            val_dataset = SyntheticTaskDataset(**dataset_kwargs)
+
+            val_loader = DataLoader(
+                val_dataset,
+                batch_size=16,
+                shuffle=False,
+                num_workers=2,
+                pin_memory=True,
+                collate_fn=partial(collate_tasks, use_selector=True),
+            )
+
+            for start_frac in start_fracs:
+
+                run_name = f"scm_{task_kind}_{method}_w_imp_start{start_frac:g}_epoch4"
+                ckpt_path = Path("results/training") / run_name / "best_ckpt.pt"
+
+                if not ckpt_path.exists():
+                    raise FileNotFoundError(ckpt_path)
+
+                model_kwargs = dict(
+                    k=64,
+                    m=120,
+                    n_heads=4,
+                    depth=16,
+                    max_cardinality=10,
+                    task_kind=task_kind,
+                )
+
+                if task_kind == "classification":
+                    model_kwargs["max_classes"] = 4
+                else:
+                    model_kwargs["num_y_buckets"] = 100
+
+                model = TabularPFNModel(**model_kwargs)
+
+                print(f"\nEvaluating {run_name}", flush=True)
+
+                metrics = run_extended_eval(
+                    model=model,
+                    val_loader=val_loader,
+                    checkpoint_path=ckpt_path,
+                    device=device,
+                )
+
+                results.append({
+                    "task_kind": task_kind,
+                    "importance_method": method,
+                    "importance_start_frac": start_frac,
+                    "epochs": 4,
+                    **metrics,
+                })
+
+                with open(output_path, "w", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=list(results[0].keys()))
+                    writer.writeheader()
+                    writer.writerows(results)
+
+                print(f"Saved results for {run_name}", flush=True)
+
+                del model
+
+    print(f"\nFinished evaluating {len(results)} checkpoints.")
