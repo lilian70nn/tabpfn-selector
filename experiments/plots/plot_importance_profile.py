@@ -82,7 +82,7 @@ def main(trace_path, save_path, num_tables=2, num_steps=6, seed=0):
     selected_tables = [4, 5]
     for table in selected_tables:
         table = int(table)
-        output_path = save_dir / f"importance_profile_table_{table}.png"
+        output_path = save_dir / f"gradient_importance_profile_table_{table}.png"
         plot_table(gt, scores, table, num_steps, output_path)
         print(f"saved: {output_path}")
 
@@ -90,7 +90,7 @@ def main(trace_path, save_path, num_tables=2, num_steps=6, seed=0):
 if __name__ == "__main__":
 
     main(
-        trace_path="results/training/scm_cls_w_imp_training_results/importance_trace.txt",
+        trace_path="results/training/scm_classification_gradient_w_imp_start0/importance_trace.txt",
         save_path="results/figures",
         num_tables=2,
         num_steps=8,

@@ -59,7 +59,7 @@ def plot_start_comparison(start0_log, start03_log, wo_imp_log, out_path, title=N
     ]:
         # Prediction loss
         l1, = ax.plot(steps, pred, marker="o", markersize=4, label="Prediction Loss")
-        l2, = ax.plot(sw, pw, linestyle="--", linewidth=2, label="w/o Importance")
+        l2, = ax.plot(sw, pw, marker="o", markersize=4, label="Importance Weight = 0")
 
         ax.set_title(panel_title)
         ax.set_xlabel("Training Step")
@@ -79,7 +79,7 @@ def plot_start_comparison(start0_log, start03_log, wo_imp_log, out_path, title=N
         ax2.set_ylim(*imp_ylim)
 
         ax.legend([l1, l2, l3],
-                  ["Prediction Loss", "w/o Importance", "Importance Loss"],
+                  ["Prediction Loss", "Importance Weight = 0", "Importance Loss"],
                   loc="upper right")
 
     if title is not None:
@@ -93,7 +93,7 @@ def plot_start_comparison(start0_log, start03_log, wo_imp_log, out_path, title=N
 if __name__ == "__main__":
     
     # Classification
-    wo_cls = "results/training/scm_classification_wo_imp/train_log.txt"
+    wo_cls = "results/training/scm_classification_imp_weight0/train_log.txt"
 
     plot_start_comparison(
         "results/training/scm_classification_gradient_w_imp_start0/train_log.txt",
@@ -139,7 +139,7 @@ if __name__ == "__main__":
 
 
     # Regression
-    wo_reg = "results/training/scm_regression_wo_imp/train_log.txt"
+    wo_reg = "results/training/scm_regression_imp_weight0/train_log.txt"
 
     plot_start_comparison(
         "results/training/scm_regression_gradient_w_imp_start0/train_log.txt",

@@ -52,7 +52,7 @@ def plot_importance_trajectory(input_path, save_path):
         plt.grid(alpha=0.25)
         plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=8)
         plt.tight_layout()
-        plt.savefig(save_path / f"importance_trajectory_table_{table}.png", dpi=300, bbox_inches="tight")
+        plt.savefig(save_path / f"gradient_importance_trajectory_table_{table}.png", dpi=300, bbox_inches="tight")
         plt.close()
 
     print(f"Selected tables: {selected_tables}")
@@ -61,7 +61,7 @@ def plot_importance_trajectory(input_path, save_path):
 
 if __name__ == "__main__":
 
-    input_path = "results/training/scm_cls_w_imp_training_results/importance_trace.txt"
+    input_path = "results/training/scm_classification_gradient_w_imp_start0/importance_trace.txt"
     save_path = "results/figures"
 
     plot_importance_trajectory(input_path, save_path)

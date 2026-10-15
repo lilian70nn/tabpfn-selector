@@ -68,3 +68,5 @@ if __name__ == "__main__":
             output_path = f"results/figures/scm_{task}_{method}_start0_joint_objectives.png"
             plot_joint_objectives(input_path, output_path)
 
+
+
