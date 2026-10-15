@@ -107,7 +107,7 @@ if __name__ == "__main__":
         val_dataset,
         batch_size=32,
         shuffle=False,
-        num_workers=0,
+        num_workers=4,
         pin_memory=True,
         collate_fn=partial(collate_tasks, use_selector=True),
     )
