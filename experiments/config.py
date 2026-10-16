@@ -33,6 +33,50 @@ SCM_PRIOR = {
     "device":torch.device("cpu")
 }
 
+
+# OOD 1: deeper SCM
+SCM_OOD_DEPTH = {
+    **SCM_PRIOR,
+    "num_layers": 5,
+    "connection_probs": (
+        (0.25, 0.40),
+        (0.55, 0.75),
+        (0.25, 0.40),
+        (0.55, 0.75),
+    ),
+}
+
+
+# OOD 2: sparser SCM
+SCM_OOD_SPARSITY = {
+    **SCM_PRIOR,
+    "connection_probs": (
+        (0.10, 0.20),
+        (0.30, 0.45),
+    ),
+}
+
+
+# OOD 3: different unary op distribution
+SCM_OOD_MECHANISM = {
+    **SCM_PRIOR,
+    "unary_op_probs": (0.5, 0.5, 2.0, 3.0, 3.0, 2.0, 1.0, 3.0),
+}
+
+
+# OOD 4: higher observation noise
+SCM_OOD_NOISE = {
+    **SCM_PRIOR,
+    "observation_noise_scale": 0.15,
+}
+
+
+# OOD 5: more missing data
+SCM_OOD_MISSING = {
+    **SCM_PRIOR,
+    "p_missing": 0.25,
+}
+
 LINEAR_PRIOR = {
     "n_min": 400,
     "n_max": 512,

@@ -9,8 +9,16 @@ from src.training.eval import evaluate_synthetic_extended
 from src.model.tabpfn import TabularPFNModel
 from src.data.datasets import SyntheticTaskDataset
 from src.data.scm_task_v2.task import SCMTask
-from experiments.config import SCM_PRIOR
 from src.data.collate import collate_tasks
+
+from experiments.config import (
+    SCM_PRIOR,
+    SCM_OOD_DEPTH,
+    SCM_OOD_SPARSITY,
+    SCM_OOD_MECHANISM,
+    SCM_OOD_NOISE,
+    SCM_OOD_MISSING,
+)
 
 
 def run_extended_eval(
@@ -44,7 +52,30 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch", type=int, required=True, choices=[1, 2, 3])
+    parser.add_argument(
+        "--prior",
+        type=str,
+        default="baseline",
+        choices=[
+            "baseline",
+            "depth",
+            "sparsity",
+            "mechanism",
+            "noise",
+            "missing",
+        ],
+    )
     args = parser.parse_args()
+    prior_configs = {
+        "baseline": SCM_PRIOR,
+        "depth": SCM_OOD_DEPTH,
+        "sparsity": SCM_OOD_SPARSITY,
+        "mechanism": SCM_OOD_MECHANISM,
+        "noise": SCM_OOD_NOISE,
+        "missing": SCM_OOD_MISSING,
+    }
+
+    selected_prior = prior_configs[args.prior]
 
     device = torch.device("cuda")
 
@@ -53,7 +84,7 @@ if __name__ == "__main__":
     batch_to_start_frac = {1: 0.0, 2: 0.15, 3: 0.3}
     start_fracs = (batch_to_start_frac[args.batch],)
 
-    output_path = Path(f"results/evaluation/extended_eval_batch{args.batch}.csv")
+    output_path = Path(f"results/evaluation/extended_eval_{args.prior}_batch{args.batch}.csv")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     results = []
@@ -61,7 +92,7 @@ if __name__ == "__main__":
     for task_kind in task_kinds:
         for method in methods:
 
-            prior = copy.deepcopy(SCM_PRIOR)
+            prior = copy.deepcopy(selected_prior)
             prior["generate_importance"] = True
             prior["importance_method"] = method
 
@@ -126,6 +157,7 @@ if __name__ == "__main__":
                 )
 
                 results.append({
+                    "prior": args.prior,
                     "task_kind": task_kind,
                     "importance_method": method,
                     "importance_start_frac": start_frac,
