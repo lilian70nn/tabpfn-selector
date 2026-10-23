@@ -39,42 +39,41 @@ def classification_metrics(batch, out):
     for b in range(B):
         mask_b = test_mask[b]
 
-        yt = y_true[b, mask_b].detach().cpu().numpy()
-        yp = y_pred[b, mask_b].detach().cpu().numpy()
+        yt = y_true[b, mask_b]
+        yp = y_pred[b, mask_b]
 
         if len(yt) == 0:
             continue
 
         c_b = int(batch.n_classes[b].item())
-        labels = list(range(c_b))
+        cm = torch.bincount(yt * c_b + yp, minlength=c_b * c_b,).reshape(c_b, c_b).float()
+        tp = cm.diag()
+        support = cm.sum(dim=1)
+        predicted = cm.sum(dim=0)
 
-        p, r, f1, _ = precision_recall_fscore_support(
-            yt,
-            yp,
-            labels=labels,
-            average="macro",
-            zero_division=0,
-        )
+        precision = tp / predicted.clamp_min(1)
+        recall = tp / support.clamp_min(1)
+        f1 = 2 * precision * recall / (precision + recall).clamp_min(1e-12)
 
-        accs.append(accuracy_score(yt, yp))
-        balanced_accs.append(r)
-        precisions.append(p)
-        recalls.append(r)
-        f1s.append(f1)
+        accs.append(tp.sum() / cm.sum())
+        balanced_accs.append(recall.mean())
+        precisions.append(precision.mean())
+        recalls.append(recall.mean())
+        f1s.append(f1.mean())
 
-        # ROC-AUC
-        prob_b = probs[b, mask_b, :c_b].detach().cpu().numpy()
-        # AUC requires at least 2 classes in y_true for this task
-        if len(set(yt.tolist())) >= 2:
+        yt_np = yt.cpu().numpy()
+        prob_np = probs[b, mask_b, :c_b].cpu().numpy()
+
+        if len(set(yt_np.tolist())) >= 2:
             try:
                 if c_b == 2:
-                    auc = roc_auc_score(yt, prob_b[:, 1])
+                    auc = roc_auc_score(yt_np, prob_np[:, 1])
 
                 else:
                     auc = roc_auc_score(
-                        yt,
-                        prob_b,
-                        labels=labels,
+                        yt_np,
+                        prob_np,
+                        labels=list(range(c_b)),
                         multi_class="ovr",
                         average="macro",
                     )
@@ -85,11 +84,11 @@ def classification_metrics(batch, out):
 
 
     return {
-        "accuracy": avg(accs),
-        "balanced_accuracy": avg(balanced_accs),
-        "precision": avg(precisions),
-        "recall": avg(recalls),
-        "f1": avg(f1s),
+        "accuracy": avg([float(x) for x in accs]),
+        "balanced_accuracy": avg([float(x) for x in balanced_accs]),
+        "precision": avg([float(x) for x in precisions]),
+        "recall": avg([float(x) for x in recalls]),
+        "f1": avg([float(x) for x in f1s]),
         "auc": avg(roc_aucs),
     }
 
