@@ -18,6 +18,13 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        "--backbone-version",
+        type=str,
+        default="v2",
+        choices=["v1", "v2"],
+    )
+
+    parser.add_argument(
         "--epochs",
         type=float,
         default=1.0,
@@ -175,6 +182,7 @@ def main():
         depth=16,
         max_cardinality=10,
         task_kind=args.task_kind,
+        backbone_version=args.backbone_version,
     )
 
     if args.task_kind == "classification":
@@ -198,6 +206,9 @@ def main():
                 run_name = f"linear_{args.task_kind}_w_imp_start{args.importance_start_frac:g}_epoch{args.epochs:g}"
         else:
             run_name = f"{args.prior}_{args.task_kind}_wo_imp_epoch{args.epochs:g}"
+
+        if args.backbone_version != "v2":
+            run_name += f"_{args.backbone_version}"
 
         save_path = Path(__file__).resolve().parents[2] / "results" / "training" / run_name
     else:
