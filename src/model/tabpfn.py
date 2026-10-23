@@ -85,6 +85,7 @@ class TabularPFNModel(nn.Module):
             "test_mask": test_mask,
             "importance_logits": importance_logits,
             "importance_logits_layers": importance_logits_layers,
+            "selector_repr": selector_repr if bool(batch.use_selector) else None,
             "meta": meta,
         }
 
