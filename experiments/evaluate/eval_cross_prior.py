@@ -166,7 +166,8 @@ if __name__ == "__main__":
                 })
 
                 with open(output_path, "w", newline="") as f:
-                    writer = csv.DictWriter(f, fieldnames=list(results[0].keys()))
+                    fieldnames = list(dict.fromkeys(key for row in results for key in row))
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
                     writer.writeheader()
                     writer.writerows(results)
 
