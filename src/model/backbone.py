@@ -43,13 +43,22 @@ class Feedforward(nn.Module):
 class TransformerBlockV1(nn.Module):
     def __init__(self, k, m, n_heads):
         super().__init__()
-        self.fAtt = ResidualNorm(k, AxisAttention(k, n_heads))
+        self.sAtt = ResidualNorm(k, AxisAttention(k, n_heads))
         self.forw = ResidualNorm(k, Feedforward(k, m))
 
     def forward(self, data, cell_mask, meta):
-        data = self.fAtt(data, cell_mask)
-        data = data * cell_mask[:, :, :, None].to(data.dtype)
+        data = data.permute(0, 2, 1, 3).contiguous()       # [B, F, N, K]
+        mask_t = cell_mask.permute(0, 2, 1).contiguous()   # [B, F, N]
 
+        data = self.sAtt(
+            data,
+            mask_t,
+            restrict_to_train_keys=True,
+            n_train_keys=meta["n_train_keys"],
+        )
+        data = data * mask_t[:, :, :, None].to(data.dtype)
+
+        data = data.permute(0, 2, 1, 3).contiguous()       # [B, N, F, K]
         data = self.forw(data)
         data = data * cell_mask[:, :, :, None].to(data.dtype)
 

@@ -93,10 +93,7 @@ class TabularInputEncoder(nn.Module):
 
             assert borders.numel() == self.num_y_buckets + 1
 
-            self.register_buffer(
-                "regression_borders",
-                borders,
-            )
+            self.register_buffer("regression_borders", borders,)
 
 
     def forward(self, batch):
@@ -243,6 +240,178 @@ class TabularInputEncoder(nn.Module):
 
         assert tokens.shape == (B, N, F, self.k)
         assert torch.all(tokens[~cell_mask] == 0)
+
+        meta = {
+            "B": B,
+            "N": N,
+            "F": F,
+            "Ntr_max": Ntr_max,
+            "Nte_max": Nte_max,
+            "d_max": d_max,
+            "selector_idx": selector_idx,
+            "test_start": test_start,
+            "y_slot": y_slot,
+            "n_train_keys": Ntr_max + 1,
+        }
+
+        if self.task_kind == "regression":
+            meta["y_mean"] = batch.y_mean
+            meta["y_std"] = batch.y_std
+            meta["regression_borders"] = self.regression_borders
+            meta["num_y_buckets"] = self.num_y_buckets
+
+        return tokens, cell_mask, meta
+
+
+
+class RowInputEncoderV1(nn.Module):
+    CONTINUOUS = 0
+    CATEGORICAL = 1
+
+    def __init__(
+        self,
+        k: int,
+        max_features: int,
+        max_cardinality: int,
+        task_kind: str,
+        max_classes: int | None = None,
+        num_y_buckets: int | None = None,
+    ):
+        super().__init__()
+
+        assert task_kind in ["classification", "regression"]
+        assert max_features >= 1
+        assert max_cardinality >= 1
+
+        self.k = int(k)
+        self.max_features = int(max_features)
+        self.max_cardinality = int(max_cardinality)
+        self.task_kind = task_kind
+
+        self.row_input_dim = 3 * self.max_features + 2
+        self.row_encoder = nn.Linear(self.row_input_dim, self.k)
+        self.selector_token = nn.Parameter(torch.randn(self.k) * 0.02)
+
+        self.max_classes = None
+        self.num_y_buckets = None
+
+        if self.task_kind == "classification":
+            assert max_classes is not None
+            assert num_y_buckets is None
+            assert max_classes >= 2
+
+            self.max_classes = int(max_classes)
+            self.regression_borders = None
+
+        else:
+            assert num_y_buckets is not None
+            assert max_classes is None
+            assert num_y_buckets >= 2
+
+            self.num_y_buckets = int(num_y_buckets)
+
+            border_data = torch.load("src/data/borders_100.pt", map_location="cpu",)
+            borders = border_data["borders"].float()
+
+            assert borders.numel() == self.num_y_buckets + 1
+            self.register_buffer("regression_borders", borders)
+
+    def forward(self, batch):
+        device = batch.X_train.device
+
+        B = batch.X_train.shape[0]
+        Ntr_max = batch.Ntr_max
+        Nte_max = batch.Nte_max
+        d_max = batch.d_max
+
+        assert d_max <= self.max_features, (f"Batch d_max={d_max} exceeds model max_features={self.max_features}")
+
+        selector_idx = Ntr_max
+        test_start = Ntr_max + 1
+        N = Ntr_max + 1 + Nte_max
+
+        F = 1
+        y_slot = 0
+
+        original_cell_mask = batch.cell_mask.to(device=device, dtype=torch.bool)
+
+        assert original_cell_mask.shape == (B, N, d_max + 1)
+        assert batch.x_mean.shape == (B, d_max)
+        assert batch.x_std.shape == (B, d_max)
+
+        X_all = torch.full((B, N, d_max), torch.nan, dtype=torch.float32, device=device)
+        X_all[:, :Ntr_max, :] = batch.X_train
+        X_all[:, test_start:, :] = batch.X_test
+
+        feature_mask = original_cell_mask[:, :, :d_max]
+        feature_type = batch.feature_type.clamp(0, 1)
+
+        is_cont = feature_type == self.CONTINUOUS
+        is_cat = feature_type == self.CATEGORICAL
+
+        X_nan = torch.isnan(X_all)
+        X_values = torch.zeros(B, N, d_max, device=device, dtype=torch.float32,)
+        X_norm = (torch.nan_to_num(X_all, nan=0.0) - batch.x_mean[:, None, :]) / batch.x_std[:, None, :]
+        X_norm = X_norm.clamp(-4.0, 4.0)
+
+        cont_mask = feature_mask & is_cont[:, None, :] & ~X_nan
+        X_values[cont_mask] = X_norm[cont_mask]
+
+        cat_mask = feature_mask & is_cat[:, None, :] & ~X_nan
+        X_cat = torch.nan_to_num(X_all, nan=0.0).clamp(0, self.max_cardinality) / self.max_cardinality
+        X_values[cat_mask] = X_cat[cat_mask]
+
+        X_missing = (feature_mask & X_nan).float()
+
+        X_values[:, selector_idx, :] = 0.0
+        X_missing[:, selector_idx, :] = 0.0
+
+        X_padded = torch.zeros(B, N, self.max_features, device=device, dtype=torch.float32)
+        missing_padded = torch.zeros_like(X_padded)
+
+        X_padded[:, :, :d_max] = X_values
+        missing_padded[:, :, :d_max] = X_missing
+
+        feature_valid = torch.zeros_like(X_padded)
+        feature_valid[:, :, :d_max] = feature_mask.float()
+        feature_valid[:, selector_idx, :] = 0.0
+
+        y_values = torch.zeros(B, N, 1, device=device,  dtype=torch.float32,)
+        y_known = torch.zeros_like(y_values)
+
+        train_y_mask = original_cell_mask[:, :Ntr_max, d_max]
+
+        if self.task_kind == "classification":
+            assert batch.n_classes is not None
+            assert int(batch.n_classes.max().item()) <= self.max_classes
+
+            y_train = batch.y_train.float() / max(1, self.max_classes - 1)
+
+        else:
+            assert batch.n_classes is None
+            assert batch.y_mean is not None
+            assert batch.y_std is not None
+
+            y_train = (batch.y_train.float() - batch.y_mean[:, None]) / batch.y_std[:, None]
+            y_train = y_train.clamp(-4.0, 4.0)
+
+        y_values[:, :Ntr_max, 0] = torch.where(train_y_mask, y_train, torch.zeros_like(y_train),)
+        y_known[:, :Ntr_max, 0] = train_y_mask.float()
+
+        row_input = torch.cat([X_padded, missing_padded, feature_valid, y_values, y_known,], dim=-1,)
+        assert row_input.shape == (B, N, self.row_input_dim)
+        row_tokens = self.row_encoder(row_input)
+        row_tokens[:, selector_idx, :] = self.selector_token
+        row_mask = original_cell_mask.any(dim=-1)
+        row_mask[:, selector_idx] = True
+        row_tokens = row_tokens * row_mask[:, :, None].to(row_tokens.dtype)
+
+        tokens = row_tokens.unsqueeze(2)
+        cell_mask = row_mask.unsqueeze(-1)
+
+        assert tokens.shape == (B, N, 1, self.k)
+        assert cell_mask.shape == (B, N, 1)
+
 
         meta = {
             "B": B,
