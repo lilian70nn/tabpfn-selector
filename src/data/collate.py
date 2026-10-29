@@ -142,13 +142,26 @@ def collate_tasks(tasks, use_selector=True):
             mean_i[is_cont] = cont_mean
             std_i[is_cont] = cont_std
 
+        is_cat = ft == 1
+        for j in torch.where(is_cat)[0].tolist():
+            values = Xtr_i[:, j]
+            values = values[torch.isfinite(values)]
+            if values.numel() > 0:
+                mode = torch.mode(values).values
+                mean_i[j] = mode
+            else:
+                mean_i[j] = 0.0
+
         x_mean[b, :d] = mean_i
         x_std[b, :d] = std_i
 
+        ytr_i = task.y_train.float()
+
         if task.n_classes is None:
-            ytr_i = task.y_train.float()
             y_mean[b] = ytr_i.mean()
             y_std[b] = ytr_i.std(unbiased=False).clamp_min(1e-6)
+        else:
+            y_mean[b] = torch.mode(task.y_train.long()).values.float()
 
         X_train[b, :nt, :d] = task.X_train
         y_train[b, :nt] = task.y_train
@@ -190,7 +203,6 @@ def collate_tasks(tasks, use_selector=True):
             device=device,
         )
 
-        y_mean = None
         y_std = None
 
     cell_mask = build_cell_mask(
