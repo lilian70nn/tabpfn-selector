@@ -352,7 +352,8 @@ class RowInputEncoderV1(nn.Module):
         is_cont = batch.feature_type == self.CONTINUOUS
 
         X_cont = ((X_filled - batch.x_mean[:, None, :]) / batch.x_std[:, None, :].clamp_min(1e-6)).clamp(-4.0, 4.0)
-        X_values = torch.where(is_cont[:, None, :], X_cont, X_filled,)
+        X_cat = X_filled / (batch.cardinality[:, None, :] - 1).clamp_min(1)
+        X_values = torch.where(is_cont[:, None, :], X_cont, X_cat,)
         X_padded = torch.zeros(B, N, self.max_features, device=device, dtype=torch.float32,)
         X_padded[:, :, :d_max] = X_values
 
