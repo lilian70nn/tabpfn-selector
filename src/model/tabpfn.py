@@ -26,7 +26,7 @@ class TabularPFNModel(nn.Module):
         assert backbone_version in ("v1", "v2")
         self.backbone_version = backbone_version
         if backbone_version == "v1":
-            self.max_features = 24
+            self.max_features = 30
             self.encoder = RowInputEncoderV1(
                 k=k,
                 max_features=self.max_features,
