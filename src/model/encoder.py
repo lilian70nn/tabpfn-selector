@@ -360,7 +360,10 @@ class RowInputEncoderV1(nn.Module):
         X_cat = X_filled / (batch.cardinality[:, None, :] - 1).clamp_min(1)
         X_values = torch.where(is_cont[:, None, :], X_cont, X_cat,)
         X_padded = torch.zeros(B, N, self.max_features, device=device, dtype=torch.float32,)
-        X_padded[:, :, :d_max] = X_values
+        #X_padded[:, :, :d_max] = X_values
+
+        positions = torch.rand(B, self.max_features, device=device).argsort(dim=1)[:, :d_max]
+        X_padded.scatter_(dim=2, index=positions[:, None, :].expand(B, N, d_max), src=X_values,)
 
 
         y_values = torch.zeros(B, N, 1, dtype=torch.float32, device=device,)
@@ -403,6 +406,7 @@ class RowInputEncoderV1(nn.Module):
             "y_slot": y_slot,
 
             "n_train_keys": Ntr_max + 1,
+            "feature_positions": positions
         }
 
         if self.task_kind == "regression":

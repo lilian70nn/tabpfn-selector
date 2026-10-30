@@ -90,11 +90,17 @@ class TabularPFNModel(nn.Module):
         if bool(batch.use_selector):
             if self.backbone_version == "v1":
                 selector_repr = h[:, selector_idx, 0, :]
-                importance_logits = self.importance_head(selector_repr)[:, :d_max]
+                positions = meta["feature_positions"]
+                importance_logits = self.importance_head(selector_repr)
+                importance_logits = importance_logits.gather(dim=1, index=positions)
                 if return_selector_layers:
                     selector_init = tokens[:, selector_idx, 0, :]
                     selector_all_layers = torch.cat([selector_init[:, None, None, :], selector_layers], dim=1)
-                    importance_logits_layers = self.importance_head(selector_all_layers).squeeze(2)[..., :d_max]
+                    importance_logits_layers = self.importance_head(selector_all_layers).squeeze(2)
+                    importance_logits_layers = importance_logits_layers.gather(
+                        dim=-1,
+                        index=positions[:, None, :].expand(-1, importance_logits_layers.shape[1], -1),
+                    )
 
             else:
                 selector_repr = h[:, selector_idx, :d_max, :]          # [B, d_max, K]
