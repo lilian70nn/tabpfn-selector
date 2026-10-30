@@ -289,6 +289,11 @@ class RowInputEncoderV1(nn.Module):
 
         self.row_input_dim = self.max_features + 1
         self.row_encoder = nn.Linear(self.row_input_dim, self.k)
+
+        # test
+        with torch.no_grad():
+            self.row_encoder.weight.mul_((self.row_input_dim / 13) ** 0.5)
+
         self.selector_token = nn.Parameter(torch.randn(self.k) * 0.02)
 
         self.max_classes = None
