@@ -1,6 +1,6 @@
 import torch.nn.functional as F
 from torch import nn
-from src.model.encoder import TabularInputEncoder
+from src.model.encoder import TabularInputEncoder, RowInputEncoderV1
 from src.model.backbone import  TabularBackbone
 import torch
 from src.model.encoder import bucketize_y
@@ -23,14 +23,29 @@ class TabularPFNModel(nn.Module):
         assert task_kind in ["classification", "regression"]
         self.task_kind = task_kind
 
-        self.encoder = TabularInputEncoder(
-            k=k,
-            max_cardinality=max_cardinality,
-            task_kind=task_kind,
-            max_classes=max_classes,
-            num_y_buckets=num_y_buckets,
-        )
+        assert backbone_version in ("v1", "v2")
+        self.backbone_version = backbone_version
+        if backbone_version == "v1":
+            self.max_features = 12
+            self.encoder = RowInputEncoderV1(
+                k=k,
+                max_features=self.max_features,
+                max_cardinality=max_cardinality,
+                task_kind=task_kind,
+                max_classes=max_classes,
+                num_y_buckets=num_y_buckets,
+            )
+        else:
+            self.max_features = None
+            self.encoder = TabularInputEncoder(
+                k=k,
+                max_cardinality=max_cardinality,
+                task_kind=task_kind,
+                max_classes=max_classes,
+                num_y_buckets=num_y_buckets,
+            )
 
+        
         self.backbone = TabularBackbone(
             k=k,
             m=m,
@@ -43,7 +58,10 @@ class TabularPFNModel(nn.Module):
             nn.LayerNorm(k),
             nn.Linear(k, k),
             nn.GELU(),
-            nn.Linear(k, 1),
+            nn.Linear(
+                k,
+                self.max_features if self.backbone_version == "v1" else 1,
+            ),
           )
 
         if task_kind == "classification":
@@ -70,13 +88,22 @@ class TabularPFNModel(nn.Module):
         importance_logits_layers = None
 
         if bool(batch.use_selector):
-            selector_repr = h[:, selector_idx, :d_max, :]          # [B, d_max, K]
-            importance_logits = self.importance_head(selector_repr).squeeze(-1)  # [B, d_max]
+            if self.backbone_version == "v1":
+                selector_repr = h[:, selector_idx, 0, :]
+                importance_logits = self.importance_head(selector_repr)[:, :d_max]
+                if return_selector_layers:
+                    selector_init = tokens[:, selector_idx, 0, :]
+                    selector_all_layers = torch.cat([selector_init[:, None, None, :], selector_layers], dim=1)
+                    importance_logits_layers = self.importance_head(selector_all_layers).squeeze(2)[..., :d_max]
 
-            if return_selector_layers:
-                selector_init = tokens[:, selector_idx, :d_max, :]
-                selector_all_layers = torch.cat([selector_init.unsqueeze(1), selector_layers], dim=1)
-                importance_logits_layers = self.importance_head(selector_all_layers).squeeze(-1)
+            else:
+                selector_repr = h[:, selector_idx, :d_max, :]          # [B, d_max, K]
+                importance_logits = self.importance_head(selector_repr).squeeze(-1)  # [B, d_max]
+
+                if return_selector_layers:
+                    selector_init = tokens[:, selector_idx, :d_max, :]
+                    selector_all_layers = torch.cat([selector_init.unsqueeze(1), selector_layers], dim=1)
+                    importance_logits_layers = self.importance_head(selector_all_layers).squeeze(-1)
 
         y_test_logits = self.head(test_repr)
 
