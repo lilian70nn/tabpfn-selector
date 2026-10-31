@@ -18,6 +18,7 @@ from experiments.config import (
     SCM_OOD_MECHANISM,
     SCM_OOD_NOISE,
     SCM_OOD_MISSING,
+    SCM_OOD_FEATURES
 )
 
 
@@ -63,6 +64,7 @@ if __name__ == "__main__":
             "mechanism",
             "noise",
             "missing",
+            "features", 
         ],
     )
     args = parser.parse_args()
@@ -73,6 +75,7 @@ if __name__ == "__main__":
         "mechanism": SCM_OOD_MECHANISM,
         "noise": SCM_OOD_NOISE,
         "missing": SCM_OOD_MISSING,
+        "features": SCM_OOD_FEATURES
     }
 
     selected_prior = prior_configs[args.prior]

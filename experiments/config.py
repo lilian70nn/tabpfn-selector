@@ -77,6 +77,14 @@ SCM_OOD_MISSING = {
     "p_missing": 0.25,
 }
 
+# OOD 6: more features
+SCM_OOD_FEATURES = {
+    **SCM_PRIOR,
+    "d_min": 16,
+    "d_max": 20,
+}
+
+
 LINEAR_PRIOR = {
     "n_min": 400,
     "n_max": 512,
