@@ -384,7 +384,7 @@ class RowInputEncoderV1(nn.Module):
 
         row_mask = torch.zeros(B, N, dtype=torch.bool, device=device)
         row_mask[:, :Ntr_max] = train_valid
-        row_mask[:, selector_idx] = True
+        row_mask[:, selector_idx] = batch.cell_mask[:, selector_idx, :].any(dim=-1)
         row_mask[:, test_start:] = test_valid
         row_tokens = row_tokens * (row_mask[:, :, None].to(row_tokens.dtype))
 
