@@ -214,7 +214,7 @@ def collate_tasks(tasks, use_selector=True):
             n_test=n_test,
             d_emb=d_emb,
             device=device,
-            use_selector=use_selector,
+            use_selector=True,
         )
 
     return TaskBatch(
