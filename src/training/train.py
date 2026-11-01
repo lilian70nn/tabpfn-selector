@@ -17,6 +17,7 @@ def train_synthetic(
     log_every=50,
     val_loader=None,
     val_every=500,
+    best_metric="pred_loss",
     imp_trace=True,
     trace_num_tables=10,
     save_path=None,
@@ -121,7 +122,7 @@ def train_synthetic(
     running_imp = 0.0
     running_n = 0
     running_imp_n = 0
-    best_pred_loss = float("inf")
+    best_value = float("inf")
     importance_start_step = int(steps * importance_start_frac)
 
     for step in range(1, steps + 1):
@@ -199,20 +200,23 @@ def train_synthetic(
                 importance_weight=importance_weight,
             )
 
-            if val_metrics["pred_loss"] < best_pred_loss:
-                best_pred_loss = val_metrics["pred_loss"]
+            current_value = val_metrics[best_metric]
+            if current_value < best_value:
+                best_value = current_value
+                
                 if best_ckpt_path is not None:
                     torch.save(
                         {
                             "model_state_dict": model.state_dict(),
                             "optimizer_state_dict": optimizer.state_dict(),
                             "step": step,
-                            "best_pred_loss": best_pred_loss,
+                            "best_metric": best_metric,
+                            "best_value": best_value,
                             "val_metrics": val_metrics,
                         },
                         best_ckpt_path
                     ) 
-                log_line(f"[best] step {step:06d} | val_pred_loss {best_pred_loss:.6f}")
+                log_line(f"[best] step {step:06d} | val_{best_metric} {best_value:.6f}")
 
             log_line(f"[val] step {step:06d} | " + " | ".join(f"{key} {value:.4f}" for key, value in val_metrics.items()))
 
