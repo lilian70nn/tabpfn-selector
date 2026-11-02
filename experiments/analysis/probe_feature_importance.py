@@ -23,6 +23,7 @@ def parse_args():
     parser.add_argument('--importance-method', default='gradient',
                         choices=['gradient', 'eigen_top1', 'eigen_90', 'mi', 'marginal', 'permutation'])
     parser.add_argument("--importance-weight", type=float, default=1.0)
+    parser.add_argument("--epochs", type=int, default=1)
     return parser.parse_args()
 
 
@@ -143,10 +144,10 @@ def main():
 
     save_dir = (
         Path("results/probing")
-        / f"{args.checkpoint.parent.name}_{args.task_kind}_{args.importance_method}_{args.probe_head}"
+        / f"{args.checkpoint.parent.name}_{args.task_kind}_{args.importance_method}_{args.probe_head}_epoch{args.epochs}"
     )
 
-    steps = len(train_loader)
+    steps = len(train_loader) * args.epochs
 
     train_synthetic(
         model=model,
