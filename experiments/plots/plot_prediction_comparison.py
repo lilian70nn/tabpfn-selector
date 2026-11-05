@@ -35,17 +35,17 @@ def read_importance_start(path):
     return None
 
 def plot_task(task):
-    baseline_path = os.path.join(RESULTS_DIR, f"scm_{task}_imp_weight0", "train_log.txt")
+    baseline_path = os.path.join(RESULTS_DIR, f"scm_{task}_imp_weight0_epoch4", "train_log.txt")
     base_steps, base_losses = read_pred_loss(baseline_path)
 
     data = {}
     pred_all = list(base_losses)
     xmax = max(base_steps)
 
-    for start in ["start0", "start0.3"]:
+    for start in ["start0", "start0.15", "start0.3"]:
         data[start] = {}
         for method, label in METHODS.items():
-            path = os.path.join(RESULTS_DIR, f"scm_{task}_{method}_w_imp_{start}", "train_log.txt")
+            path = os.path.join(RESULTS_DIR, f"scm_{task}_{method}_w_imp_{start}_epoch4", "train_log.txt")
             if not os.path.exists(path):
                 print(f"Missing: {path}")
                 continue
@@ -57,11 +57,12 @@ def plot_task(task):
     pred_pad = 0.03 * (max(pred_all) - min(pred_all))
     pred_ylim = (min(pred_all) - pred_pad, max(pred_all) + pred_pad)
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
+    fig, axes = plt.subplots(1, 3, figsize=(14, 5.5))
 
     for ax, start, panel_title in [
         (axes[0], "start0", "Start = 0"),
-        (axes[1], "start0.3", "Start = 0.3"),
+        (axes[1], "start0.15", "Start = 0.15"),
+        (axes[2], "start0.3", "Start = 0.3"),
     ]:
         for method, label in METHODS.items():
             if method not in data[start]:
@@ -78,8 +79,8 @@ def plot_task(task):
         ax.set_ylim(*pred_ylim)
         ax.grid(alpha=0.3)
 
-        if start == "start0.3":
-            path = os.path.join(RESULTS_DIR, f"scm_{task}_gradient_w_imp_{start}", "train_log.txt")
+        if start in ["start0.15", "start0.3"]:
+            path = os.path.join(RESULTS_DIR, f"scm_{task}_gradient_w_imp_{start}_epoch4", "train_log.txt")
             start_step = read_importance_start(path)
             if start_step is not None:
                 ax.axvline(start_step, color="gray", linestyle=":", linewidth=1.5)
@@ -141,8 +142,8 @@ def collect_best_prediction_metrics(task):
     }]
 
     for method, label in METHODS.items():
-        for start, start_label in [("start0", "0"), ("start0.3", "0.3")]:
-            path = os.path.join(RESULTS_DIR, f"scm_{task}_{method}_w_imp_{start}", "train_log.txt")
+        for start, start_label in [("start0", "0"), ("start0.15", "0.15"), ("start0.3", "0.3")]:
+            path = os.path.join(RESULTS_DIR, f"scm_{task}_{method}_w_imp_{start}_epoch4", "train_log.txt")
             if not os.path.exists(path):
                 print(f"Missing: {path}")
                 continue
@@ -175,6 +176,9 @@ def print_best_prediction_metrics(task):
 
 
 if __name__ == "__main__":
+
+    plot_task("classification")
+    plot_task("regression")
 
     print_best_prediction_metrics("classification")
     print_best_prediction_metrics("regression")
