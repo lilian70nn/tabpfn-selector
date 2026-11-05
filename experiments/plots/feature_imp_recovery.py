@@ -15,7 +15,7 @@ METHODS = {
     "permutation": "Permutation",
 }
 
-STARTS = [("start0", "Start = 0"), ("start0.3", "Start = 0.3")]
+STARTS = [("start0", "Start = 0"), ("start0.15", "Start = 0.15"), ("start0.3", "Start = 0.3")]
 
 
 def read_importance_loss(path):
@@ -78,7 +78,7 @@ def plot_importance_loss(task):
     for start, _ in STARTS:
         data[start] = {}
         for method, label in METHODS.items():
-            path = os.path.join(RESULTS_DIR, f"scm_{task}_{method}_w_imp_{start}", "train_log.txt")
+            path = os.path.join(RESULTS_DIR, f"scm_{task}_{method}_w_imp_{start}_epoch4", "train_log.txt")
             if not os.path.exists(path):
                 print(f"Missing: {path}")
                 continue
@@ -98,7 +98,7 @@ def plot_importance_loss(task):
     loss_pad = 0.03 * (max(all_losses) - min(all_losses))
     loss_ylim = (max(0, min(all_losses) - loss_pad), max(all_losses) + loss_pad)
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
+    fig, axes = plt.subplots(1, 3, figsize=(14, 5.5))
 
     for ax, (start, panel_title) in zip(axes, STARTS):
         for method, label in METHODS.items():
@@ -108,7 +108,7 @@ def plot_importance_loss(task):
             steps, losses = data[start][method]
             ax.plot(steps, losses, marker="o", markersize=3.5, linewidth=1.8, label=label)
 
-        if start == "start0.3":
+        if start in ("start0.15", "start0.3"):
             reference_path = os.path.join(RESULTS_DIR, f"scm_{task}_gradient_w_imp_{start}", "train_log.txt")
             start_step = read_importance_start(reference_path)
             if start_step is not None:
@@ -155,7 +155,7 @@ def plot_final_recovery():
     methods = list(METHODS.keys())
     labels = [METHODS[m] for m in methods]
     x = np.arange(len(methods))
-    width = 0.36
+    width = 0.25
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 9), sharey=True)
 
@@ -168,9 +168,11 @@ def plot_final_recovery():
 
     for ax, task, metric, title in panels:
         start0 = [data[task][(method, "start0")][metric] for method in methods]
+        start015 = [data[task][(method, "start0.15")][metric] for method in methods]
         start03 = [data[task][(method, "start0.3")][metric] for method in methods]
 
         ax.bar(x - width / 2, start0, width, label="Start = 0")
+        ax.bar(x, start015, width, label="Start = 0.15")
         ax.bar(x + width / 2, start03, width, label="Start = 0.3")
         ax.set_title(title)
         ax.set_xticks(x)
@@ -182,7 +184,7 @@ def plot_final_recovery():
     axes[1, 0].set_ylabel("Top-k Overlap")
 
     handles, labels_legend = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels_legend, loc="lower center", ncol=2, fontsize=10, frameon=False)
+    fig.legend(handles, labels_legend, loc="lower center", ncol=3, fontsize=10, frameon=False)
 
     fig.suptitle("Feature-Importance Recovery", fontsize=14)
     fig.tight_layout(rect=[0, 0.05, 1, 0.96])
@@ -195,6 +197,6 @@ def plot_final_recovery():
 
 
 if __name__ == "__main__":
-    # plot_importance_loss("classification")
-    # plot_importance_loss("regression")
+    plot_importance_loss("classification")
+    plot_importance_loss("regression")
     plot_final_recovery()
