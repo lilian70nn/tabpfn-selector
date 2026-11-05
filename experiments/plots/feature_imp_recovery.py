@@ -128,7 +128,7 @@ def plot_importance_loss(task):
     fig.tight_layout()
 
     os.makedirs(OUT_DIR, exist_ok=True)
-    out_path = os.path.join(OUT_DIR, f"{task}_importance_loss_comparison.png")
+    out_path = os.path.join(OUT_DIR, f"{task}_importance_loss_comparison_epoch4.png")
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved: {out_path}")
