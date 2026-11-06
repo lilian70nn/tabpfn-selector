@@ -1,5 +1,6 @@
 import os
 import re
+import csv
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -8,10 +9,10 @@ OUT_DIR = "results/figures"
 
 METHODS = {
     "gradient": "Gradient",
-    "eigen_top1": "Eigen Top-1",
+    #"eigen_top1": "Eigen Top-1",
     "eigen_90": "Eigen-90",
     "mi": "MI",
-    "marginal": "Marginal",
+    #"marginal": "Marginal",
     "permutation": "Permutation",
 }
 
@@ -109,7 +110,7 @@ def plot_importance_loss(task):
             ax.plot(steps, losses, marker="o", markersize=3.5, linewidth=1.8, label=label)
 
         if start in ("start0.15", "start0.3"):
-            reference_path = os.path.join(RESULTS_DIR, f"scm_{task}_gradient_w_imp_{start}", "train_log.txt")
+            reference_path = os.path.join(RESULTS_DIR, f"scm_{task}_gradient_w_imp_{start}_epoch4", "train_log.txt")
             start_step = read_importance_start(reference_path)
             if start_step is not None:
                 ax.axvline(start_step, color="gray", linestyle=":", linewidth=1.5)
@@ -134,30 +135,35 @@ def plot_importance_loss(task):
     print(f"Saved: {out_path}")
 
 
-def collect_recovery_metrics():
+def collect_recovery_metrics(prior):
     data = {"classification": {}, "regression": {}}
 
-    for task in data:
-        for method in METHODS:
-            for start, _ in STARTS:
-                path = os.path.join(RESULTS_DIR, f"scm_{task}_{method}_w_imp_{start}", "train_log.txt")
-                if not os.path.exists(path):
-                    raise FileNotFoundError(f"Missing: {path}")
+    path = f"results/evaluation/extended_eval_{prior}.csv"
 
-                pearson, topk = read_best_recovery_metrics(path)
-                data[task][(method, start)] = {"pearson": pearson, "topk": topk}
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f)
+
+        for row in reader:
+            task = row["task_kind"]
+            method = row["importance_method"]
+            start = float(row["importance_start_frac"])
+
+            data[task][(method, start)] = {
+                "pearson": float(row["importance_pearson"]),
+                "topk": float(row["importance_topk_overlap"]),
+            }
 
     return data
 
 
-def plot_final_recovery():
-    data = collect_recovery_metrics()
+def plot_final_recovery(prior):
+    data = collect_recovery_metrics(prior)
     methods = list(METHODS.keys())
     labels = [METHODS[m] for m in methods]
     x = np.arange(len(methods))
-    width = 0.25
+    width = 0.22
 
-    fig, axes = plt.subplots(2, 2, figsize=(14, 9), sharey=True)
+    fig, axes = plt.subplots(2, 2, figsize=(14, 9))
 
     panels = [
         (axes[0, 0], "classification", "pearson", "Classification — Pearson Correlation"),
@@ -167,13 +173,14 @@ def plot_final_recovery():
     ]
 
     for ax, task, metric, title in panels:
-        start0 = [data[task][(method, "start0")][metric] for method in methods]
-        start015 = [data[task][(method, "start0.15")][metric] for method in methods]
-        start03 = [data[task][(method, "start0.3")][metric] for method in methods]
+        start0 = [data[task][(method, 0.0)][metric] for method in methods]
+        start015 = [data[task][(method, 0.15)][metric] for method in methods]
+        start03 = [data[task][(method, 0.3)][metric] for method in methods]
 
-        ax.bar(x - width / 2, start0, width, label="Start = 0")
+        ax.bar(x - width, start0, width, label="Start = 0")
         ax.bar(x, start015, width, label="Start = 0.15")
-        ax.bar(x + width / 2, start03, width, label="Start = 0.3")
+        ax.bar(x + width, start03, width, label="Start = 0.3")
+
         ax.set_title(title)
         ax.set_xticks(x)
         ax.set_xticklabels(labels, rotation=20, ha="right")
@@ -186,17 +193,28 @@ def plot_final_recovery():
     handles, labels_legend = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels_legend, loc="lower center", ncol=3, fontsize=10, frameon=False)
 
-    fig.suptitle("Feature-Importance Recovery", fontsize=14)
+    fig.suptitle(f"Feature-Importance Recovery — {prior.capitalize()}", fontsize=14)
     fig.tight_layout(rect=[0, 0.05, 1, 0.96])
 
     os.makedirs(OUT_DIR, exist_ok=True)
-    out_path = os.path.join(OUT_DIR, "importance_recovery_comparison.png")
+    out_path = os.path.join(OUT_DIR, f"recovery_{prior}_epoch4.png")
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved: {out_path}")
 
 
 if __name__ == "__main__":
-    plot_importance_loss("classification")
-    plot_importance_loss("regression")
+    # plot_importance_loss("classification")
+    # plot_importance_loss("regression")
     #plot_final_recovery()
+
+    for prior in [
+        "baseline",
+        "depth",
+        "sparsity",
+        "mechanism",
+        "noise",
+        "missing",
+        "features",
+    ]:
+        plot_final_recovery(prior)
