@@ -24,6 +24,26 @@ def make_topk_cell_mask(batch, scores, topk_frac=0.25):
 
 
 @torch.no_grad()
+def compute_topk_overlap(batch, pred_scores, gt_scores, frac):
+    overlaps = []
+
+    for b in range(pred_scores.shape[0]):
+        d = int(batch.d_emb[b].item())
+
+        p = pred_scores[b, :d]
+        t = gt_scores[b, :d]
+
+        k = max(1, math.ceil(frac * d))
+        pred_topk = torch.topk(p, k=k).indices
+        gt_topk = torch.topk(t, k=k).indices
+
+        overlap = torch.isin(pred_topk, gt_topk).float().mean()
+        overlaps.append(overlap)
+
+    return float(torch.stack(overlaps).mean()) if overlaps else 0.0
+
+
+@torch.no_grad()
 def evaluate_synthetic(
     model,
     loader,
@@ -73,7 +93,7 @@ def evaluate_synthetic(
             metrics = regression_metrics(batch, out, model.encoder.regression_borders)
 
         if loader_use_selector:
-            metrics.update(importance_metrics(batch, out, topk_frac))
+            metrics.update(importance_metrics(batch, out))
 
         for k, v in metrics.items():
             if v != v:  # skip nan
@@ -131,14 +151,7 @@ def evaluate_synthetic_extended(
         metrics["pred_loss"] = float(pred_loss.detach())
         imp_loss = model.total_loss(batch, out, importance_weight=0)["importance_loss"]
         metrics["importance_loss"] = float(imp_loss.detach())
-        metrics.update(importance_metrics(batch, out, topk_frac=0.25))
-
-        for key, value in metrics.items():
-            value = float(value)
-
-            if not math.isnan(value):
-                metric_sums[key] = metric_sums.get(key, 0.0) + value
-                metric_counts[key] = metric_counts.get(key, 0) + 1
+        metrics.update(importance_metrics(batch, out))
 
         gt_scores = batch.feature_importance.float()
         importance_logits = out["importance_logits"]
@@ -151,6 +164,9 @@ def evaluate_synthetic_extended(
         )
 
         for frac in topk_fracs:
+
+            pct = round(frac * 100)
+            metrics[f"importance_topk_overlap_{pct}"] = compute_topk_overlap(batch, pred_scores, gt_scores, frac)
 
             gt_mask = make_topk_cell_mask(batch, gt_scores, frac)
             gt_batch = replace(batch, cell_mask=gt_mask)
@@ -176,6 +192,14 @@ def evaluate_synthetic_extended(
                 random_out = model(random_batch)
                 random_loss = model.prediction_loss(random_batch, random_out)
                 random_sums[frac][r] += float(random_loss.detach())
+
+
+        for key, value in metrics.items():
+            value = float(value)
+
+            if not math.isnan(value):
+                metric_sums[key] = metric_sums.get(key, 0.0) + value
+                metric_counts[key] = metric_counts.get(key, 0) + 1
 
         n_batches += 1
 

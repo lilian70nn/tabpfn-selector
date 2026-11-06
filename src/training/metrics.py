@@ -180,7 +180,7 @@ def regression_metrics(batch, out, borders):
 #     }
 
 @torch.no_grad()
-def importance_metrics(batch, out, topk_frac=0.25):
+def importance_metrics(batch, out):
     assert bool(batch.use_selector)
     assert out["importance_logits"] is not None
 
@@ -194,7 +194,6 @@ def importance_metrics(batch, out, topk_frac=0.25):
     pred = torch.softmax(masked_logits, dim=-1)
 
     mses, pearsons = [], []
-    topk_overlaps = []
 
     for b in range(logits.shape[0]):
         d = int(batch.d_emb[b].item())
@@ -212,14 +211,8 @@ def importance_metrics(batch, out, topk_frac=0.25):
             pearson = (p_center * t_center).mean() / denom
             pearsons.append(pearson)
 
-        topk = max(1, math.ceil(topk_frac * d))
-        pred_topk = torch.topk(p, k=topk).indices
-        gt_topk = torch.topk(t, k=topk).indices
-        overlap = torch.isin(pred_topk, gt_topk).float().mean()
-        topk_overlaps.append(overlap)
 
     return {
         "importance_mse": float(torch.stack(mses).mean().detach()) if mses else 0.0,
         "importance_pearson": float(torch.stack(pearsons).mean().detach()) if pearsons else 0.0,
-        "importance_topk_overlap": float(torch.stack(topk_overlaps).mean().detach()) if topk_overlaps else 0.0,
     }
