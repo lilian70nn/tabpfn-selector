@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import pandas as pd
+import argparse
 from pathlib import Path
 
 from scipy.stats import spearmanr
@@ -427,7 +428,7 @@ def main(model, model_path, task_kind="classification", datasets=None, evaluate_
     summary_df = pd.DataFrame(all_summary_rows)
 
     run_name = f"real_eval_{n_repeats}repeats"
-    save_dir = Path(__file__).resolve().parents[2] / "results" / "evaluation"
+    save_dir = Path(model_path).resolve().parent / "openml_eval"
     save_dir.mkdir(parents=True, exist_ok=True)
 
     metrics_path = save_dir / f"{run_name}_metrics_each_repeat.csv"
@@ -449,17 +450,55 @@ def main(model, model_path, task_kind="classification", datasets=None, evaluate_
         print(f"saved {intervention_path}")
 
 
+
 if __name__ == "__main__":
-    model = TabularPFNModel(
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--backbone",
+        choices=["v1", "v2"],
+        required=True,
+    )
+    parser.add_argument(
+        "--model-path",
+        type=Path,
+        required=True,
+    )
+    parser.add_argument(
+        "--task-kind",
+        choices=["classification", "regression"],
+        required=True,
+    )
+    parser.add_argument(
+        "--evaluate-importance",
+        action="store_true",
+    )
+
+    args = parser.parse_args()
+
+    model_kwargs = dict(
         k=64,
         m=120,
         n_heads=4,
         depth=16,
         max_cardinality=10,
-        task_kind="regression",
-        num_y_buckets=100,
-        
+        task_kind=args.task_kind,
+        backbone_version=args.backbone,
     )
 
-    model_path = "/content/best_ckpt.pt"
-    main(model=model, model_path=model_path, task_kind="regression", datasets=REG_DATASETS, evaluate_importance=False)
+    if args.task_kind == "classification":
+        model_kwargs["max_classes"] = 4
+        datasets = CLS_DATASETS
+    else:
+        model_kwargs["num_y_buckets"] = 100
+        datasets = REG_DATASETS
+
+    model = TabularPFNModel(**model_kwargs)
+
+    main(
+        model=model,
+        model_path=args.model_path,
+        task_kind=args.task_kind,
+        datasets=datasets,
+        evaluate_importance=args.evaluate_importance,
+    )
