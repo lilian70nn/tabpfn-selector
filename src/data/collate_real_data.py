@@ -130,7 +130,7 @@ def collate_openml_task(
         y_ids = torch.tensor(y_cat.cat.codes.to_numpy(), dtype=torch.long, device=device)
         stratify = y_ids.cpu().numpy()
 
-        y_mean = None
+        y_mean = torch.zeros(n_repeats, dtype=torch.float32, device=device)
         y_std = None
 
     else:
@@ -179,6 +179,7 @@ def collate_openml_task(
         if n_classes is not None:
             y_train = torch.as_tensor(y_train, device=device, dtype=torch.long)
             y_test = torch.as_tensor(y_test, device=device, dtype=torch.long)
+            y_mean[rep] = torch.mode(y_train).values.float()
 
         else:
             y_train = torch.as_tensor(y_train, device=device, dtype=torch.float32)
@@ -209,6 +210,9 @@ def collate_openml_task(
                 Xte_cols.append(xte)
                 feature_type.append(1)
                 cardinality.append(K)
+                valid = torch.isfinite(xtr)
+                if bool(valid.any()):
+                    x_mean[j] = torch.mode(xtr[valid]).values
 
             elif is_cat and distinct > 6:
                 xtr, xte = _encode_high_card_cat_from_train(s_train, s_test)
