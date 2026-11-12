@@ -254,6 +254,11 @@ def main(model, model_path, task_kind="classification", datasets=None, evaluate_
                 reference_seed=0,
             )
 
+            max_features = getattr(model.encoder, "max_features", None)
+            if max_features is not None and batch.d_max > max_features:
+                print(f"[SKIP] {name}: d={batch.d_max} exceeds max_features={max_features}", flush=True)
+                continue
+
             out = forward_in_chunks(model, batch, chunk_size=5)
             metrics_list = evaluate_batch_tasks(model, batch, out, task_kind)
             rows = []
