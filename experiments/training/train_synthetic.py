@@ -207,8 +207,7 @@ def main():
         else:
             run_name = f"{args.prior}_{args.task_kind}_wo_imp_epoch{args.epochs:g}"
 
-        if args.backbone_version != "v2":
-            run_name += f"_{args.backbone_version}"
+        run_name += f"_{args.backbone_version}"
 
         save_path = Path(__file__).resolve().parents[2] / "results" / "training" / run_name
     else:
