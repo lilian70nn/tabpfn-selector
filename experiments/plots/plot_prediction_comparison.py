@@ -180,6 +180,6 @@ if __name__ == "__main__":
     plot_task("classification")
     plot_task("regression")
 
-    print_best_prediction_metrics("classification")
-    print_best_prediction_metrics("regression")
+    # print_best_prediction_metrics("classification")
+    # print_best_prediction_metrics("regression")
 
