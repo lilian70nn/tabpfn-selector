@@ -28,6 +28,13 @@ METRICS = [
     ("importance_topk_overlap_50", "Top-50% Overlap"),
 ]
 
+COLORS = {
+    "gradient": "#4C78A8",
+    "eigen_90": "#72B7B2",
+    "mi": "#D9A05B",
+    "permutation": "#9C78B3",
+}
+
 
 def collect_metrics(prior):
     path = RESULTS_DIR / f"extended_eval_{prior}.csv"
@@ -140,7 +147,7 @@ def plot_recovery_across_settings(start=0.3):
                     for prior in PRIORS
                 ]
                 offset = (i - (len(METHODS) - 1) / 2) * width
-                ax.bar(x + offset, values, width, label=method_label)
+                ax.bar(x + offset, values, width, label=method_label, color=COLORS[method],)
 
             ax.set_title(f"{task_label} — {metric_label}")
             ax.set_xticks(x)
@@ -157,7 +164,7 @@ def plot_recovery_across_settings(start=0.3):
             else:
                 ax.set_ylim(0, 1)
 
-            ax.grid(axis="y", alpha=0.3)
+            ax.grid(axis="y", alpha=0.15)
             ax.set_axisbelow(True)
 
     handles, legend_labels = axes[0, 0].get_legend_handles_labels()
