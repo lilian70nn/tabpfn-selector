@@ -15,12 +15,7 @@ METHODS = {
     "permutation": "Permutation",
 }
 
-STARTS = [
-    ("start0", "Start = 0"),
-    ("start0.15", "Start = 0.15"),
-    ("start0.3", "Start = 0.3"),
-]
-
+STARTS = [("start0", "Start = 0"), ("start0.15", "Start = 0.15"), ("start0.3", "Start = 0.3")]
 
 def read_loss(path, loss_type):
 
@@ -136,14 +131,8 @@ def plot_loss(task, loss_type, backbone):
     axes[0].legend(loc="upper right", fontsize=8)
 
     title = "Classification" if task == "classification" else "Regression"
-
-    if loss_type == "prediction":
-        fig.suptitle(f"{title} — Prediction Loss ({backbone.upper()})", fontsize=14,)
-        filename = (f"{task}_prediction_comparison_epoch4_{backbone}.png")
-    else:
-        fig.suptitle(f"{title} — Importance-Loss Dynamics ({backbone.upper()})", fontsize=14,)
-        filename = (f"{task}_importance_loss_comparison_epoch4_{backbone}.png")
-
+    fig.suptitle(f"{title} — {loss_type.capitalize()} Loss ({backbone.upper()})", fontsize=14)
+    filename = f"{task}_{loss_type}_loss_comparison_epoch4_{backbone}.png"
     fig.tight_layout()
 
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -154,7 +143,7 @@ def plot_loss(task, loss_type, backbone):
 
 
 if __name__ == "__main__":
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--task-kind", choices=["classification", "regression"], required=True,)
     parser.add_argument("--loss", choices=["prediction", "importance"], required=True,)
