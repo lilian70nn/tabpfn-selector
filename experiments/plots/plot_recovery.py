@@ -29,10 +29,10 @@ METRICS = [
 ]
 
 COLORS = {
-    "gradient": "#4C78A8",
-    "eigen_90": "#72B7B2",
-    "mi": "#D9A05B",
-    "permutation": "#9C78B3",
+    "gradient": "#345E87",
+    "eigen_90": "#58988C",
+    "mi": "#C47B5C",
+    "permutation": "#806B9F",
 }
 
 
