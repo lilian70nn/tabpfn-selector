@@ -9,10 +9,10 @@ OUT_DIR = "results/figures"
 
 METHODS = {
     "gradient": "Gradient",
-    #"eigen_top1": "Eigen Top-1",
+    "eigen_top1": "Eigen Top-1",
     "eigen_90": "Eigen-90",
     "mi": "MI",
-    #"marginal": "Marginal",
+    "marginal": "Marginal",
     "permutation": "Permutation",
 }
 
@@ -79,7 +79,7 @@ def plot_importance_loss(task):
     for start, _ in STARTS:
         data[start] = {}
         for method, label in METHODS.items():
-            path = os.path.join(RESULTS_DIR, f"scm_{task}_{method}_w_imp_{start}_epoch4", "train_log.txt")
+            path = os.path.join(RESULTS_DIR, f"scm_{task}_{method}_w_imp_{start}_epoch4_v1", "train_log.txt")
             if not os.path.exists(path):
                 print(f"Missing: {path}")
                 continue
@@ -110,7 +110,7 @@ def plot_importance_loss(task):
             ax.plot(steps, losses, marker="o", markersize=3.5, linewidth=1.8, label=label)
 
         if start in ("start0.15", "start0.3"):
-            reference_path = os.path.join(RESULTS_DIR, f"scm_{task}_gradient_w_imp_{start}_epoch4", "train_log.txt")
+            reference_path = os.path.join(RESULTS_DIR, f"scm_{task}_gradient_w_imp_{start}_epoch4_v1", "train_log.txt")
             start_step = read_importance_start(reference_path)
             if start_step is not None:
                 ax.axvline(start_step, color="gray", linestyle=":", linewidth=1.5)
@@ -129,7 +129,7 @@ def plot_importance_loss(task):
     fig.tight_layout()
 
     os.makedirs(OUT_DIR, exist_ok=True)
-    out_path = os.path.join(OUT_DIR, f"{task}_importance_loss_comparison_epoch4.png")
+    out_path = os.path.join(OUT_DIR, f"{task}_importance_loss_comparison_epoch4_v1.png")
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved: {out_path}")
@@ -204,17 +204,17 @@ def plot_final_recovery(prior):
 
 
 if __name__ == "__main__":
-    # plot_importance_loss("classification")
-    # plot_importance_loss("regression")
+    plot_importance_loss("classification")
+    plot_importance_loss("regression")
     #plot_final_recovery()
 
-    for prior in [
-        "baseline",
-        "depth",
-        "sparsity",
-        "mechanism",
-        "noise",
-        "missing",
-        "features",
-    ]:
-        plot_final_recovery(prior)
+    # for prior in [
+    #     "baseline",
+    #     "depth",
+    #     "sparsity",
+    #     "mechanism",
+    #     "noise",
+    #     "missing",
+    #     "features",
+    # ]:
+    #     plot_final_recovery(prior)
