@@ -55,6 +55,13 @@ def collect_topk_metrics(prior, start):
         raise ValueError(f"No matching data in {path}, start={start}")
     return data
 
+def get_global_task_limits(start):
+    values = {task: [] for task in TASKS}
+    for prior in PRIORS:
+        for (task, _, _), v in collect_topk_metrics(prior, start).items():
+            values[task].extend([v["gt"], v["pred"], v["random"] + v["random_std"]])
+    return {task: (0, max(vals) * 1.05) for task, vals in values.items()}
+
 
 def plot_predictive_utility(prior, start, view):
     data = collect_topk_metrics(prior, start)
@@ -67,7 +74,6 @@ def plot_predictive_utility(prior, start, view):
     if view == "main":
         fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
         panels = [(axes[i], task, 25) for i, task in enumerate(TASKS)]
-        selected_topks = [25]
 
     else:
         fig, axes = plt.subplots(2, 3, figsize=(16, 9))
@@ -75,19 +81,8 @@ def plot_predictive_utility(prior, start, view):
             (axes[i, j], task, pct)
             for i, task in enumerate(TASKS) for j, pct in enumerate(TOPKS)
         ]
-        selected_topks = TOPKS
 
-    task_limits = {}
-
-    for task in TASKS:
-        values = []
-        for method in methods:
-            for pct in selected_topks:
-                v = data[(task, method, pct)]
-                values.extend([v["gt"], v["pred"], v["random"] + v["random_std"],])
-
-        pad = 0.08 * (max(values) - min(values))
-        task_limits[task] = (max(0, min(values) - pad), max(values) + pad,)
+    task_limits = get_global_task_limits(start)
 
     for ax, task, pct in panels:
         gt_values = [data[(task, method, pct)]["gt"] for method in methods]
