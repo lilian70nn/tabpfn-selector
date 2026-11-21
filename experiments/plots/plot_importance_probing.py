@@ -233,7 +233,7 @@ def plot_ood_summary(data):
     )
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    path = OUT_DIR / "importance_probing_ood_summary_start0.3.png"
+    path = OUT_DIR / "importance_probing_ood_summary_start0.3.pdf"
     fig.savefig(path, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved: {path}")
