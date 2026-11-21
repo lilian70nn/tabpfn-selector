@@ -98,7 +98,7 @@ def plot_probing(prior, data):
             ax.set_ylabel(ylabel)
             ax.set_xticks(x)
             ax.set_xticklabels(list(METHODS.values()))
-            ax.set_ylim((-1, 1) if i == 0 else (0, 1))
+            ax.set_ylim(0, 1)
             ax.grid(axis="y", alpha=0.3)
             ax.set_axisbelow(True)
 
