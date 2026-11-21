@@ -19,10 +19,10 @@ METHODS = {
     "permutation": "Permutation",
 }
 GROUPS = {
-    "A": "wo_imp + Linear",
-    "B": "wo_imp + MLP",
-    "C": "w_imp + Linear",
-    "D": "w_imp + MLP",
+    "A": "(a) Pred-only · Linear",
+    "B": "(b) Pred-only · MLP",
+    "C": "(c) Joint · Linear",
+    "D": "(d) Joint · MLP (Ref.)",
 }
 METRICS = [
     ("importance_pearson", "Importance Pearson"),
