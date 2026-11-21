@@ -150,7 +150,7 @@ def plot_probing(prior, data):
     fig.tight_layout(rect=[0, 0.08, 1, 0.95])
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    path = OUT_DIR / f"importance_probing_{prior}_start0.3.png"
+    path = OUT_DIR / f"importance_probing_{prior}_start0.3.pdf"
     fig.savefig(path, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved: {path}")
