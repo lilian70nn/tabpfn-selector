@@ -78,13 +78,6 @@ COLORS = {
     "D": "#A5CCBD",
 }
 
-GROUPS = {
-    "A": "Prediction-only + Linear",
-    "B": "Prediction-only + MLP",
-    "C": "Joint + Linear",
-    "D": "Joint + MLP (reference)",
-}
-
 plt.rcParams.update({
     "font.size": 10,
     "axes.titlesize": 12,
