@@ -81,9 +81,19 @@ def plot_loss(task, loss_type, backbone):
     if not all_steps:
         raise ValueError(f"No {loss_type}-loss data found for {task}, {backbone}")
 
-    loss_min = min(all_losses)
-    loss_max = max(all_losses)
+    paths = [
+        f"{RESULTS_DIR}/scm_{task}_{method}_w_imp_{start}_epoch4_{v}/train_log.txt"
+        for v in ("v1", "v2") for start, _ in STARTS for method in METHODS
+    ]
 
+    if loss_type == "prediction":
+        paths += [
+            f"{RESULTS_DIR}/scm_{task}_imp_weight0_epoch4_{v}/train_log.txt"
+            for v in ("v1", "v2")
+        ]
+
+    values = [x for p in paths if os.path.isfile(p) for x in read_loss(p, loss_type)[1]]
+    loss_min, loss_max = min(values), max(values)
     loss_pad = 0.03 * (loss_max - loss_min)
 
     if loss_pad == 0:
