@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import argparse
 from pathlib import Path
+import torch.nn as nn
 
 from scipy.stats import spearmanr
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score
@@ -458,26 +459,11 @@ def main(model, model_path, task_kind="classification", datasets=None, evaluate_
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--backbone",
-        choices=["v1", "v2"],
-        required=True,
-    )
-    parser.add_argument(
-        "--model-path",
-        type=Path,
-        required=True,
-    )
-    parser.add_argument(
-        "--task-kind",
-        choices=["classification", "regression"],
-        required=True,
-    )
-    parser.add_argument(
-        "--evaluate-importance",
-        action="store_true",
-    )
+    parser.add_argument("--backbone", choices=["v1", "v2"], required=True)
+    parser.add_argument("--model-path", type=Path, required=True)
+    parser.add_argument("--task-kind", choices=["classification", "regression"], required=True,)
+    parser.add_argument("--evaluate-importance", action="store_true")
+    parser.add_argument("--head-type", choices=["linear", "mlp"], default="mlp")
 
     args = parser.parse_args()
 
@@ -499,6 +485,8 @@ if __name__ == "__main__":
         datasets = REG_DATASETS
 
     model = TabularPFNModel(**model_kwargs)
+    if args.head_type == "linear":
+        model.importance_head = nn.Linear(model_kwargs["k"], 1)
 
     main(
         model=model,
