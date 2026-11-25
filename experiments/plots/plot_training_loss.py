@@ -66,23 +66,14 @@ def get_log_path(task, backbone, method=None, start=None):
     if method is None:
         folder = f"scm_{task}_imp_weight0_epoch4_{backbone}"
     else:
-        folder = (
-            f"scm_{task}_{method}_w_imp_"
-            f"{start}_epoch4_{backbone}"
-        )
+        folder = f"scm_{task}_{method}_w_imp_{start}_epoch4_{backbone}"
 
     return RESULTS_DIR / folder / "train_log.txt"
 
 
 def read_loss(path, loss_type):
     steps, losses = [], []
-
-    loss_name = (
-        "pred_loss"
-        if loss_type == "prediction"
-        else "importance_loss"
-    )
-
+    loss_name = ("pred_loss" if loss_type == "prediction" else "importance_loss")
     pattern = re.compile(
         rf"\[val\]\s+step\s+(\d+)\b.*?"
         rf"\b{loss_name}\s+({FLOAT_PATTERN})"
@@ -107,7 +98,6 @@ def read_importance_start(path):
         r"\s+step\s*=\s*(\d+)",
         re.IGNORECASE,
     )
-
     if not path.is_file():
         return None
 
@@ -125,26 +115,19 @@ def load_results(task, loss_type):
     data = {}
 
     for backbone in ("v1", "v2"):
-
         if loss_type == "prediction":
             path = get_log_path(task, backbone)
             steps, losses = read_loss(path, loss_type)
-
             if steps:
                 data[(backbone, "baseline")] = (steps, losses)
 
         for start, _ in STARTS:
             for method in METHODS:
-                path = get_log_path(
-                    task, backbone, method, start
-                )
-
+                path = get_log_path(task, backbone, method, start)
                 steps, losses = read_loss(path, loss_type)
 
                 if steps:
-                    data[(backbone, start, method)] = (
-                        steps, losses
-                    )
+                    data[(backbone, start, method)] = (steps, losses)
 
     return data
 
@@ -152,31 +135,13 @@ def load_results(task, loss_type):
 def get_axis_limits(data, loss_type):
     if not data:
         raise ValueError("No validation-loss data found.")
-
-    all_steps = [
-        step
-        for steps, _ in data.values()
-        for step in steps
-    ]
-
-    all_losses = [
-        loss
-        for _, losses in data.values()
-        for loss in losses
-    ]
-
+    all_steps = [step for steps, _ in data.values() for step in steps]
+    all_losses = [loss for _, losses in data.values() for loss in losses]
     loss_min = min(all_losses)
     loss_max = max(all_losses)
-
-    pad = max(
-        0.04 * (loss_max - loss_min),
-        0.02 * abs(loss_max),
-        1e-4,
-    )
-
+    pad = max(0.04 * (loss_max - loss_min), 0.02 * abs(loss_max), 1e-4,)
     ymin = loss_min - pad
     ymax = loss_max + pad
-
     if loss_type == "importance":
         ymin = max(0, ymin)
 
@@ -186,26 +151,17 @@ def get_axis_limits(data, loss_type):
 def plot_loss(task, loss_type, backbone):
     data = load_results(task, loss_type)
     ylim, xmax = get_axis_limits(data, loss_type)
-
-    fig, axes = plt.subplots(
-        1, 3,
-        figsize=(13.6, 4.5),
-        sharey=True,
-    )
-
+    fig, axes = plt.subplots(1, 3, figsize=(13.6, 4.5), sharey=True,)
     onset_drawn = False
 
     for ax, (start, panel_title) in zip(axes, STARTS):
-
         # Importance definitions
         for method, label in METHODS.items():
             key = (backbone, start, method)
-
             if key not in data:
                 continue
 
             steps, losses = data[key]
-
             ax.plot(
                 steps,
                 losses,
@@ -224,10 +180,8 @@ def plot_loss(task, loss_type, backbone):
         # Prediction-only baseline
         if loss_type == "prediction":
             baseline = data.get((backbone, "baseline"))
-
             if baseline is not None:
                 base_steps, base_losses = baseline
-
                 ax.plot(
                     base_steps,
                     base_losses,
@@ -240,12 +194,8 @@ def plot_loss(task, loss_type, backbone):
 
         # Delayed importance supervision
         if start in ("start0.15", "start0.3"):
-            reference_path = get_log_path(
-                task, backbone, "gradient", start
-            )
-
+            reference_path = get_log_path(task, backbone, "gradient", start)
             start_step = read_importance_start(reference_path)
-
             if start_step is not None:
                 ax.axvline(
                     start_step,
@@ -257,46 +207,21 @@ def plot_loss(task, loss_type, backbone):
                 onset_drawn = True
 
         # Panel formatting
-        ax.set_title(
-            panel_title,
-            fontsize=11,
-            fontweight="semibold",
-            pad=12,
-        )
-
+        ax.set_title(panel_title, fontsize=11, fontweight="semibold",pad=12,)
         ax.set_xlabel("Training step", labelpad=8)
         ax.set_xlim(0, xmax)
         ax.set_ylim(*ylim)
+        ax.xaxis.set_major_locator(MaxNLocator(nbins=5, integer=True))
 
-        ax.xaxis.set_major_locator(
-            MaxNLocator(nbins=5, integer=True)
-        )
-
-        ax.grid(
-            axis="y",
-            color="#E4E7EB",
-            linewidth=0.8,
-        )
+        ax.grid(axis="y", color="#E4E7EB", linewidth=0.8,)
         ax.set_axisbelow(True)
-
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
-
         ax.spines["left"].set_color("#B5B5B5")
         ax.spines["bottom"].set_color("#B5B5B5")
+        ax.tick_params(axis="both", colors="#555555", length=3, width=0.7,)
 
-        ax.tick_params(
-            axis="both",
-            colors="#555555",
-            length=3,
-            width=0.7,
-        )
-
-    ylabel = (
-        "Validation prediction loss"
-        if loss_type == "prediction"
-        else "Validation importance loss"
-    )
+    ylabel = ("Validation prediction loss" if loss_type == "prediction" else "Validation importance loss")
     axes[0].set_ylabel(ylabel, labelpad=9)
 
     # One shared legend
@@ -314,26 +239,9 @@ def plot_loss(task, loss_type, backbone):
     ]
 
     if loss_type == "prediction":
-        legend_handles.append(
-            Line2D(
-                [0], [0],
-                color="#333333",
-                linewidth=1.9,
-                linestyle="--",
-                label="Importance Weight = 0",
-            )
-        )
-
+        legend_handles.append(Line2D([0], [0], color="#333333", linewidth=1.9, linestyle="--", label="Importance Weight = 0"))
     if onset_drawn:
-        legend_handles.append(
-            Line2D(
-                [0], [0],
-                color="#9A9A9A",
-                linewidth=1.4,
-                linestyle=":",
-                label="Importance enabled",
-            )
-        )
+        legend_handles.append(Line2D( [0], [0],  color="#9A9A9A", linewidth=1.4, linestyle=":", label="Importance enabled",))
 
     fig.legend(
         handles=legend_handles,
@@ -364,48 +272,17 @@ def plot_loss(task, loss_type, backbone):
     )
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    filename = (
-        f"{task}_{loss_type}_"
-        f"loss_comparison_epoch4_{backbone}.pdf"
-    )
-
+    filename = (f"{task}_{loss_type}_loss_comparison_epoch4_{backbone}.pdf")
     out_path = OUT_DIR / filename
-
-    fig.savefig(
-        out_path,
-        format="pdf",
-        bbox_inches="tight",
-        pad_inches=0.08,
-    )
-
+    fig.savefig(out_path, format="pdf", bbox_inches="tight", pad_inches=0.08)
     plt.close(fig)
     print(f"Saved: {out_path}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--task-kind",
-        choices=["classification", "regression"],
-        required=True,
-    )
-    parser.add_argument(
-        "--loss",
-        choices=["prediction", "importance"],
-        required=True,
-    )
-    parser.add_argument(
-        "--backbone",
-        choices=["v1", "v2"],
-        required=True,
-    )
-
+    parser.add_argument("--task-kind", choices=["classification", "regression"], required=True,)
+    parser.add_argument("--loss", choices=["prediction", "importance"], required=True,)
+    parser.add_argument("--backbone", choices=["v1", "v2"], required=True,)
     args = parser.parse_args()
-
-    plot_loss(
-        task=args.task_kind,
-        loss_type=args.loss,
-        backbone=args.backbone,
-    )
+    plot_loss(task=args.task_kind, loss_type=args.loss, backbone=args.backbone,)
