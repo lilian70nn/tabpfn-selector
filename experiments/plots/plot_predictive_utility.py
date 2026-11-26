@@ -1,11 +1,10 @@
-
 import argparse
 import csv
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.lines import Line2D
+from matplotlib.ticker import MaxNLocator
 
 RESULTS_DIR = Path("results/evaluation")
 OUT_DIR = Path("results/figures")
@@ -16,9 +15,9 @@ TASKS = ["classification", "regression"]
 TOPKS = [25, 50, 75]
 
 SERIES = {
-    "gt": ("GT Top-k", "#355C7D", "o", -0.19),
-    "pred": ("Pred Top-k", "#278D81", "s", 0.00),
-    "random": ("Random Top-k", "#C58A43", "D", 0.19),
+    "gt": ("GT Top-k", "#416C91"),
+    "pred": ("Pred Top-k", "#5A9B91"),
+    "random": ("Random Top-k", "#C98562"),
 }
 
 plt.rcParams.update({
@@ -26,7 +25,7 @@ plt.rcParams.update({
     "font.size": 10,
     "axes.titlesize": 11,
     "axes.labelsize": 10,
-    "xtick.labelsize": 9.5,
+    "xtick.labelsize": 9,
     "ytick.labelsize": 9,
     "pdf.fonttype": 42,
     "ps.fonttype": 42,
@@ -66,46 +65,42 @@ def collect_topk_metrics(prior, start):
     return data
 
 
-def get_task_limits(data, task, pcts):
+def get_task_limit(data, task, pcts):
     values = []
     for method in METHODS:
         for pct in pcts:
             v = data[(task, method, pct)]
-            values.extend([v["gt"], v["pred"], v["random"] - v["random_std"], v["random"] + v["random_std"]])
-
-    lo, hi = min(values), max(values)
-    pad = max((hi - lo) * 0.12, abs(hi) * 0.015, 1e-4)
-    return lo - pad, hi + pad
+            values.extend([v["gt"], v["pred"], v["random"] + v["random_std"]])
+    return max(values) * 1.10
 
 
 def style_axis(ax):
     ax.set_axisbelow(True)
-    ax.grid(axis="y", color="#E5E8EB", linewidth=0.8)
+    ax.grid(axis="y", color="#E7EAED", linewidth=0.75)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_color("#CDD3D8")
-    ax.spines["bottom"].set_color("#CDD3D8")
-    ax.tick_params(axis="both", length=0, pad=7)
+    ax.spines["left"].set_color("#CED4D9")
+    ax.spines["bottom"].set_color("#CED4D9")
+    ax.tick_params(axis="both", length=0, pad=6)
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
 
 
-def draw_panel(ax, data, task, pct, index, limits):
-    x = np.arange(len(METHODS))
+def draw_panel(ax, data, task, pct, index, ymax):
     methods = list(METHODS)
+    x = np.arange(len(methods))
+    width = 0.23
 
-    for key, (label, color, marker, offset) in SERIES.items():
+    for offset, (key, (label, color)) in enumerate(SERIES.items()):
         values = [data[(task, method, pct)][key] for method in methods]
         errors = [data[(task, method, pct)]["random_std"] for method in methods] if key == "random" else None
+        ax.bar(x + (offset - 1) * width, values, width=width, color=color, label=label,
+               yerr=errors, capsize=2, error_kw={"ecolor": "#505861", "elinewidth": 0.9, "capthick": 0.9}, zorder=3)
 
-        ax.errorbar(x + offset, values, yerr=errors, fmt=marker, linestyle="none",
-                    markersize=6.5, color=color, markerfacecolor=color,
-                    markeredgecolor="white", markeredgewidth=0.7,
-                    elinewidth=1.2, capsize=3, capthick=1.1, zorder=3)
-
-    ax.set_title(f"({chr(97 + index)})  {task.capitalize()} · Top-{pct}%", loc="left", fontweight="semibold", pad=13)
+    ax.set_title(f"({chr(97 + index)})  {task.capitalize()} · Top-{pct}%", loc="left", fontweight="semibold", pad=12)
     ax.set_xticks(x)
     ax.set_xticklabels(list(METHODS.values()))
-    ax.set_xlim(-0.55, len(METHODS) - 0.45)
-    ax.set_ylim(*limits)
+    ax.set_xlim(-0.55, len(methods) - 0.45)
+    ax.set_ylim(0, ymax)
     style_axis(ax)
 
 
@@ -114,33 +109,26 @@ def plot_predictive_utility(prior, start, view):
     pcts = [25, 50] if view == "main" else TOPKS
     ncols = len(pcts)
 
-    figsize = (11.6, 7.2) if view == "main" else (14.2, 7.2)
+    figsize = (10.5, 6.5) if view == "main" else (14.2, 6.5)
     fig, axes = plt.subplots(2, ncols, figsize=figsize)
 
     for i, task in enumerate(TASKS):
-        limits = get_task_limits(data, task, pcts)
-
+        ymax = get_task_limit(data, task, pcts)
         for j, pct in enumerate(pcts):
             ax = axes[i, j]
-            draw_panel(ax, data, task, pct, i * ncols + j, limits)
+            draw_panel(ax, data, task, pct, i * ncols + j, ymax)
             if j == 0:
                 ax.set_ylabel("Prediction loss")
 
-    handles = [
-        Line2D([0], [0], marker=marker, linestyle="none", markersize=7,
-               markerfacecolor=color, markeredgecolor="white", label=label)
-        for label, color, marker, _ in SERIES.values()
-    ]
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, 0.025),
+               ncol=3, frameon=False, fontsize=10, columnspacing=2.5, handlelength=1.5)
 
-    fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 0.025),
-               ncol=3, frameon=False, fontsize=10.5, columnspacing=2.5, handletextpad=0.6)
-
-    fig.subplots_adjust(left=0.085, right=0.985, top=0.94, bottom=0.15, wspace=0.23, hspace=0.43)
+    fig.subplots_adjust(left=0.085, right=0.985, top=0.94, bottom=0.15, wspace=0.23, hspace=0.42)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     filename = f"predictive_utility_main_start{start:g}_epoch4.pdf" if view == "main" else f"predictive_utility_{prior}_start{start:g}_epoch4.pdf"
     out_path = OUT_DIR / filename
-
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved: {out_path}")
