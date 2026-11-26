@@ -13,6 +13,16 @@ def load(directory, suffix):
     return pd.read_csv(path) if path.is_file() else None
 
 
+def agreement_stats(df):
+    if df is None or df.empty or not all(c in df.columns for c in REFS):
+        return np.nan, np.nan
+    means = df[REFS].mean()
+    if means.isna().all():
+        return np.nan, np.nan
+    best = means.idxmax()
+    return float(means[best]), float(df[best].std(ddof=1))
+
+
 def ranking_stability(df):
     if df is None or df.empty:
         return np.nan
@@ -26,19 +36,22 @@ def ranking_stability(df):
 
 
 def selection_utility(df, metric):
-    if df is None or df.empty:
-        return np.nan
+    if df is None or df.empty or metric not in df.columns:
+        return np.nan, np.nan
     df = df[df["method"].isin(["pfn_imp", "random"]) & df["mode"].isin(["keep", "remove"])]
     if df.empty:
-        return np.nan
+        return np.nan, np.nan
+
     p = df.pivot_table(index="repeat", columns=["method", "mode"], values=metric, aggfunc="first")
     keys = [("pfn_imp", "keep"), ("random", "keep"), ("pfn_imp", "remove"), ("random", "remove")]
     if not all(key in p.columns for key in keys):
-        return np.nan
+        return np.nan, np.nan
+
     keep = p[("pfn_imp", "keep")] - p[("random", "keep")]
     remove = p[("random", "remove")] - p[("pfn_imp", "remove")]
     utility = (keep + remove) / 2
-    return float(utility.mean()) if utility.notna().any() else np.nan
+
+    return float(utility.mean()), float(utility.std(ddof=1))
 
 
 count = 0
@@ -61,12 +74,11 @@ for directory in sorted(ROOT.glob("*/openml_eval")):
 
     for _, item in summary.iterrows():
         dataset = item["dataset"]
-        agreement = stability = utility = np.nan
+        agreement_mean = agreement_std = stability = utility_mean = utility_std = np.nan
 
-        if metrics is not None and all(c in metrics.columns for c in REFS):
+        if metrics is not None:
             m = metrics[metrics["dataset"] == dataset]
-            if not m.empty:
-                agreement = m[REFS].mean().max()
+            agreement_mean, agreement_std = agreement_stats(m)
 
         if importance is not None:
             imp = importance[importance["dataset"] == dataset]
@@ -74,17 +86,20 @@ for directory in sorted(ROOT.glob("*/openml_eval")):
 
         if intervention is not None:
             inter = intervention[intervention["dataset"] == dataset]
-            utility = selection_utility(inter, metric)
+            utility_mean, utility_std = selection_utility(inter, metric)
 
         rows.append({
             "dataset": dataset,
-            "prediction_performance": item[f"{metric}_mean"],
-            "best_reference_agreement": agreement,
+            "prediction_mean": item[f"{metric}_mean"],
+            "prediction_std": item[f"{metric}_std"],
+            "best_reference_agreement_mean": agreement_mean,
+            "best_reference_agreement_std": agreement_std,
             "importance_ranking_stability": stability,
-            "feature_selection_utility": utility,
+            "feature_selection_utility_mean": utility_mean,
+            "feature_selection_utility_std": utility_std,
         })
 
-    output = directory / "real_data_four_metrics.csv"
+    output = directory / "real_eval_metrics_summary.csv"
     pd.DataFrame(rows).to_csv(output, index=False, float_format="%.6f")
     count += 1
     print(f"[OK] {model}: {len(rows)} datasets")
