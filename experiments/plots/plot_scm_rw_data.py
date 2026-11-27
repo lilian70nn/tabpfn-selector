@@ -361,9 +361,39 @@ def save_overview(task_key, datasets, tables, scales):
     print(f"[SAVED] Overview -> {path}")
 
 
+def save_paper_figure(all_tables, all_scales):
+    selected = {
+        "cls": ["iris", "car_evaluation", "seismic-bumps"],
+        "reg": ["abalone", "diamonds", "kin8nm"],
+    }
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10), subplot_kw={"projection": "polar"}, squeeze=False,)
+    fig.subplots_adjust(left=0.02, right=0.98, top=0.985, bottom=0.12, wspace=0.04, hspace=0.08,)
+    for row, task in enumerate(("cls", "reg")):
+        tables = all_tables[task]
+        scales = all_scales[task]
+        for col, dataset in enumerate(selected[task]):
+            if not any(dataset in df.index for df in tables.values()):
+                raise ValueError(f"Dataset not found: {task}/{dataset}")
+            draw_dataset(axes[row, col], dataset, tables, scales, show_values=False,)
+    fig.legend(
+        handles=legend_handles(),
+        loc="lower center",
+        bbox_to_anchor=(0.5, 0.045),
+        ncol=6, frameon=False, fontsize=11,
+    )
+
+    OUT.mkdir(parents=True, exist_ok=True)
+    path = OUT / "real_world_openml_representative.pdf"
+    fig.savefig(path, bbox_inches="tight", pad_inches=0.12)
+    plt.close(fig)
+    print(f"[SAVED] {path}")
+
+
+
 def main():
     all_tables = {task_key: load_tables(task) for task_key, task in TASKS.items()}
     all_scales = make_scales(all_tables)
+    save_paper_figure(all_tables, all_scales)
     for task_key, tables in all_tables.items():
         datasets = sorted(set().union(*(set(df.index) for df in tables.values())), key=str.lower)
         scales = all_scales[task_key]
