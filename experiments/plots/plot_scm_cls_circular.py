@@ -1,4 +1,3 @@
-
 from pathlib import Path
 from math import ceil
 import textwrap
@@ -33,6 +32,48 @@ COLORS = {
     "Permutation": "#9B8AAC",
 }
 
+OUT = Path("results/circular_plots_keep")
+OUT.mkdir(parents=True, exist_ok=True)
+
+# ============================================================
+# FOUR EVALUATION METRICS
+# ============================================================
+
+METRICS = [
+    (
+        "Prediction",
+        "prediction_mean",
+        "prediction_std",
+    ),
+    (
+        "Agreement",
+        "best_reference_agreement_mean",
+        "best_reference_agreement_std",
+    ),
+    (
+        "Stability",
+        "importance_ranking_stability",
+        None,
+    ),
+    (
+        "Keep Adv.",
+        "keep_advantage_mean",
+        "keep_advantage_std",
+    ),
+]
+
+
+# ============================================================
+# METRIC SCALES
+# ============================================================
+
+SCALE_OVERRIDES = {
+    "Prediction": (0.0, 1.0),
+    "Agreement": None,
+    "Stability": None,
+    "Keep Adv.": None,
+}
+
 
 # Layout
 NCOLS = 4
@@ -45,8 +86,6 @@ SHOW_VALUES_IN_DETAIL = True
 # Utility scaling:
 # "robust": show the typical range, mark clipped values
 # "full": show the entire range without clipping means
-UTILITY_SCALE_MODE = "robust"
-UTILITY_QUANTILE = 0.95
 
 
 
@@ -197,9 +236,15 @@ def load_tables():
 
             # Warn about incomplete repeat pairs
             incomplete = df[
-                df["keep_n_pairs"].notna()
-                & (df["keep_n_pairs"] != 30)
+                df["keep_n_pairs"].fillna(0) != 30
             ]
+
+            if not incomplete.empty:
+                print(
+                    f"[WARN] {method} {version}: "
+                    f"{len(incomplete)} datasets have missing "
+                    "or incomplete paired Keep results"
+                )
 
             if not incomplete.empty:
                 print(
