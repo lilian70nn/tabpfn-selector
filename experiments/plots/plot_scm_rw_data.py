@@ -122,6 +122,7 @@ def nice_limits(values, correlation=False):
     return (float(lower), float(upper)), ticks
 
 
+
 def make_scales(all_tables):
     scales = {}
     for task_key, tables in all_tables.items():
@@ -132,9 +133,12 @@ def make_scales(all_tables):
             else:
                 sources = list(all_tables.values()) if name != "Prediction" else [tables]
                 bounds, ticks = nice_limits(all_values(sources, mean_col), correlation=name != "Prediction")
+                if name == "Prediction" and task_key == "reg":
+                    bounds = (bounds[0], 1.0)
+                    ticks = np.linspace(bounds[0], 1.0, 5)
             scales[task_key][name] = (bounds, ticks)
-
     return scales
+
 
 
 def to_radius(value, limits):
