@@ -8,6 +8,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.colors import to_rgb
+from matplotlib.font_manager import FontProperties
+from matplotlib.textpath import TextToPath
 
 
 ROOT = Path("results/training")
@@ -159,16 +161,41 @@ def upright_rotation(theta):
 
 
 
+
 def draw_curved_title(ax, mid, text, radius=1.005, fontsize=8.5):
-    """Place a complete label tangentially inside the outer ring."""
-    angle = np.degrees(mid)
-    rotation = ((-angle + 90) % 180) - 90
+    """Draw naturally spaced text along a circular arc."""
+    font = FontProperties(family="DejaVu Sans", weight="semibold", size=fontsize)
+    text_path = TextToPath()
 
-    ax.text(mid, radius, text, ha="center", va="center",
-            fontsize=fontsize, fontweight="semibold",
-            rotation=rotation, rotation_mode="anchor",
-            color="#263238", zorder=12)
+    # Actual glyph widths in points, rather than fixed angular spacing
+    widths = np.array([
+        text_path.get_text_width_height_descent(char, font, ismath=False)[0]
+        for char in text
+    ])
 
+    letter_spacing = 0.25  # additional spacing in points
+    advances = widths + letter_spacing
+    positions = np.cumsum(advances) - advances + widths / 2
+    total_width = widths.sum() + letter_spacing * (len(text) - 1)
+    positions -= total_width / 2
+
+    # Convert physical text widths into angular offsets
+    center_px = ax.transData.transform((mid, 0))
+    radius_px = ax.transData.transform((mid, radius))
+    radius_pt = np.linalg.norm(radius_px - center_px) * 72 / ax.figure.dpi
+
+    # Reverse character direction on the lower half of the circle
+    direction = -1 if 90 < np.degrees(mid) % 360 < 270 else 1
+
+    for char, position in zip(text, positions):
+        theta = mid + direction * position / radius_pt
+        rotation = -np.degrees(theta) + (180 if direction == -1 else 0)
+        rotation = (rotation + 180) % 360 - 180
+
+        ax.text(theta, radius, char, ha="center", va="center",
+                fontsize=fontsize, fontproperties=font,
+                rotation=rotation, rotation_mode="anchor",
+                color="#263238", zorder=12)
 
 
 def draw_sector(ax, index, name, limits, ticks):
