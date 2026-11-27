@@ -15,8 +15,6 @@ from matplotlib.colors import to_rgb
 # ============================================================
 
 ROOT = Path("results/training")
-OUT = Path("results/circular_plots_v2")
-OUT.mkdir(parents=True, exist_ok=True)
 
 START = "0.3"
 EPOCH = 4
@@ -35,20 +33,6 @@ COLORS = {
     "Permutation": "#9B8AAC",
 }
 
-METRICS = [
-    ("Prediction", "prediction_mean", "prediction_std"),
-    (
-        "Agreement",
-        "best_reference_agreement_mean",
-        "best_reference_agreement_std",
-    ),
-    ("Stability", "importance_ranking_stability", None),
-    (
-        "Utility",
-        "feature_selection_utility_mean",
-        "feature_selection_utility_std",
-    ),
-]
 
 # Layout
 NCOLS = 4
@@ -64,13 +48,7 @@ SHOW_VALUES_IN_DETAIL = True
 UTILITY_SCALE_MODE = "robust"
 UTILITY_QUANTILE = 0.95
 
-# Optional fixed bounds; None means automatic.
-SCALE_OVERRIDES = {
-    "Prediction": (0.0, 1.0),
-    "Agreement": None,
-    "Stability": None,
-    "Utility": None,
-}
+
 
 # Polar geometry
 R_IN = 0.31
@@ -90,6 +68,84 @@ plt.rcParams.update({
 # LOAD DATA
 # ============================================================
 
+
+def compute_keep_advantage(intervention_df):
+
+    required = {
+        "dataset",
+        "repeat",
+        "method",
+        "mode",
+        "k_frac",
+        "balanced_accuracy",
+    }
+
+    missing = required - set(intervention_df.columns)
+    if missing:
+        raise ValueError(
+            f"Missing intervention columns: {missing}"
+        )
+
+    df = intervention_df.copy()
+    df["dataset"] = df["dataset"].astype(str)
+    df["k_frac"] = pd.to_numeric(
+        df["k_frac"], errors="coerce"
+    )
+    df["balanced_accuracy"] = pd.to_numeric(
+        df["balanced_accuracy"], errors="coerce"
+    )
+
+    # Only Top 20% keep experiments
+    df = df[
+        (df["mode"] == "keep")
+        & df["method"].isin(["pfn_imp", "random"])
+        & np.isclose(df["k_frac"], 0.2)
+    ].copy()
+
+    # Each dataset/repeat/method should have one value
+    keys = ["dataset", "repeat", "method"]
+
+    if df.duplicated(keys).any():
+        raise ValueError(
+            "Duplicate Keep results for the same "
+            "dataset/repeat/method."
+        )
+
+    pivot = df.pivot(
+        index=["dataset", "repeat"],
+        columns="method",
+        values="balanced_accuracy",
+    )
+
+    if not {"pfn_imp", "random"}.issubset(pivot.columns):
+        raise ValueError(
+            "Missing pfn_imp or random Keep results."
+        )
+
+    # Paired difference for each repeat
+    advantage = (
+        pivot["pfn_imp"] - pivot["random"]
+    ).dropna()
+
+    advantage = advantage.rename(
+        "keep_advantage"
+    ).reset_index()
+
+    # Mean ± sample Std across repeats
+    stats = (
+        advantage.groupby("dataset")["keep_advantage"]
+        .agg(["mean", "std", "count"])
+        .rename(columns={
+            "mean": "keep_advantage_mean",
+            "std": "keep_advantage_std",
+            "count": "keep_n_pairs",
+        })
+    )
+
+    return stats
+
+
+
 def load_tables():
     tables = {}
 
@@ -101,23 +157,63 @@ def load_tables():
                 f"start{START}_epoch{EPOCH}_{version}"
             )
 
-            path = (
-                ROOT / folder / "openml_eval"
-                / "real_eval_metrics_summary.csv"
+            directory = ROOT / folder / "openml_eval"
+
+            summary_path = (
+                directory / "real_eval_metrics_summary.csv"
             )
 
-            if not path.exists():
-                raise FileNotFoundError(path)
+            intervention_path = (
+                directory /
+                "real_eval_30repeats_topk_intervention.csv"
+            )
 
-            df = pd.read_csv(path)
+            if not summary_path.exists():
+                raise FileNotFoundError(summary_path)
+
+            if not intervention_path.exists():
+                raise FileNotFoundError(intervention_path)
+
+            # Existing three metrics
+            df = pd.read_csv(summary_path)
             df["dataset"] = df["dataset"].astype(str)
 
             if df["dataset"].duplicated().any():
-                raise ValueError(f"Duplicated datasets: {path}")
+                raise ValueError(
+                    f"Duplicated datasets: {summary_path}"
+                )
 
-            tables[(method, version)] = df.set_index("dataset")
+            df = df.set_index("dataset")
 
-            print(f"[OK] {method} {version}: {len(df)}")
+            # New fourth metric
+            intervention = pd.read_csv(intervention_path)
+
+            keep_stats = compute_keep_advantage(
+                intervention
+            )
+
+            # Join by dataset name
+            df = df.join(keep_stats, how="left")
+
+            # Warn about incomplete repeat pairs
+            incomplete = df[
+                df["keep_n_pairs"].notna()
+                & (df["keep_n_pairs"] != 30)
+            ]
+
+            if not incomplete.empty:
+                print(
+                    f"[WARN] {method} {version}: "
+                    f"{len(incomplete)} datasets have "
+                    "fewer than 30 paired repeats"
+                )
+
+            tables[(method, version)] = df
+
+            print(
+                f"[OK] {method:12s} {version}: "
+                f"{len(df)} datasets"
+            )
 
     return tables
 
@@ -168,6 +264,7 @@ def nice_ceiling(x):
     return float(10 * power)
 
 
+
 def make_scales(tables):
     scales = {}
 
@@ -181,49 +278,50 @@ def make_scales(tables):
         values = values[np.isfinite(values)]
 
         if len(values) == 0:
-            scales[name] = (0.0, 1.0)
-            continue
-
-        if name == "Utility":
-
-            magnitudes = np.abs(values)
-
-            if UTILITY_SCALE_MODE == "robust":
-                magnitude = np.quantile(
-                    magnitudes, UTILITY_QUANTILE
-                )
-            elif UTILITY_SCALE_MODE == "full":
-                magnitude = np.max(magnitudes)
-            else:
-                raise ValueError(UTILITY_SCALE_MODE)
-
-            # Use Mean only, not Mean + Std, for scale selection.
-            limit = nice_ceiling(
-                max(magnitude * 1.08, 1e-5)
+            raise ValueError(
+                f"No valid values for metric: {name}"
             )
 
-            scales[name] = (-limit, limit)
+        minimum = float(np.min(values))
+        maximum = float(np.max(values))
 
-        else:
-            minimum = float(np.min(values))
-            maximum = float(np.max(values))
+        # Keep Advantage uses a signed scale
+        if name == "Keep Adv.":
 
-            if minimum < 0:
-                lower = -nice_ceiling(abs(minimum) * 1.05)
-            else:
-                lower = 0.0
-
-            upper = nice_ceiling(
-                max(maximum * 1.05, 0.01)
+            lower = (
+                -nice_ceiling(abs(minimum) * 1.05)
+                if minimum < 0
+                else 0.0
             )
 
-            # Spearman coefficients cannot exceed [-1, 1].
-            upper = min(upper, 1.0)
-            lower = max(lower, -1.0)
+            upper = (
+                nice_ceiling(maximum * 1.05)
+                if maximum > 0
+                else 0.01
+            )
 
             scales[name] = (lower, upper)
+            continue
+
+        # Other metrics
+        if minimum < 0:
+            lower = -nice_ceiling(
+                abs(minimum) * 1.05
+            )
+        else:
+            lower = 0.0
+
+        upper = nice_ceiling(
+            max(maximum * 1.05, 0.01)
+        )
+
+        upper = min(upper, 1.0)
+        lower = max(lower, -1.0)
+
+        scales[name] = (lower, upper)
 
     return scales
+
 
 
 def fmt_number(x):
@@ -353,9 +451,14 @@ def draw_sector(ax, index, name, limits):
 
     # Tangential label, like the supplied reference figure
     angle_deg = np.degrees(midpoint)
-    rotation = -angle_deg
 
-    if rotation < -90:
+    # Normalize rotation to [-180, 180]
+    rotation = (-angle_deg + 180) % 360 - 180
+
+    # Keep all labels upright and readable
+    if rotation > 90:
+        rotation -= 180
+    elif rotation < -90:
         rotation += 180
 
     ax.text(
@@ -738,6 +841,28 @@ def create_figure(
 def main():
 
     tables = load_tables()
+
+
+    check_rows = []
+
+    for (method, version), df in tables.items():
+        for dataset, row in df.iterrows():
+
+            check_rows.append({
+                "dataset": dataset,
+                "method": method,
+                "version": version,
+                "keep_advantage_mean": row["keep_advantage_mean"],
+                "keep_advantage_std": row["keep_advantage_std"],
+                "n_pairs": row["keep_n_pairs"],
+            })
+
+    pd.DataFrame(check_rows).to_csv(
+        OUT / "keep_advantage_check.csv",
+        index=False,
+        float_format="%.6f",
+    )
+
 
     # Dataset union: keep V2-only datasets
     datasets = sorted(
