@@ -158,6 +158,21 @@ def upright_rotation(theta):
     return ((-np.degrees(theta) + 90) % 180) - 90
 
 
+def draw_curved_title(ax, mid, text, radius=1.005, fontsize=8.5):
+    """Place an upright, curved metric label inside the outer ring."""
+    angle_deg = np.degrees(mid) % 360
+    direction = -1 if 90 < angle_deg < 270 else 1
+    spacing = np.deg2rad(4.2)
+    offsets = (np.arange(len(text)) - (len(text) - 1) / 2) * spacing
+
+    for char, offset in zip(text, offsets):
+        theta = mid + direction * offset
+        ax.text(theta, radius, char, ha="center", va="center",
+                fontsize=fontsize, fontweight="semibold",
+                rotation=upright_rotation(theta), rotation_mode="anchor",
+                color="#263238", zorder=12)
+
+
 def draw_sector(ax, index, name, limits, ticks):
     sector_size = 2 * np.pi / 3
     start = index * sector_size + SECTOR_GAP
@@ -183,11 +198,14 @@ def draw_sector(ax, index, name, limits, ticks):
                 color="#6C777B", linewidth=0.7, zorder=3)
 
     arc(ax, start, end, R_OUT + 0.035, color="#59656B", linewidth=0.9, zorder=3)
-    ax.bar(mid, 0.065, width=end - start, bottom=0.965,
-           color="#F1F4F3", edgecolor="#647075", linewidth=0.8, zorder=3)
 
-    ax.text(mid, 0.998, name, fontsize=9, fontweight="semibold",
-            ha="center", va="center", color="#263238", zorder=10)
+    # Outer curved title band
+    ax.bar(mid, 0.105, width=end - start, bottom=0.950,
+        color="#FAFBFB", edgecolor="#59656B", linewidth=0.85, zorder=3)
+
+    # Metric name follows the outer arc
+    draw_curved_title(ax, mid, name, radius=1.005, fontsize=8.5)
+
 
     return start, end
 
