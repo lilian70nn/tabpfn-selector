@@ -13,14 +13,16 @@ def load(directory, suffix):
     return pd.read_csv(path) if path.is_file() else None
 
 
+
 def agreement_stats(df):
     if df is None or df.empty or not all(c in df.columns for c in REFS):
         return np.nan, np.nan
-    means = df[REFS].mean()
-    if means.isna().all():
+    per_repeat = df[REFS].apply(pd.to_numeric, errors="coerce").mean(axis=1, skipna=False)
+    valid = per_repeat.dropna()
+    if valid.empty:
         return np.nan, np.nan
-    best = means.idxmax()
-    return float(means[best]), float(df[best].std(ddof=1))
+    return float(valid.mean()), float(valid.std(ddof=1))
+
 
 
 def ranking_stability(df):
@@ -92,8 +94,8 @@ for directory in sorted(ROOT.glob("*/openml_eval")):
             "dataset": dataset,
             "prediction_mean": item[f"{metric}_mean"],
             "prediction_std": item[f"{metric}_std"],
-            "best_reference_agreement_mean": agreement_mean,
-            "best_reference_agreement_std": agreement_std,
+            "mean_reference_agreement_mean": agreement_mean,
+            "mean_reference_agreement_std": agreement_std,
             "importance_ranking_stability": stability,
             "feature_selection_utility_mean": utility_mean,
             "feature_selection_utility_std": utility_std,

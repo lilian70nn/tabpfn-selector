@@ -31,7 +31,7 @@ COLORS = {
 
 METRICS = [
     ("Prediction", "prediction_mean", "prediction_std"),
-    ("Agreement", "best_reference_agreement_mean", "best_reference_agreement_std"),
+    ("Agreement", "mean_reference_agreement_mean", "mean_reference_agreement_std"),
     ("Stability", "importance_ranking_stability", None),
 ]
 
