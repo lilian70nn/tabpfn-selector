@@ -158,11 +158,14 @@ def upright_rotation(theta):
     return ((-np.degrees(theta) + 90) % 180) - 90
 
 
+
 def draw_curved_title(ax, mid, text, radius=1.005, fontsize=8.5):
-    """Place an upright, curved metric label inside the outer ring."""
+    """Draw compact curved text inside the outer metric ring."""
     angle_deg = np.degrees(mid) % 360
     direction = -1 if 90 < angle_deg < 270 else 1
-    spacing = np.deg2rad(4.2)
+
+    # Smaller angular spacing for compact lettering
+    spacing = np.deg2rad(2.0)
     offsets = (np.arange(len(text)) - (len(text) - 1) / 2) * spacing
 
     for char, offset in zip(text, offsets):
