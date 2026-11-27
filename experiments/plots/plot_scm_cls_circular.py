@@ -1,5 +1,6 @@
 from pathlib import Path
-from math import ceil
+from math import ceil, floor, log10
+import re
 import textwrap
 
 import numpy as np
@@ -9,22 +10,16 @@ from matplotlib.patches import Patch
 from matplotlib.colors import to_rgb
 
 
-# ============================================================
-# CONFIGURATION
-# ============================================================
-
 ROOT = Path("results/training")
-
+OUT = Path("results/figures")
 START = "0.3"
 EPOCH = 4
-
 METHODS = {
     "Gradient": "gradient",
     "Eigen-90": "eigen_90",
     "MI": "mi",
     "Permutation": "permutation",
 }
-
 COLORS = {
     "Gradient": "#6B9CB3",
     "Eigen-90": "#C58F76",
@@ -32,67 +27,20 @@ COLORS = {
     "Permutation": "#9B8AAC",
 }
 
-OUT = Path("results/circular_plots_keep")
-OUT.mkdir(parents=True, exist_ok=True)
-
-# ============================================================
-# FOUR EVALUATION METRICS
-# ============================================================
-
 METRICS = [
-    (
-        "Prediction",
-        "prediction_mean",
-        "prediction_std",
-    ),
-    (
-        "Agreement",
-        "best_reference_agreement_mean",
-        "best_reference_agreement_std",
-    ),
-    (
-        "Stability",
-        "importance_ranking_stability",
-        None,
-    ),
-    (
-        "Keep Adv.",
-        "keep_advantage_mean",
-        "keep_advantage_std",
-    ),
+    ("Prediction", "prediction_mean", "prediction_std"),
+    ("Agreement", "best_reference_agreement_mean", "best_reference_agreement_std"),
+    ("Stability", "importance_ranking_stability", None),
 ]
 
-
-# ============================================================
-# METRIC SCALES
-# ============================================================
-
-SCALE_OVERRIDES = {
-    "Prediction": (0.0, 1.0),
-    "Agreement": None,
-    "Stability": None,
-    "Keep Adv.": None,
-}
-
-
-# Layout
-NCOLS = 4
-CELL_SIZE = 4.3
-
-# Detailed example: show bar-end numerical labels
+TASKS = {"cls": "classification", "reg": "regression"}
+NCOLS = {"cls": 5, "reg": 3}
+CELL_SIZE = 4.1
+SHOW_VALUES_IN_SINGLE = True
 SHOW_VALUES_IN_OVERVIEW = False
-SHOW_VALUES_IN_DETAIL = True
-
-# Utility scaling:
-# "robust": show the typical range, mark clipped values
-# "full": show the entire range without clipping means
-
-
-
-# Polar geometry
-R_IN = 0.31
-R_OUT = 0.88
-SECTOR_GAP = np.deg2rad(4.0)
+R_IN = 0.30
+R_OUT = 0.87
+SECTOR_GAP = np.deg2rad(4)
 
 plt.rcParams.update({
     "font.family": "DejaVu Sans",
@@ -103,162 +51,24 @@ plt.rcParams.update({
 })
 
 
-# ============================================================
-# LOAD DATA
-# ============================================================
-
-
-def compute_keep_advantage(intervention_df):
-
-    required = {
-        "dataset",
-        "repeat",
-        "method",
-        "mode",
-        "k_frac",
-        "balanced_accuracy",
-    }
-
-    missing = required - set(intervention_df.columns)
-    if missing:
-        raise ValueError(
-            f"Missing intervention columns: {missing}"
-        )
-
-    df = intervention_df.copy()
-    df["dataset"] = df["dataset"].astype(str)
-    df["k_frac"] = pd.to_numeric(
-        df["k_frac"], errors="coerce"
-    )
-    df["balanced_accuracy"] = pd.to_numeric(
-        df["balanced_accuracy"], errors="coerce"
-    )
-
-    # Only Top 20% keep experiments
-    df = df[
-        (df["mode"] == "keep")
-        & df["method"].isin(["pfn_imp", "random"])
-        & np.isclose(df["k_frac"], 0.2)
-    ].copy()
-
-    # Each dataset/repeat/method should have one value
-    keys = ["dataset", "repeat", "method"]
-
-    if df.duplicated(keys).any():
-        raise ValueError(
-            "Duplicate Keep results for the same "
-            "dataset/repeat/method."
-        )
-
-    pivot = df.pivot(
-        index=["dataset", "repeat"],
-        columns="method",
-        values="balanced_accuracy",
-    )
-
-    if not {"pfn_imp", "random"}.issubset(pivot.columns):
-        raise ValueError(
-            "Missing pfn_imp or random Keep results."
-        )
-
-    # Paired difference for each repeat
-    advantage = (
-        pivot["pfn_imp"] - pivot["random"]
-    ).dropna()
-
-    advantage = advantage.rename(
-        "keep_advantage"
-    ).reset_index()
-
-    # Mean ± sample Std across repeats
-    stats = (
-        advantage.groupby("dataset")["keep_advantage"]
-        .agg(["mean", "std", "count"])
-        .rename(columns={
-            "mean": "keep_advantage_mean",
-            "std": "keep_advantage_std",
-            "count": "keep_n_pairs",
-        })
-    )
-
-    return stats
-
-
-
-def load_tables():
+def load_tables(task):
     tables = {}
-
     for method, slug in METHODS.items():
         for version in ("v1", "v2"):
-
-            folder = (
-                f"scm_classification_{slug}_w_imp_"
-                f"start{START}_epoch{EPOCH}_{version}"
-            )
-
-            directory = ROOT / folder / "openml_eval"
-
-            summary_path = (
-                directory / "real_eval_metrics_summary.csv"
-            )
-
-            intervention_path = (
-                directory /
-                "real_eval_30repeats_topk_intervention.csv"
-            )
-
-            if not summary_path.exists():
-                raise FileNotFoundError(summary_path)
-
-            if not intervention_path.exists():
-                raise FileNotFoundError(intervention_path)
-
-            # Existing three metrics
-            df = pd.read_csv(summary_path)
+            folder = f"scm_{task}_{slug}_w_imp_start{START}_epoch{EPOCH}_{version}"
+            path = ROOT / folder / "openml_eval" / "real_eval_metrics_summary.csv"
+            if not path.exists():
+                raise FileNotFoundError(f"Missing CSV: {path}")
+            df = pd.read_csv(path)
             df["dataset"] = df["dataset"].astype(str)
-
             if df["dataset"].duplicated().any():
-                raise ValueError(
-                    f"Duplicated datasets: {summary_path}"
-                )
-
-            df = df.set_index("dataset")
-
-            # New fourth metric
-            intervention = pd.read_csv(intervention_path)
-
-            keep_stats = compute_keep_advantage(
-                intervention
-            )
-
-            # Join by dataset name
-            df = df.join(keep_stats, how="left")
-
-            # Warn about incomplete repeat pairs
-            incomplete = df[
-                df["keep_n_pairs"].fillna(0) != 30
-            ]
-
-            if not incomplete.empty:
-                print(
-                    f"[WARN] {method} {version}: "
-                    f"{len(incomplete)} datasets have missing "
-                    "or incomplete paired Keep results"
-                )
-
-            if not incomplete.empty:
-                print(
-                    f"[WARN] {method} {version}: "
-                    f"{len(incomplete)} datasets have "
-                    "fewer than 30 paired repeats"
-                )
-
-            tables[(method, version)] = df
-
-            print(
-                f"[OK] {method:12s} {version}: "
-                f"{len(df)} datasets"
-            )
+                raise ValueError(f"Duplicate datasets in {path}")
+            required = {"dataset"} | {c for _, mean, std in METRICS for c in (mean, std) if c}
+            missing = required - set(df.columns)
+            if missing:
+                raise ValueError(f"Missing columns {missing} in {path}")
+            tables[(method, version)] = df.set_index("dataset")
+            print(f"[OK] {task} | {method:12s} | {version} | {len(df)} datasets")
 
     return tables
 
@@ -266,686 +76,261 @@ def load_tables():
 def get_value(tables, dataset, method, version, column):
     if column is None:
         return np.nan
-
     df = tables[(method, version)]
-
     if dataset not in df.index or column not in df.columns:
         return np.nan
-
-    val = df.at[dataset, column]
-
-    return float(val) if pd.notna(val) else np.nan
+    value = pd.to_numeric(df.at[dataset, column], errors="coerce")
+    return float(value) if pd.notna(value) else np.nan
 
 
-def all_values(tables, column):
-    values = []
-
-    for df in tables.values():
-        if column in df.columns:
-            v = pd.to_numeric(df[column], errors="coerce")
-            values.extend(v.dropna().tolist())
-
-    return np.asarray(values, dtype=float)
-
-
-# ============================================================
-# METRIC-SPECIFIC SCALES
-# ============================================================
-
-def nice_ceiling(x):
-    """Round positive bounds to readable tick ranges."""
-    x = float(x)
-
-    if not np.isfinite(x) or x <= 0:
-        return 0.01
-
-    power = 10 ** np.floor(np.log10(x))
-    fraction = x / power
-
-    for step in (1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10):
-        if fraction <= step + 1e-12:
-            return float(step * power)
-
-    return float(10 * power)
+def all_values(groups, column):
+    arrays = []
+    for tables in groups:
+        for df in tables.values():
+            values = pd.to_numeric(df[column], errors="coerce").dropna().to_numpy(dtype=float)
+            if len(values):
+                arrays.append(values)
+    return np.concatenate(arrays) if arrays else np.array([])
 
 
+def nice_limits(values, correlation=False):
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values)]
+    if len(values) == 0:
+        raise ValueError("No valid values for scale calculation")
 
-def make_scales(tables):
-    scales = {}
+    lo = min(0.0, float(values.min()))
+    hi = max(0.0, float(values.max()))
+    span = hi - lo
+    if span < 1e-10:
+        span = 0.1
+        hi = lo + span
 
-    for name, mean_col, std_col in METRICS:
-
-        if SCALE_OVERRIDES[name] is not None:
-            scales[name] = SCALE_OVERRIDES[name]
-            continue
-
-        values = all_values(tables, mean_col)
-        values = values[np.isfinite(values)]
-
-        if len(values) == 0:
-            raise ValueError(
-                f"No valid values for metric: {name}"
-            )
-
-        minimum = float(np.min(values))
-        maximum = float(np.max(values))
-
-        # Keep Advantage uses a signed scale
-        if name == "Keep Adv.":
-
-            lower = (
-                -nice_ceiling(abs(minimum) * 1.05)
-                if minimum < 0
-                else 0.0
-            )
-
-            upper = (
-                nice_ceiling(maximum * 1.05)
-                if maximum > 0
-                else 0.01
-            )
-
-            scales[name] = (lower, upper)
-            continue
-
-        # Other metrics
-        if minimum < 0:
-            lower = -nice_ceiling(
-                abs(minimum) * 1.05
-            )
-        else:
-            lower = 0.0
-
-        upper = nice_ceiling(
-            max(maximum * 1.05, 0.01)
-        )
-
-        upper = min(upper, 1.0)
+    lo = lo - 0.03 * span if lo < 0 else 0.0
+    hi = hi + 0.03 * span if hi > 0 else 0.0
+    raw_step = (hi - lo) / 4
+    power = 10 ** floor(log10(raw_step))
+    step = next(s * power for s in (1, 2, 2.5, 5, 10) if s * power >= raw_step - 1e-12)
+    lower = floor(lo / step) * step
+    upper = ceil(hi / step) * step
+    if correlation:
         lower = max(lower, -1.0)
+        upper = min(upper, 1.0)
+    ticks = np.linspace(lower, upper, 5)
+    return (float(lower), float(upper)), ticks
 
-        scales[name] = (lower, upper)
+
+def make_scales(all_tables):
+    scales = {}
+    for task_key, tables in all_tables.items():
+        scales[task_key] = {}
+        for name, mean_col, _ in METRICS:
+            if name == "Prediction" and task_key == "cls":
+                bounds, ticks = (0.0, 1.0), np.linspace(0, 1, 5)
+            else:
+                sources = list(all_tables.values()) if name != "Prediction" else [tables]
+                bounds, ticks = nice_limits(all_values(sources, mean_col), correlation=name != "Prediction")
+            scales[task_key][name] = (bounds, ticks)
 
     return scales
 
 
-
-def fmt_number(x):
-    if abs(x) < 1e-12:
-        return "0"
-    return f"{x:.3g}".replace("-", "−")
-
-
 def to_radius(value, limits):
     low, high = limits
-    fraction = (value - low) / (high - low)
-    return R_IN + fraction * (R_OUT - R_IN)
+    return R_IN + (value - low) / (high - low) * (R_OUT - R_IN)
 
 
-# ============================================================
-# DRAWING HELPERS
-# ============================================================
+def fmt(value):
+    return "0" if abs(value) < 1e-10 else f"{value:.3g}".replace("-", "−")
 
-def pastel(color, factor=0.57):
+
+def pastel(color, factor=0.58):
     rgb = np.asarray(to_rgb(color))
     return tuple(rgb + (1 - rgb) * factor)
 
 
-def arc(ax, theta0, theta1, radius, **kwargs):
-    theta = np.linspace(theta0, theta1, 100)
-    ax.plot(
-        theta,
-        np.full(theta.shape, radius),
-        **kwargs
-    )
+def arc(ax, start, end, radius, **kwargs):
+    theta = np.linspace(start, end, 100)
+    ax.plot(theta, np.full_like(theta, radius), **kwargs)
 
 
-def draw_sector(ax, index, name, limits):
+def upright_rotation(theta):
+    return ((-np.degrees(theta) + 90) % 180) - 90
 
-    start = index * np.pi / 2 + SECTOR_GAP
-    end = (index + 1) * np.pi / 2 - SECTOR_GAP
-    midpoint = (start + end) / 2
 
-    # Background: each sector has its own field
-    ax.bar(
-        midpoint,
-        R_OUT - R_IN,
-        width=end - start,
-        bottom=R_IN,
-        color="#FBFCFB",
-        edgecolor="none",
-        zorder=0,
-    )
+def draw_sector(ax, index, name, limits, ticks):
+    sector_size = 2 * np.pi / 3
+    start = index * sector_size + SECTOR_GAP
+    end = (index + 1) * sector_size - SECTOR_GAP
+    mid = (start + end) / 2
+    ax.bar(mid, R_OUT - R_IN, width=end - start, bottom=R_IN,
+           color="#FAFBFA", edgecolor="#D2D7D7", linewidth=0.5, zorder=0)
 
-    # Radial grid and numerical tick labels
-    tick_values = np.linspace(
-        limits[0], limits[1], 5
-    )
-
-    tick_theta = start + np.deg2rad(7)
-
-    for tick in tick_values:
+    for tick in ticks:
         r = to_radius(tick, limits)
+        arc(ax, start, end, r, color="#B9C1C3", linewidth=0.5, linestyle=(0, (2, 2)), zorder=1)
+        ax.text(start + np.deg2rad(9), r, fmt(tick), fontsize=6.5,
+                ha="center", va="center", color="#647078", zorder=9,
+                bbox=dict(facecolor="#FAFBFA", edgecolor="none", pad=0.35))
 
-        arc(
-            ax, start, end, r,
-            color="#BFC7C8",
-            linewidth=0.48,
-            linestyle=(0, (2, 2)),
-            zorder=1,
-        )
+    if limits[0] < 0 < limits[1]:
+        zero_r = to_radius(0, limits)
+        arc(ax, start, end, zero_r, color="#4E5B60", linewidth=1.0,
+            linestyle=(0, (3, 2)), zorder=2)
 
-        ax.text(
-            tick_theta,
-            r,
-            fmt_number(tick),
-            fontsize=5.9,
-            color="#667078",
-            ha="center",
-            va="center",
-            bbox={
-                "facecolor": "#FBFCFB",
-                "edgecolor": "none",
-                "pad": 0.3,
-            },
-            zorder=9,
-        )
+    for angle in (start, end):
+        ax.plot([angle, angle], [R_IN, R_OUT + 0.035],
+                color="#6C777B", linewidth=0.7, zorder=3)
 
-    # Zero ring for signed metrics
-    low, high = limits
+    arc(ax, start, end, R_OUT + 0.035, color="#59656B", linewidth=0.9, zorder=3)
+    ax.bar(mid, 0.065, width=end - start, bottom=0.965,
+           color="#F1F4F3", edgecolor="#647075", linewidth=0.8, zorder=3)
 
-    if low < 0 < high:
-        zero_radius = to_radius(0, limits)
-
-        arc(
-            ax, start, end, zero_radius,
-            color="#4F5960",
-            linewidth=0.95,
-            linestyle=(0, (3, 2)),
-            zorder=2,
-        )
-
-    # Sector boundaries
-    for theta in (start, end):
-        ax.plot(
-            [theta, theta],
-            [R_IN, R_OUT + 0.035],
-            color="#626C70",
-            linewidth=0.75,
-            zorder=3,
-        )
-
-    # Outer boundary
-    arc(
-        ax, start, end, R_OUT + 0.035,
-        color="#5A6569",
-        linewidth=0.9,
-        zorder=3,
-    )
-
-    # Separate outer metric-title band
-    ax.bar(
-        midpoint,
-        0.061,
-        width=end - start,
-        bottom=0.967,
-        color="#F6F8F7",
-        edgecolor="#586368",
-        linewidth=0.9,
-        zorder=3,
-    )
-
-    # Tangential label, like the supplied reference figure
-    angle_deg = np.degrees(midpoint)
-
-    # Normalize rotation to [-180, 180]
-    rotation = (-angle_deg + 180) % 360 - 180
-
-    # Keep all labels upright and readable
-    if rotation > 90:
-        rotation -= 180
-    elif rotation < -90:
-        rotation += 180
-
-    ax.text(
-        midpoint,
-        0.998,
-        name,
-        fontsize=8.1,
-        fontweight="semibold",
-        ha="center",
-        va="center",
-        rotation=rotation,
-        rotation_mode="anchor",
-        color="#273136",
-        zorder=10,
-    )
+    ax.text(mid, 0.998, name, fontsize=9, fontweight="semibold",
+            ha="center", va="center", color="#263238", zorder=10)
 
     return start, end
 
 
-def draw_error_bar(ax, theta, mean, std, limits, width):
+def draw_errorbar(ax, theta, mean, std, limits, width):
     if not np.isfinite(std) or std < 0:
         return
-
     low, high = limits
-
-    lower = mean - std
-    upper = mean + std
-
-    clipped_lower = lower < low
-    clipped_upper = upper > high
-
-    r1 = to_radius(np.clip(lower, low, high), limits)
-    r2 = to_radius(np.clip(upper, low, high), limits)
-
-    ax.plot(
-        [theta, theta],
-        [r1, r2],
-        color="#30393D",
-        linewidth=0.70,
-        zorder=8,
-    )
-
-    cap_width = width * 0.25
-
+    a, b = mean - std, mean + std
+    r1 = to_radius(np.clip(a, low, high), limits)
+    r2 = to_radius(np.clip(b, low, high), limits)
+    ax.plot([theta, theta], [r1, r2], color="#283338", linewidth=0.7, zorder=8)
+    cap = width * 0.25
     for r in (r1, r2):
-        ax.plot(
-            [theta - cap_width, theta + cap_width],
-            [r, r],
-            color="#30393D",
-            linewidth=0.70,
-            zorder=8,
-        )
-
-    # Flag intervals extending beyond the display range.
-    if clipped_upper:
-        ax.scatter(
-            [theta], [R_OUT + 0.016],
-            s=9, marker="^",
-            color="#30393D",
-            zorder=11,
-        )
-
-    if clipped_lower:
-        ax.scatter(
-            [theta], [R_IN - 0.016],
-            s=9, marker="v",
-            color="#30393D",
-            zorder=11,
-        )
+        ax.plot([theta - cap, theta + cap], [r, r], color="#283338", linewidth=0.7, zorder=8)
+    if b > high:
+        ax.scatter([theta], [R_OUT + 0.014], marker="^", s=10, color="#283338", zorder=11)
+    if a < low:
+        ax.scatter([theta], [R_IN - 0.014], marker="v", s=10, color="#283338", zorder=11)
 
 
-def draw_one_bar(
-    ax, theta, width, mean, std,
-    limits, color, show_value
-):
+def draw_bar(ax, theta, width, mean, std, limits, color, show_value):
     if not np.isfinite(mean):
-        # Missing V1/V2: preserve slot, draw nothing
         return
-
     low, high = limits
-
-    shown_mean = np.clip(mean, low, high)
-
-    r_mean = to_radius(shown_mean, limits)
-    r_zero = to_radius(
-        np.clip(0.0, low, high), limits
-    )
-
+    r_mean = to_radius(np.clip(mean, low, high), limits)
+    r_zero = to_radius(np.clip(0, low, high), limits)
     bottom = min(r_mean, r_zero)
     height = abs(r_mean - r_zero)
-
     if height > 1e-10:
-        ax.bar(
-            theta,
-            height,
-            width=width,
-            bottom=bottom,
-            facecolor=color,
-            edgecolor="#465056",
-            linewidth=0.55,
-            zorder=5,
-        )
-
-    draw_error_bar(
-        ax, theta, mean, std, limits, width
-    )
-
-    # Mean outside display limits: visible clipping marker
-    if mean > high:
-        ax.scatter(
-            [theta], [R_OUT + 0.024],
-            s=17, marker="^",
-            color="#20282C",
-            zorder=12,
-        )
-
-    elif mean < low:
-        ax.scatter(
-            [theta], [R_IN - 0.024],
-            s=17, marker="v",
-            color="#20282C",
-            zorder=12,
-        )
-
+        ax.bar(theta, height, width=width, bottom=bottom,
+               color=color, edgecolor="#465056", linewidth=0.5, zorder=5)
+    else:
+        ax.scatter([theta], [r_zero], s=5, color=color, zorder=6)
+    draw_errorbar(ax, theta, mean, std, limits, width)
     if show_value:
-        angle = np.degrees(theta)
-        rotation = -angle
-
-        if rotation < -90:
-            rotation += 180
-
-        label_r = (
-            min(R_OUT + 0.025, r_mean + 0.021)
-            if mean >= 0
-            else max(R_IN - 0.018, r_mean - 0.021)
-        )
-
-        ax.text(
-            theta,
-            label_r,
-            fmt_number(mean),
-            fontsize=5.2,
-            color="#394348",
-            rotation=rotation,
-            rotation_mode="anchor",
-            ha="center",
-            va="center",
-            zorder=12,
-        )
+        label_r = min(R_OUT + 0.04, r_mean + 0.027) if mean >= 0 else max(R_IN - 0.025, r_mean - 0.027)
+        ax.text(theta, label_r, fmt(mean), fontsize=5.6, ha="center", va="center",
+                rotation=upright_rotation(theta), rotation_mode="anchor",
+                color="#394348", zorder=12)
 
 
-# ============================================================
-# DATASET CIRCLE
-# ============================================================
-
-def draw_dataset(ax, dataset, tables, scales, show_values):
-
+def draw_dataset(ax, dataset, tables, scales, show_values=False):
     ax.set_theta_zero_location("N")
     ax.set_theta_direction(-1)
-    ax.set_ylim(0, 1.14)
+    ax.set_ylim(0, 1.15)
     ax.set_axis_off()
     ax.set_facecolor("white")
 
     for sector_idx, (name, mean_col, std_col) in enumerate(METRICS):
-
-        limits = scales[name]
-
-        start, end = draw_sector(
-            ax, sector_idx, name, limits
-        )
-
-        # Reserve a small part of the sector for radial ticks
-        bars_start = start + np.deg2rad(15)
-        bars_end = end - np.deg2rad(2)
-
+        limits, ticks = scales[name]
+        start, end = draw_sector(ax, sector_idx, name, limits, ticks)
+        bars_start = start + np.deg2rad(18)
+        bars_end = end - np.deg2rad(4)
         step = (bars_end - bars_start) / 8
         bar_width = step * 0.76
-
         for method_idx, method in enumerate(METHODS):
             for version_idx, version in enumerate(("v1", "v2")):
-
-                slot = method_idx * 2 + version_idx
-
-                theta = (
-                    bars_start
-                    + (slot + 0.5) * step
-                )
-
-                mean = get_value(
-                    tables, dataset, method,
-                    version, mean_col
-                )
-
-                std = get_value(
-                    tables, dataset, method,
-                    version, std_col
-                )
-
-                base = COLORS[method]
-
-                color = (
-                    pastel(base)
-                    if version == "v1"
-                    else base
-                )
-
-                draw_one_bar(
-                    ax,
-                    theta,
-                    bar_width,
-                    mean,
-                    std,
-                    limits,
-                    color,
-                    show_values,
-                )
-
-    # Inner circle outline
-    theta_circle = np.linspace(0, 2 * np.pi, 360)
-
-    ax.plot(
-        theta_circle,
-        np.full_like(theta_circle, R_IN),
-        color="#526066",
-        linewidth=1.05,
-        zorder=15,
-    )
-
-    # Inner double ring, as in the template
-    ax.plot(
-        theta_circle,
-        np.full_like(theta_circle, R_IN - 0.023),
-        color="#AAB3B6",
-        linewidth=0.5,
-        zorder=15,
-    )
-
-    label = textwrap.wrap(
-        str(dataset),
-        width=13,
-        break_long_words=True,
-        break_on_hyphens=True,
-    )
-
+                theta = bars_start + (method_idx * 2 + version_idx + 0.5) * step
+                mean = get_value(tables, dataset, method, version, mean_col)
+                std = get_value(tables, dataset, method, version, std_col)
+                color = pastel(COLORS[method]) if version == "v1" else COLORS[method]
+                draw_bar(ax, theta, bar_width, mean, std, limits, color, show_values)
+    theta = np.linspace(0, 2 * np.pi, 360)
+    ax.plot(theta, np.full_like(theta, R_IN), color="#526066", linewidth=1.0, zorder=15)
+    ax.plot(theta, np.full_like(theta, R_IN - 0.022), color="#AAB3B6", linewidth=0.5, zorder=15)
+    label = textwrap.wrap(str(dataset), width=12, break_long_words=True)
     if len(label) > 3:
         label = label[:3]
         label[-1] += "…"
-
-    ax.text(
-        0.5,
-        0.5,
-        "\n".join(label),
-        transform=ax.transAxes,
-        ha="center",
-        va="center",
-        fontsize=8.3,
-        fontweight="semibold",
-        color="#273136",
-        linespacing=1.1,
-        zorder=20,
-    )
+    ax.text(0.5, 0.5, "\n".join(label), transform=ax.transAxes, ha="center", va="center",
+            fontsize=8.2, fontweight="semibold", color="#283439", linespacing=1.12, zorder=20)
 
 
-# ============================================================
-# FIGURE ASSEMBLY
-# ============================================================
+def legend_handles():
+    handles = [Patch(facecolor=color, edgecolor="#465056", linewidth=0.5, label=method)
+               for method, color in COLORS.items()]
+    handles += [
+        Patch(facecolor="#CFDDDF", edgecolor="#465056", linewidth=0.5, label="V1 · light"),
+        Patch(facecolor="#597988", edgecolor="#465056", linewidth=0.5, label="V2 · dark"),
+    ]
+    return handles
 
-def create_figure(
-    datasets, tables, scales,
-    output_name, ncols, cell_size, show_values
-):
 
+def safe_filename(name):
+    value = re.sub(r"[^a-zA-Z0-9._-]+", "_", str(name)).strip("._")
+    return value[:85] or "dataset"
+
+
+def save_individual(task_key, datasets, tables, scales):
+    output = OUT / task_key / "individual"
+    output.mkdir(parents=True, exist_ok=True)
+    for i, dataset in enumerate(datasets, 1):
+        fig = plt.figure(figsize=(7, 7.3))
+        ax = fig.add_axes([0.06, 0.14, 0.88, 0.76], projection="polar")
+        draw_dataset(ax, dataset, tables, scales, show_values=SHOW_VALUES_IN_SINGLE)
+        fig.text(0.5, 0.965, dataset, ha="center", va="center", fontsize=13, fontweight="semibold")
+        fig.text(0.5, 0.932, f"SCM {task_key.upper()} | Start = {START}", ha="center",
+                 fontsize=9, color="#647078")
+        fig.legend(handles=legend_handles(), loc="lower center", bbox_to_anchor=(0.5, 0.055),
+                   ncol=6, frameon=False, fontsize=8.5)
+        filename = f"{i:02d}_{safe_filename(dataset)}.pdf"
+        fig.savefig(output / filename, bbox_inches="tight", pad_inches=0.18)
+        plt.close(fig)
+    print(f"[SAVED] {len(datasets)} individual PDFs -> {output}")
+
+
+def save_overview(task_key, datasets, tables, scales):
+    ncols = NCOLS[task_key]
     nrows = ceil(len(datasets) / ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * CELL_SIZE, nrows * CELL_SIZE + 1.2),
+                             subplot_kw={"projection": "polar"}, squeeze=False)
+    for ax, dataset in zip(axes.flat, datasets):
+        draw_dataset(ax, dataset, tables, scales, show_values=SHOW_VALUES_IN_OVERVIEW)
+    for ax in list(axes.flat)[len(datasets):]:
+        ax.set_visible(False)
 
-    fig, axes = plt.subplots(
-        nrows,
-        ncols,
-        figsize=(
-            ncols * cell_size,
-            nrows * cell_size + 1.0,
-        ),
-        subplot_kw={"projection": "polar"},
-        squeeze=False,
-    )
-
-    axes = axes.ravel()
-
-    for i, dataset in enumerate(datasets):
-        draw_dataset(
-            axes[i], dataset, tables,
-            scales, show_values
-        )
-
-    for i in range(len(datasets), len(axes)):
-        axes[i].set_visible(False)
-
-    fig.suptitle(
-        "SCM Classification Benchmark",
-        fontsize=18,
-        fontweight="semibold",
-        color="#263238",
-        y=0.991,
-    )
-
-    legend = [
-        Patch(
-            facecolor=COLORS[m],
-            edgecolor="#465056",
-            linewidth=0.5,
-            label=m,
-        )
-        for m in METHODS
-    ]
-
-    legend += [
-        Patch(
-            facecolor="#D4DFDF",
-            edgecolor="#465056",
-            linewidth=0.5,
-            label="V1 · light",
-        ),
-        Patch(
-            facecolor="#607982",
-            edgecolor="#465056",
-            linewidth=0.5,
-            label="V2 · dark",
-        ),
-    ]
-
-    fig.legend(
-        handles=legend,
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.968),
-        ncol=6,
-        frameon=False,
-        fontsize=9,
-        handlelength=1.5,
-        columnspacing=1.8,
-    )
-
-    fig.subplots_adjust(
-        left=0.015,
-        right=0.985,
-        top=0.932,
-        bottom=0.045,
-        wspace=0.04,
-        hspace=0.10,
-    )
-
-    fig.text(
-        0.5,
-        0.027,
-        "Start = 0.3  |  Each metric has its own scale, "
-        "shared across datasets  |  Triangles mark clipped values / intervals",
-        ha="center",
-        fontsize=8.5,
-        color="#657177",
-    )
-
-    fig.savefig(
-        OUT / f"{output_name}.pdf",
-        bbox_inches="tight",
-        pad_inches=0.15,
-    )
-
-    fig.savefig(
-        OUT / f"{output_name}.png",
-        dpi=210,
-        bbox_inches="tight",
-        pad_inches=0.15,
-    )
-
+    title = "Classification" if task_key == "cls" else "Regression"
+    fig.suptitle(f"SCM {title} — OpenML Benchmark", fontsize=19, fontweight="semibold", y=0.994)
+    fig.legend(handles=legend_handles(), loc="upper center", bbox_to_anchor=(0.5, 0.975),
+               ncol=6, frameon=False, fontsize=10)
+    fig.subplots_adjust(left=0.015, right=0.985, top=0.94, bottom=0.045, wspace=0.05, hspace=0.10)
+    fig.text(0.5, 0.025, f"Start = {START} | Mean ± Std | Metric scales shared across datasets",
+             ha="center", fontsize=9, color="#647078")
+    path = OUT / task_key / "all_datasets.pdf"
+    fig.savefig(path, bbox_inches="tight", pad_inches=0.18)
     plt.close(fig)
+    print(f"[SAVED] Overview -> {path}")
 
-
-# ============================================================
-# MAIN
-# ============================================================
 
 def main():
+    all_tables = {task_key: load_tables(task) for task_key, task in TASKS.items()}
+    all_scales = make_scales(all_tables)
+    for task_key, tables in all_tables.items():
+        datasets = sorted(set().union(*(set(df.index) for df in tables.values())), key=str.lower)
+        scales = all_scales[task_key]
+        print(f"\n[{task_key.upper()}] Total datasets: {len(datasets)}")
+        for name, (limits, _) in scales.items():
+            print(f"  {name:12s}: {limits}")
+        save_individual(task_key, datasets, tables, scales)
+        save_overview(task_key, datasets, tables, scales)
 
-    tables = load_tables()
-
-
-    check_rows = []
-
-    for (method, version), df in tables.items():
-        for dataset, row in df.iterrows():
-
-            check_rows.append({
-                "dataset": dataset,
-                "method": method,
-                "version": version,
-                "keep_advantage_mean": row["keep_advantage_mean"],
-                "keep_advantage_std": row["keep_advantage_std"],
-                "n_pairs": row["keep_n_pairs"],
-            })
-
-    pd.DataFrame(check_rows).to_csv(
-        OUT / "keep_advantage_check.csv",
-        index=False,
-        float_format="%.6f",
-    )
-
-
-    # Dataset union: keep V2-only datasets
-    datasets = sorted(
-        set().union(*(set(df.index) for df in tables.values())),
-        key=str.lower,
-    )
-
-    scales = make_scales(tables)
-
-    print(f"\nTotal datasets: {len(datasets)}")
-    print("\nMetric-specific scales:")
-
-    for name, bounds in scales.items():
-        print(f"  {name:12s}: {bounds}")
-
-    # 1. One figure containing all datasets
-    create_figure(
-        datasets=datasets,
-        tables=tables,
-        scales=scales,
-        output_name="scm_cls_all_datasets",
-        ncols=NCOLS,
-        cell_size=CELL_SIZE,
-        show_values=SHOW_VALUES_IN_OVERVIEW,
-    )
-
-    # 2. Enlarged example to inspect fine details
-    create_figure(
-        datasets=[datasets[0]],
-        tables=tables,
-        scales=scales,
-        output_name="scm_cls_detail_example",
-        ncols=1,
-        cell_size=6.5,
-        show_values=SHOW_VALUES_IN_DETAIL,
-    )
-
-    print(f"\nSaved to: {OUT.resolve()}")
+    print(f"\nCompleted. All PDFs saved under: {OUT.resolve()}")
 
 
 if __name__ == "__main__":
