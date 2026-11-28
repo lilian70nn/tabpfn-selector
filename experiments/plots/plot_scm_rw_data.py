@@ -412,19 +412,23 @@ def save_appendix_pdf(all_tables, all_scales):
             for start in range(0, len(datasets), per_page):
                 selected = datasets[start:start + per_page]
                 fig, axes = plt.subplots(nrows, ncols, figsize=(8.27, 11.69), subplot_kw={"projection": "polar"}, squeeze=False,)
-                fig.subplots_adjust(left=0.065, right=0.935, top=0.975,
-                                    bottom=0.045, wspace=0, hspace=0,)
+                fig.subplots_adjust(left=0.065, right=0.935, top=0.945,
+                                    bottom=0.075, wspace=0, hspace=0)
                 for ax, dataset in zip(axes.flat, selected):
                     draw_dataset(ax, dataset, tables, scales, show_values=False)
                 for ax in list(axes.flat)[len(selected):]:
                     ax.set_visible(False)
                 title = "Classification" if task_key == "cls" else "Regression"
                 page_num = start // per_page + 1
-                fig.suptitle(f"OpenML {title} — Additional Results (Part {page_num})", fontsize=13, fontweight="semibold", y=0.98,)
+                fig.suptitle(
+                    f"OpenML {title} — Additional Results (Part {page_num})",
+                    fontsize=11, fontweight="semibold", y=0.988,
+                )
                 fig.legend(
                     handles=legend_handles(),
-                    loc="lower center", bbox_to_anchor=(0.5, 0.045),
-                    ncol=6, frameon=False, fontsize=9,
+                    loc="lower center",
+                    bbox_to_anchor=(0.5, 0.022),
+                    ncol=6, frameon=False, fontsize=8,
                 )
                 pdf.savefig(fig)
                 plt.close(fig)
