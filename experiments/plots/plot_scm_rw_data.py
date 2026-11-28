@@ -398,7 +398,7 @@ def save_paper_figure(all_tables, all_scales):
 def save_appendix_pdf(all_tables, all_scales):
     path = OUT / "real_world_openml_appendix.pdf"
     path.parent.mkdir(parents=True, exist_ok=True)
-    nrows, ncols = 3, 5
+    nrows, ncols = 5, 3
     per_page = nrows * ncols
     with PdfPages(path) as pdf:
         for task_key in ("cls", "reg"):
@@ -411,7 +411,7 @@ def save_appendix_pdf(all_tables, all_scales):
 
             for start in range(0, len(datasets), per_page):
                 selected = datasets[start:start + per_page]
-                fig, axes = plt.subplots(nrows, ncols, figsize=(11.69, 8.27), subplot_kw={"projection": "polar"}, squeeze=False,)
+                fig, axes = plt.subplots(nrows, ncols, figsize=(8.27, 11.69), subplot_kw={"projection": "polar"}, squeeze=False,)
                 fig.subplots_adjust(left=0.01, right=0.99, top=0.92, bottom=0.11, wspace=0.02, hspace=0.04,)
                 for ax, dataset in zip(axes.flat, selected):
                     draw_dataset(ax, dataset, tables, scales, show_values=False)
