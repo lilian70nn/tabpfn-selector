@@ -10,6 +10,7 @@ from matplotlib.patches import Patch
 from matplotlib.colors import to_rgb
 from matplotlib.font_manager import FontProperties
 from matplotlib.textpath import TextToPath
+from matplotlib.backends.backend_pdf import PdfPages
 
 
 ROOT = Path("results/training")
@@ -394,10 +395,48 @@ def save_paper_figure(all_tables, all_scales):
 
 
 
+def save_appendix_pdf(all_tables, all_scales):
+    path = OUT / "real_world_openml_appendix.pdf"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    nrows, ncols = 3, 5
+    per_page = nrows * ncols
+    with PdfPages(path) as pdf:
+        for task_key in ("cls", "reg"):
+            tables = all_tables[task_key]
+            scales = all_scales[task_key]
+            datasets = sorted(
+                set().union(*(set(df.index) for df in tables.values())),
+                key=str.lower,
+            )
+
+            for start in range(0, len(datasets), per_page):
+                selected = datasets[start:start + per_page]
+                fig, axes = plt.subplots(nrows, ncols, figsize=(11.69, 8.27), subplot_kw={"projection": "polar"}, squeeze=False,)
+                fig.subplots_adjust(left=0.01, right=0.99, top=0.92, bottom=0.11, wspace=0.02, hspace=0.04,)
+                for ax, dataset in zip(axes.flat, selected):
+                    draw_dataset(ax, dataset, tables, scales, show_values=False)
+                for ax in list(axes.flat)[len(selected):]:
+                    ax.set_visible(False)
+                title = "Classification" if task_key == "cls" else "Regression"
+                page_num = start // per_page + 1
+                fig.suptitle(f"OpenML {title} — Additional Results (Part {page_num})", fontsize=13, fontweight="semibold", y=0.98,)
+                fig.legend(
+                    handles=legend_handles(),
+                    loc="lower center", bbox_to_anchor=(0.5, 0.045),
+                    ncol=6, frameon=False, fontsize=9,
+                )
+                pdf.savefig(fig)
+                plt.close(fig)
+                print(f"[OK] {title} | Part {page_num} | {len(selected)} datasets")
+
+    print(f"[SAVED] {path}")
+
+
 def main():
     all_tables = {task_key: load_tables(task) for task_key, task in TASKS.items()}
     all_scales = make_scales(all_tables)
     save_paper_figure(all_tables, all_scales)
+    save_appendix_pdf(all_tables, all_scales)
     for task_key, tables in all_tables.items():
         datasets = sorted(set().union(*(set(df.index) for df in tables.values())), key=str.lower)
         scales = all_scales[task_key]
