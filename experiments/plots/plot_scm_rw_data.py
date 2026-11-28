@@ -412,7 +412,8 @@ def save_appendix_pdf(all_tables, all_scales):
             for start in range(0, len(datasets), per_page):
                 selected = datasets[start:start + per_page]
                 fig, axes = plt.subplots(nrows, ncols, figsize=(8.27, 11.69), subplot_kw={"projection": "polar"}, squeeze=False,)
-                fig.subplots_adjust(left=0.01, right=0.99, top=0.92, bottom=0.11, wspace=0.02, hspace=0.04,)
+                fig.subplots_adjust(left=0.065, right=0.935, top=0.975,
+                                    bottom=0.045, wspace=0, hspace=0,)
                 for ax, dataset in zip(axes.flat, selected):
                     draw_dataset(ax, dataset, tables, scales, show_values=False)
                 for ax in list(axes.flat)[len(selected):]:
